@@ -50,9 +50,12 @@ export const createWebSocketMiddleware = (options: WebSocketMiddlewareOptions = 
   let reconnectAttempts = 0;
   let reconnectTimer: NodeJS.Timeout | null = null;
   
+  const wsProtocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const defaultWsUrl = typeof window !== 'undefined' ? `${wsProtocol}//${window.location.host}/ws` : 'ws://localhost/ws';
+
   const {
-    // 🔥 FIXED: Use production WebSocket URL with secure protocol
-    url = import.meta.env.VITE_WEBSOCKET_URL || 'wss://breksolindo.opuschamber.com/ws',
+    // 🔥 FIXED: Use production WebSocket URL with secure protocol via relative path fallback
+    url = import.meta.env.VITE_WEBSOCKET_URL || defaultWsUrl,
     reconnectInterval = 5000,
     maxReconnectAttempts = 10
   } = options;

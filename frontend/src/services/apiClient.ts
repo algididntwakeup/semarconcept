@@ -7,7 +7,7 @@ import axios, { AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 const getApiBaseUrl = (): string => {
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (!envUrl) {
-    return 'https://breksolindo.opuschamber.com/api/v1';
+    return '/api/v1'; // Use relative path for Nginx proxy to handle seamlessly
   }
   let url = envUrl.trim().replace(/\/+$/, '');
   if (url.endsWith('/api/v1')) return url;

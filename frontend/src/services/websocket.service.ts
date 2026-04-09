@@ -18,8 +18,9 @@ export class WebSocketService {
   private url: string;
 
   private constructor() {
-    // 🔥 FIXED: Use correct environment variable and secure WebSocket URL
-    this.url = import.meta.env.VITE_WEBSOCKET_URL || 'wss://breksolindo.opuschamber.com/ws';
+    // 🔥 FIXED: Use correct environment variable and dynamically construct WebSocket URL
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    this.url = import.meta.env.VITE_WEBSOCKET_URL || `${wsProtocol}//${window.location.host}/ws`;
     console.log('🔧 WebSocket URL configured:', this.url);
   }
 
