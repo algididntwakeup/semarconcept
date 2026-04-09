@@ -64,4 +64,4 @@ jobs:
       - name: Clean up Unused Docker Resources
         run: |
           echo "Membersihkan dangling images (image bekas build yang menumpuk)..."
-          docker system prune -f
+          docker image prune -f
