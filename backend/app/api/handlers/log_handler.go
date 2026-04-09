@@ -88,7 +88,7 @@ func (h *LogHandler) HandleFrontendLog(c *gin.Context) {
 	if logEntry.Error != nil {
 		fmt.Printf("ERROR: %v\n", logEntry.Error)
 	}
-	fmt.Println("============================\n")
+	fmt.Println("============================")
 
 	// Also log through the structured logger
 	switch logEntry.Level {
@@ -152,7 +152,7 @@ func (h *LogHandler) HandleBatchLogs(c *gin.Context) {
 		if entry.Error != nil {
 			fmt.Printf("ERROR: %v\n", entry.Error)
 		}
-		fmt.Println("============================\n")
+		fmt.Println("============================")
 
 		// Also log through the structured logger
 		switch entry.Level {
