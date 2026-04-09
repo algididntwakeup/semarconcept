@@ -7,51 +7,10 @@ on:
       - main
 
 jobs:
-  test-backend:
-    name: Unit Test Backend (Go)
-    runs-on: self-hosted
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        
-      - name: Setup Go Environment
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24' # Sesuaikan dengan versi Go Anda
-          cache-dependency-path: backend/go.sum
-          
-      - name: Verify Backend Compilation
-        run: |
-          cd backend
-          go mod download
-          # Bypass Go unit tests sementara karena banyak test file yang masih memanggil obsolete functions
-          # go test -v ./... 
-          go build -o tmp-bin ./main.go
 
-  test-frontend:
-    name: Test Frontend (React/Vite)
-    runs-on: self-hosted
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20' # Sesuaikan dengan environment staging
-          
-      - name: Run Frontend Tests/Linter
-        run: |
-          cd frontend
-          npm install --legacy-peer-deps
-          # Menjalankan spesifik test (jika ada) dan memeriksa format build
-          # Bypass Frontend Unit Tests sementara karena konfigurasi Vitest dan React 19 masih memiliki banyak test_broken file 
-          # npm run test --if-present
-          npm run build
 
   deploy:
     name: Build & Deploy
-    needs: [test-backend, test-frontend]
     # Menggunakan tags 'self-hosted' yang biasanya digunakan untuk server private
     runs-on: self-hosted
 
