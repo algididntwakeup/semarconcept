@@ -220,7 +220,7 @@ cleanup_processes() {
     fi
     
     # Check port availability
-    PORT=${REKSOLINDO_PORT:-4072}
+    PORT=${REKSOLINDO_PORT:-3500}
     if netstat -tuln 2>/dev/null | grep -q ":$PORT "; then
         log_warning "Port $PORT is still in use"
         PROCESS_ON_PORT=$(lsof -ti:$PORT 2>/dev/null || true)
@@ -275,7 +275,7 @@ EOF
 monitor_startup() {
     log_section "${ICON_MONITOR} STARTUP MONITORING"
     
-    PORT=${REKSOLINDO_PORT:-4072}
+    PORT=${REKSOLINDO_PORT:-3500}
     log_info "Monitoring server startup on port $PORT..."
     
     # Wait for server to start
@@ -296,7 +296,7 @@ monitor_startup() {
 
 show_server_info() {
     log_section "${ICON_NETWORK} SERVER INFORMATION"
-    PORT=${REKSOLINDO_PORT:-4072}
+    PORT=${REKSOLINDO_PORT:-3500}
     
     log_network "Server URL: ${BOLD_GREEN}http://localhost:$PORT${RESET}"
     log_network "Health Check: ${BOLD_GREEN}http://localhost:$PORT/api/v1/health${RESET}"
@@ -320,7 +320,7 @@ export REKSOLINDO_LOG_FILE_PATH="./logs/backend.log"
 export REKSOLINDO_LOG_STDOUT=true
 export REKSOLINDO_LOG_REQUEST_BODY=true
 export REKSOLINDO_LOG_RESPONSE_BODY=true
-export REKSOLINDO_PORT=4072
+export REKSOLINDO_PORT=3500
 
 # Clear screen and show header
 clear
