@@ -47,8 +47,8 @@ jobs:
           # Matikan dan hapus container (jika ada perubahan file docker-compose.yml dsb)
           docker compose down
           
-          # Jalankan di background dan paksa build layer terbaru
-          docker compose up -d --build
+          # Jalankan di background dan paksa build layer terbaru, tunggu (wait) sampai container sehat
+          docker compose up -d --build --wait
 
       - name: Execute Database Seeder (Opsional)
         run: |
