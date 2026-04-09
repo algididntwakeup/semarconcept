@@ -1,0 +1,902 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2025-01-01",
+  "metadata": {
+    "description": "Reksolindo Enterprise Asset Management System Navigation Menu",
+    "totalItems": 10,
+    "author": "Reksolindo Development Team"
+  },
+  "menuItems": [
+    {
+      "id": "dashboard",
+      "title": "Dashboard",
+      "type": "collapse",
+      "icon": "DashboardIcon",
+      "visible": true,
+      "order": 1,
+      "permissions": ["dashboard.view"],
+      "children": [
+        {
+          "id": "dashboard-overview",
+          "title": "Overview",
+          "type": "item",
+          "url": "/dashboard/overview",
+          "visible": true,
+          "order": 1,
+          "permissions": ["dashboard.overview"]
+        },
+        {
+          "id": "asset-dashboard",
+          "title": "Asset Dashboard",
+          "type": "item",
+          "url": "/dashboard/asset",
+          "visible": true,
+          "order": 2,
+          "permissions": ["dashboard.asset"]
+        },
+        {
+          "id": "inspection-dashboard",
+          "title": "Inspection Dashboard",
+          "type": "item",
+          "url": "/dashboard/inspection",
+          "visible": true,
+          "order": 3,
+          "permissions": ["dashboard.inspection"]
+        },
+        {
+          "id": "maintenance-dashboard",
+          "title": "Maintenance Dashboard",
+          "type": "item",
+          "url": "/dashboard/maintenance",
+          "visible": true,
+          "order": 4,
+          "permissions": ["dashboard.maintenance"]
+        },
+        {
+          "id": "compliance-dashboard",
+          "title": "Compliance Dashboard",
+          "type": "item",
+          "url": "/dashboard/compliance",
+          "visible": true,
+          "order": 5,
+          "permissions": ["dashboard.compliance"]
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "title": "Analytics",
+      "type": "collapse",
+      "icon": "BarChartIcon",
+      "visible": true,
+      "order": 2,
+      "permissions": ["analytics.view"],
+      "children": [
+        {
+          "id": "performance-metrics",
+          "title": "Performance Metrics",
+          "type": "item",
+          "url": "/analytics/performance",
+          "visible": true,
+          "order": 1,
+          "permissions": ["analytics.performance"]
+        },
+        {
+          "id": "risk-analysis",
+          "title": "Risk Analysis",
+          "type": "item",
+          "url": "/analytics/risk",
+          "visible": true,
+          "order": 2,
+          "permissions": ["analytics.risk"]
+        },
+        {
+          "id": "inspection-coverage",
+          "title": "Inspection Coverage",
+          "type": "item",
+          "url": "/analytics/inspection",
+          "visible": true,
+          "order": 3,
+          "permissions": ["analytics.inspection"]
+        },
+        {
+          "id": "maintenance-effectiveness",
+          "title": "Maintenance Effectiveness",
+          "type": "item",
+          "url": "/analytics/maintenance",
+          "visible": true,
+          "order": 4,
+          "permissions": ["analytics.maintenance"]
+        },
+        {
+          "id": "compliance-status",
+          "title": "Compliance Status",
+          "type": "item",
+          "url": "/analytics/compliance",
+          "visible": true,
+          "order": 5,
+          "permissions": ["analytics.compliance"]
+        },
+        {
+          "id": "custom-reports",
+          "title": "Custom Reports",
+          "type": "item",
+          "url": "/analytics/reports",
+          "visible": true,
+          "order": 6,
+          "permissions": ["analytics.reports"]
+        }
+      ]
+    },
+    {
+      "id": "asset-management",
+      "title": "Asset Management",
+      "type": "collapse",
+      "icon": "InventoryIcon",
+      "visible": true,
+      "order": 3,
+      "permissions": ["asset.view"],
+      "children": [
+        {
+          "id": "asset-registry",
+          "title": "Asset Registry",
+          "type": "item",
+          "url": "/asset/registry",
+          "visible": true,
+          "order": 1,
+          "permissions": ["asset.registry"]
+        },
+        {
+          "id": "asset-hierarchy",
+          "title": "Asset Hierarchy",
+          "type": "item",
+          "url": "/asset/hierarchy",
+          "visible": true,
+          "order": 2,
+          "permissions": ["asset.hierarchy"]
+        },
+        {
+          "id": "technical-data",
+          "title": "Technical Data",
+          "type": "item",
+          "url": "/asset/technical-data",
+          "visible": true,
+          "order": 3,
+          "permissions": ["asset.technical"]
+        },
+        {
+          "id": "documents",
+          "title": "Documents",
+          "type": "item",
+          "url": "/asset/documents",
+          "visible": true,
+          "order": 4,
+          "permissions": ["asset.documents"]
+        },
+        {
+          "id": "asset-import-export",
+          "title": "Asset Import/Export",
+          "type": "item",
+          "url": "/asset/import-export",
+          "visible": true,
+          "order": 5,
+          "permissions": ["asset.import_export"]
+        }
+      ]
+    },
+    {
+      "id": "inspection-management",
+      "title": "Inspection Management",
+      "type": "collapse",
+      "icon": "AssignmentIcon",
+      "visible": true,
+      "order": 4,
+      "permissions": ["inspection.view"],
+      "children": [
+        {
+          "id": "inspection-plans",
+          "title": "Inspection Plans",
+          "type": "item",
+          "url": "/inspection/plans",
+          "visible": true,
+          "order": 1,
+          "permissions": ["inspection.plans"]
+        },
+        {
+          "id": "inspection-tasks",
+          "title": "Inspection Tasks",
+          "type": "item",
+          "url": "/inspection/tasks",
+          "visible": true,
+          "order": 2,
+          "permissions": ["inspection.tasks"]
+        },
+        {
+          "id": "inspection-types",
+          "title": "Inspection Types",
+          "type": "item",
+          "url": "/inspection/types",
+          "visible": true,
+          "order": 3,
+          "permissions": ["inspection.types"]
+        },
+        {
+          "id": "findings",
+          "title": "Findings",
+          "type": "item",
+          "url": "/inspection/findings",
+          "visible": true,
+          "order": 4,
+          "permissions": ["inspection.findings"]
+        },
+        {
+          "id": "inspection-calendar",
+          "title": "Inspection Calendar",
+          "type": "item",
+          "url": "/inspection/calendar",
+          "visible": true,
+          "order": 5,
+          "permissions": ["inspection.calendar"]
+        }
+      ]
+    },
+    {
+      "id": "risk-management",
+      "title": "Risk Management",
+      "type": "collapse",
+      "icon": "WarningIcon",
+      "visible": true,
+      "order": 5,
+      "permissions": ["risk.view"],
+      "children": [
+        {
+          "id": "risk-assessments",
+          "title": "Risk Assessments",
+          "type": "item",
+          "url": "/risk/assessments",
+          "visible": true,
+          "order": 1,
+          "permissions": ["risk.assessments"]
+        },
+        {
+          "id": "risk-matrix",
+          "title": "Risk Matrix",
+          "type": "item",
+          "url": "/risk/matrix",
+          "visible": true,
+          "order": 2,
+          "permissions": ["risk.matrix"]
+        },
+        {
+          "id": "degradation-mechanisms",
+          "title": "Degradation Mechanisms",
+          "type": "item",
+          "url": "/risk/degradation",
+          "visible": true,
+          "order": 3,
+          "permissions": ["risk.degradation"]
+        },
+        {
+          "id": "integrity-windows",
+          "title": "Integrity Windows",
+          "type": "item",
+          "url": "/risk/integrity",
+          "visible": true,
+          "order": 4,
+          "permissions": ["risk.integrity"]
+        },
+        {
+          "id": "risk-reports",
+          "title": "Risk Reports",
+          "type": "item",
+          "url": "/risk/reports",
+          "visible": true,
+          "order": 5,
+          "permissions": ["risk.reports"]
+        }
+      ]
+    },
+    {
+      "id": "maintenance-management",
+      "title": "Maintenance Management",
+      "type": "collapse",
+      "icon": "BuildIcon",
+      "visible": true,
+      "order": 6,
+      "permissions": ["maintenance.view"],
+      "children": [
+        {
+          "id": "work-orders",
+          "title": "Work Orders",
+          "type": "item",
+          "url": "/maintenance/work-orders",
+          "visible": true,
+          "order": 1,
+          "permissions": ["maintenance.work_orders"]
+        },
+        {
+          "id": "maintenance-plans",
+          "title": "Maintenance Plans",
+          "type": "item",
+          "url": "/maintenance/plans",
+          "visible": true,
+          "order": 2,
+          "permissions": ["maintenance.plans"]
+        },
+        {
+          "id": "maintenance-tasks",
+          "title": "Maintenance Tasks",
+          "type": "item",
+          "url": "/maintenance/tasks",
+          "visible": true,
+          "order": 3,
+          "permissions": ["maintenance.tasks"]
+        },
+        {
+          "id": "resources",
+          "title": "Resources",
+          "type": "item",
+          "url": "/maintenance/resources",
+          "visible": true,
+          "order": 4,
+          "permissions": ["maintenance.resources"]
+        },
+        {
+          "id": "maintenance-calendar",
+          "title": "Maintenance Calendar",
+          "type": "item",
+          "url": "/maintenance/calendar",
+          "visible": true,
+          "order": 5,
+          "permissions": ["maintenance.calendar"]
+        }
+      ]
+    },
+    {
+      "id": "compliance-management",
+      "title": "Compliance Management",
+      "type": "collapse",
+      "icon": "VerifiedUserIcon",
+      "visible": true,
+      "order": 7,
+      "permissions": ["compliance.view"],
+      "children": [
+        {
+          "id": "standards",
+          "title": "Standards",
+          "type": "item",
+          "url": "/compliance/standards",
+          "visible": true,
+          "order": 1,
+          "permissions": ["compliance.standards"]
+        },
+        {
+          "id": "requirements",
+          "title": "Requirements",
+          "type": "item",
+          "url": "/compliance/requirements",
+          "visible": true,
+          "order": 2,
+          "permissions": ["compliance.requirements"]
+        },
+        {
+          "id": "compliance-tasks",
+          "title": "Compliance Tasks",
+          "type": "item",
+          "url": "/compliance/tasks",
+          "visible": true,
+          "order": 3,
+          "permissions": ["compliance.tasks"]
+        },
+        {
+          "id": "audits",
+          "title": "Audits",
+          "type": "item",
+          "url": "/compliance/audits",
+          "visible": true,
+          "order": 4,
+          "permissions": ["compliance.audits"]
+        },
+        {
+          "id": "certifications",
+          "title": "Certifications",
+          "type": "item",
+          "url": "/compliance/certifications",
+          "visible": true,
+          "order": 5,
+          "permissions": ["compliance.certifications"]
+        }
+      ]
+    },
+    {
+      "id": "content-management",
+      "title": "Content Management",
+      "type": "collapse",
+      "icon": "DescriptionIcon",
+      "visible": true,
+      "order": 8,
+      "permissions": ["content.view"],
+      "children": [
+        {
+          "id": "content-types",
+          "title": "Content Types",
+          "type": "item",
+          "url": "/content/types",
+          "icon": "CategoryIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["content.types"]
+        },
+        {
+          "id": "content-items",
+          "title": "Content Items",
+          "type": "item",
+          "url": "/content/items",
+          "icon": "InsertDriveFileIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["content.items"]
+        },
+        {
+          "id": "media-library",
+          "title": "Media Library",
+          "type": "item",
+          "url": "/content/media",
+          "icon": "PermMediaIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["content.media"]
+        },
+        {
+          "id": "categories",
+          "title": "Categories",
+          "type": "item",
+          "url": "/content/categories",
+          "icon": "CategoryIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["content.categories"]
+        },
+        {
+          "id": "tags",
+          "title": "Tags",
+          "type": "item",
+          "url": "/content/tags",
+          "icon": "LocalOfferIcon",
+          "visible": true,
+          "order": 5,
+          "permissions": ["content.tags"]
+        }
+      ]
+    },
+    {
+      "id": "administration",
+      "title": "Administration",
+      "type": "collapse",
+      "icon": "AdminPanelSettingsIcon",
+      "visible": true,
+      "order": 9,
+      "permissions": ["admin.view"],
+      "children": [
+        {
+          "id": "users",
+          "title": "Users",
+          "type": "item",
+          "url": "/admin/users",
+          "icon": "PeopleIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["admin.users"]
+        },
+        {
+          "id": "roles",
+          "title": "Roles",
+          "type": "item",
+          "url": "/admin/roles",
+          "icon": "LockOpenIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["admin.roles"]
+        },
+        {
+          "id": "permissions",
+          "title": "Permissions",
+          "type": "item",
+          "url": "/admin/permissions",
+          "icon": "LockOpenIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["admin.permissions"]
+        },
+        {
+          "id": "system-config",
+          "title": "System Config",
+          "type": "item",
+          "url": "/admin/system-config",
+          "icon": "SettingsIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["admin.system"]
+        },
+        {
+          "id": "backup-restore",
+          "title": "Backup & Restore",
+          "type": "item",
+          "url": "/admin/backup-restore",
+          "icon": "BackupIcon",
+          "visible": true,
+          "order": 5,
+          "permissions": ["admin.backup"]
+        },
+        {
+          "id": "integrations",
+          "title": "Integrations",
+          "type": "item",
+          "url": "/admin/integrations",
+          "icon": "IntegrationInstructionsIcon",
+          "visible": true,
+          "order": 6,
+          "permissions": ["admin.integrations"]
+        },
+        {
+          "id": "menu-management",
+          "title": "Menu Management",
+          "type": "item",
+          "url": "/admin/menu",
+          "icon": "MenuIcon",
+          "visible": true,
+          "order": 7,
+          "permissions": ["admin.menu"]
+        },
+        {
+          "id": "module-management",
+          "title": "Module Management",
+          "type": "item",
+          "url": "/admin/modules",
+          "icon": "ExtensionIcon",
+          "visible": true,
+          "order": 8,
+          "permissions": ["admin.modules"]
+        },
+        {
+          "id": "sso-config",
+          "title": "SSO Config",
+          "type": "item",
+          "url": "/admin/sso",
+          "icon": "VpnKeyIcon",
+          "visible": true,
+          "order": 9,
+          "permissions": ["admin.sso"]
+        },
+        {
+          "id": "workflow",
+          "title": "Workflow",
+          "type": "item",
+          "url": "/admin/workflow",
+          "icon": "AccountTreeIcon",
+          "visible": true,
+          "order": 10,
+          "permissions": ["admin.workflow"]
+        },
+        {
+          "id": "tenant-management",
+          "title": "Tenant Management",
+          "type": "item",
+          "url": "/admin/tenants",
+          "icon": "BusinessIcon",
+          "visible": true,
+          "order": 11,
+          "permissions": ["admin.tenants"]
+        },
+        {
+          "id": "tenant-branding",
+          "title": "Tenant Branding",
+          "type": "item",
+          "url": "/admin/tenant-branding",
+          "icon": "BrandingWatermarkIcon",
+          "visible": true,
+          "order": 12,
+          "permissions": ["admin.tenant_branding"]
+        },
+        {
+          "id": "tenant-billing",
+          "title": "Tenant Billing",
+          "type": "item",
+          "url": "/admin/tenant-billing",
+          "icon": "PaymentIcon",
+          "visible": true,
+          "order": 13,
+          "permissions": ["admin.tenant_billing"]
+        }
+      ]
+    },
+    {
+      "id": "templates",
+      "title": "Templates/Starter",
+      "type": "collapse",
+      "icon": "PaletteIcon",
+      "visible": true,
+      "order": 10,
+      "permissions": ["templates.view"],
+      "children": [
+        {
+          "id": "template-dashboards",
+          "title": "Dashboards",
+          "type": "collapse",
+          "icon": "GridViewIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["templates.dashboards"],
+          "children": [
+            {
+              "id": "template-analytics",
+              "title": "Analytics",
+              "type": "item",
+              "url": "/templates/dashboards/analytics",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.dashboards.analytics"]
+            }
+          ]
+        },
+        {
+          "id": "template-apps",
+          "title": "Apps",
+          "type": "collapse",
+          "icon": "AppsIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["templates.apps"],
+          "children": [
+            {
+              "id": "template-chat",
+              "title": "Chat",
+              "type": "item",
+              "url": "/templates/apps/chat",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.apps.chat"]
+            },
+            {
+              "id": "template-todo",
+              "title": "Todo",
+              "type": "item",
+              "url": "/templates/apps/todo",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.apps.todo"]
+            },
+            {
+              "id": "template-calendar",
+              "title": "Calendar",
+              "type": "item",
+              "url": "/templates/apps/calendar",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.apps.calendar"]
+            },
+            {
+              "id": "template-user-management",
+              "title": "User Management",
+              "type": "item",
+              "url": "/templates/apps/user-management",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.apps.user_management"]
+            }
+          ]
+        },
+        {
+          "id": "template-ui-elements",
+          "title": "UI Elements",
+          "type": "collapse",
+          "icon": "DesktopWindowsIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["templates.ui"],
+          "children": [
+            {
+              "id": "template-typography",
+              "title": "Typography",
+              "type": "item",
+              "url": "/templates/ui/typography",
+              "icon": "TextFieldsIcon",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.ui.typography"]
+            },
+            {
+              "id": "template-colors",
+              "title": "Colors",
+              "type": "item",
+              "url": "/templates/ui/colors",
+              "icon": "FormatPaintIcon",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.ui.colors"]
+            },
+            {
+              "id": "template-icons",
+              "title": "Icons",
+              "type": "item",
+              "url": "/templates/ui/icons",
+              "icon": "StarIcon",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.ui.icons"]
+            },
+            {
+              "id": "template-cards",
+              "title": "Cards",
+              "type": "item",
+              "url": "/templates/ui/cards",
+              "icon": "CardMembershipIcon",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.ui.cards"]
+            },
+            {
+              "id": "template-components",
+              "title": "Components",
+              "type": "item",
+              "url": "/templates/ui/components",
+              "icon": "ViewModuleIcon",
+              "visible": true,
+              "order": 5,
+              "permissions": ["templates.ui.components"]
+            },
+            {
+              "id": "template-extensions",
+              "title": "Extensions",
+              "type": "item",
+              "url": "/templates/ui/extensions",
+              "icon": "ExtensionIcon",
+              "visible": true,
+              "order": 6,
+              "permissions": ["templates.ui.extensions"]
+            }
+          ]
+        },
+        {
+          "id": "template-forms",
+          "title": "Forms & Tables",
+          "type": "collapse",
+          "icon": "EditNoteIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["templates.forms"],
+          "children": [
+            {
+              "id": "template-form-elements",
+              "title": "Form Elements",
+              "type": "item",
+              "url": "/templates/forms/elements",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.forms.elements"]
+            },
+            {
+              "id": "template-form-layouts",
+              "title": "Form Layouts",
+              "type": "item",
+              "url": "/templates/forms/layouts",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.forms.layouts"]
+            },
+            {
+              "id": "template-form-validation",
+              "title": "Form Validation",
+              "type": "item",
+              "url": "/templates/forms/validation",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.forms.validation"]
+            },
+            {
+              "id": "template-form-wizard",
+              "title": "Form Wizard",
+              "type": "item",
+              "url": "/templates/forms/wizard",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.forms.wizard"]
+            },
+            {
+              "id": "template-tables",
+              "title": "Tables",
+              "type": "item",
+              "url": "/templates/forms/tables",
+              "icon": "TableChartIcon",
+              "visible": true,
+              "order": 5,
+              "permissions": ["templates.forms.tables"]
+            }
+          ]
+        },
+        {
+          "id": "template-charts",
+          "title": "Charts & Maps",
+          "type": "collapse",
+          "icon": "BarChartIcon",
+          "visible": true,
+          "order": 5,
+          "permissions": ["templates.charts"],
+          "children": [
+            {
+              "id": "template-charts",
+              "title": "Charts",
+              "type": "item",
+              "url": "/templates/charts/charts",
+              "icon": "BarChartIcon",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.charts.charts"]
+            },
+            {
+              "id": "template-maps",
+              "title": "Maps",
+              "type": "item",
+              "url": "/templates/charts/maps",
+              "icon": "MapIcon",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.charts.maps"]
+            }
+          ]
+        },
+        {
+          "id": "template-pages",
+          "title": "Pages",
+          "type": "collapse",
+          "icon": "DescriptionIcon",
+          "visible": true,
+          "order": 6,
+          "permissions": ["templates.pages"],
+          "children": [
+            {
+              "id": "template-authentication",
+              "title": "Authentication",
+              "type": "item",
+              "url": "/templates/pages/auth",
+              "icon": "LoginIcon",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.pages.auth"]
+            },
+            {
+              "id": "template-miscellaneous",
+              "title": "Miscellaneous",
+              "type": "item",
+              "url": "/templates/pages/misc",
+              "icon": "WorkIcon",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.pages.misc"]
+            },
+            {
+              "id": "template-account-settings",
+              "title": "Account Settings",
+              "type": "item",
+              "url": "/templates/pages/account",
+              "icon": "AccountCircleIcon",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.pages.account"]
+            },
+            {
+              "id": "template-faq",
+              "title": "FAQ",
+              "type": "item",
+              "url": "/templates/pages/faq",
+              "icon": "HelpIcon",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.pages.faq"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

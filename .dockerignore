@@ -1,0 +1,15 @@
+# .dockerignore at the root level
+**/node_modules
+**/dist
+**/*.exe
+**/*.log
+**/*.txt
+backend/backend
+backend/backend.exe
+backend/main.exe
+backend/tmp.exe
+frontend/node_modules
+frontend/dist
+.git
+.github
+.vscode

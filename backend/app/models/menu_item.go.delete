@@ -1,0 +1,31 @@
+// platform/backend/app/models/menu_item.go
+package models
+
+import (
+	"time"
+)
+
+// MenuItem represents a navigation menu item - MATCHES DATABASE EXACTLY
+type MenuItem struct {
+	ID                   int       `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	Title                string    `gorm:"not null;size:100;column:title" json:"title"`
+	Icon                 *string   `gorm:"size:50;column:icon" json:"icon,omitempty"`
+	Route                *string   `gorm:"size:100;column:route" json:"route,omitempty"`
+	ParentID             *int      `gorm:"column:parent_id" json:"parent_id,omitempty"`
+	OrderIndex           int       `gorm:"default:0;column:order_index" json:"order_index"`
+	IsActive             bool      `gorm:"default:true;column:is_active" json:"is_active"`
+	RequiredPermissionID *int      `gorm:"column:required_permission_id" json:"required_permission_id,omitempty"`
+	CreatedAt            time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt            time.Time `gorm:"column:updated_at" json:"updated_at"`
+	TenantID             int       `gorm:"not null;column:tenant_id" json:"tenant_id"`
+
+	// Relationships (optional - for GORM)
+	Parent             *MenuItem   `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children           []MenuItem  `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	RequiredPermission *Permission `gorm:"foreignKey:RequiredPermissionID" json:"required_permission,omitempty"`
+	Tenant             *Tenant     `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+}
+
+func (MenuItem) TableName() string {
+	return "menu_items"
+}

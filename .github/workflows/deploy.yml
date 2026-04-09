@@ -1,0 +1,61 @@
+name: Deploy to Staging (Self-Hosted Runner)
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    # Menggunakan tags 'self-hosted' yang biasanya digunakan untuk server private
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Docker Status
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Prepare Environment / Settings
+        run: |
+          # Pada runner production/staging, idealnya .env dan docker-compose.yml (dengan credentials asli)
+          # sudah disiapkan manual di path terpisah dan disymlink/copy oleh script ini, 
+          # Atau menggunakan Github Secrets dan menyuntikkannya ke dalam file saat dieksekusi.
+          
+          # Jika file docker-compose.yml belum ada di server, copy dari template example (hanya untuk fallback)
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "docker-compose.yml is missing, creating from example fallback..."
+            cp docker-compose.example.yml docker-compose.yml
+          fi
+
+          # Optional: Buat file .env kosong jika Anda bergantung padanya
+          if [ ! -f "backend/.env" ]; then
+            touch backend/.env
+          fi
+
+      - name: Build and Deploy using Docker Compose
+        run: |
+          echo "Memulai proses build & deployment..."
+          
+          # Matikan dan hapus container (jika ada perubahan file docker-compose.yml dsb)
+          docker compose down
+          
+          # Jalankan di background dan paksa build layer terbaru
+          docker compose up -d --build
+
+      - name: Execute Database Seeder (Opsional)
+        run: |
+          # Eksekusi seeder setelah DB fresh baru di-rebuild/direstart
+          # (Non-aktifkan jika database bersifat persistent dan tidak ingin di-seed ulang setiap deploy)
+          echo "Checking if we should run DB Seeder..."
+          docker exec semar-backend ./reksolindo-backend -seed=true
+
+      - name: Clean up Unused Docker Resources
+        run: |
+          echo "Membersihkan dangling images (image bekas build yang menumpuk)..."
+          docker system prune -f

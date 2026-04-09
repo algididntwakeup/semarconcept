@@ -1,0 +1,72 @@
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: semar-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_secure_password_here}
+      POSTGRES_DB: ${DB_NAME:-reksolindo_semar}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - semar-network
+    restart: always
+
+  redis:
+    image: redis:alpine
+    container_name: semar-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - semar-network
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: semar-backend
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-your_secure_password_here}
+      - DB_NAME=${DB_NAME:-reksolindo_semar}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - APP_PORT=4072
+      - JWT_SECRET_KEY=${JWT_SECRET:-your_super_secret_jwt_key}
+      - REKSOLINDO_ENCRYPTION_KEY=${REKSOLINDO_ENCRYPTION_KEY:-your_32_bytes_encryption_key_here}
+    ports:
+      - "4072:4072"
+    volumes:
+      - ./backend/storage:/root/storage
+    depends_on:
+      - db
+      - redis
+    networks:
+      - semar-network
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: semar-frontend
+    ports:
+      - "4071:80"
+    depends_on:
+      - backend
+    networks:
+      - semar-network
+    restart: always
+
+networks:
+  semar-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

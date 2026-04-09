@@ -1,0 +1,521 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2025-01-01",
+  "metadata": {
+    "description": "Reksolindo Enterprise Asset Management System Navigation Menu",
+    "totalItems": 10,
+    "author": "Reksolindo Development Team"
+  },
+  "menuItems": [
+    {
+      "id": "dashboard",
+      "title": "Dashboard",
+      "type": "collapse",
+      "icon": "DashboardIcon",
+      "visible": true,
+      "order": 1,
+      "permissions": ["dashboard.view"],
+      "children": [
+        {
+          "id": "dashboard-overview",
+          "title": "Overview",
+          "type": "item",
+          "url": "/dashboard/overview",
+          "visible": true,
+          "order": 1,
+          "permissions": ["dashboard.overview"]
+        },
+        {
+          "id": "dashboard-asset",
+          "title": "Asset Dashboard",
+          "type": "item",
+          "url": "/dashboard/asset",
+          "visible": true,
+          "order": 2,
+          "permissions": ["dashboard.assets"]
+        }
+      ]
+    },
+    {
+      "id": "assets",
+      "title": "Asset Management",
+      "type": "collapse",
+      "icon": "InventoryIcon",
+      "visible": true,
+      "order": 3,
+      "permissions": ["assets.view"],
+      "children": [
+        {
+          "id": "asset-registry",
+          "title": "Asset Registry",
+          "type": "item",
+          "url": "/asset/registry",
+          "icon": "BusinessIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["assets.registry"]
+        },
+        {
+          "id": "asset-hierarchy",
+          "title": "Asset Hierarchy",
+          "type": "item",
+          "url": "/asset/hierarchy",
+          "icon": "AccountTreeIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["assets.hierarchy"]
+        },
+        {
+          "id": "asset-technical-data",
+          "title": "Technical Data",
+          "type": "item",
+          "url": "/asset/technical-data",
+          "icon": "EngineeringIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["assets.technical"]
+        },
+        {
+          "id": "asset-documents",
+          "title": "Documents",
+          "type": "item",
+          "url": "/asset/documents",
+          "icon": "FolderIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["assets.documents"]
+        },
+        {
+          "id": "asset-import-export",
+          "title": "Import/Export",
+          "type": "item",
+          "url": "/asset/import-export",
+          "icon": "ImportExportIcon",
+          "visible": true,
+          "order": 5,
+          "permissions": ["assets.import_export"]
+        }
+      ]
+    },    
+    {
+      "id": "content",
+      "title": "Content Management",
+      "type": "collapse",
+      "icon": "ContentCopyIcon",
+      "visible": true,
+      "order": 8,
+      "permissions": ["content.view"],
+      "children": [
+        {
+          "id": "content-types",
+          "title": "Content Types",
+          "type": "item",
+          "url": "/content/types",
+          "icon": "CategoryIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["content.types"]
+        },
+        {
+          "id": "content-items",
+          "title": "Content Items",
+          "type": "item",
+          "url": "/content/items",
+          "icon": "DescriptionIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["content.items"]
+        },
+        {
+          "id": "content-media",
+          "title": "Media Library",
+          "type": "item",
+          "url": "/content/media",
+          "icon": "PhotoLibraryIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["content.media"]
+        },
+        {
+          "id": "content-categories",
+          "title": "Categories",
+          "type": "item",
+          "url": "/content/categories",
+          "icon": "CategoryIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["content.categories"]
+        },
+        {
+          "id": "content-tags",
+          "title": "Tags",
+          "type": "item",
+          "url": "/content/tags",
+          "icon": "LocalOfferIcon",
+          "visible": true,
+          "order": 5,
+          "permissions": ["content.tags"]
+        }
+      ]
+    },
+    {
+      "id": "administration",
+      "title": "Administration",
+      "type": "collapse",
+      "icon": "AdminPanelSettingsIcon",
+      "visible": true,
+      "order": 9,
+      "permissions": ["admin.view"],
+      "children": [
+        {
+          "id": "users",
+          "title": "Users",
+          "type": "item",
+          "url": "/admin/users",
+          "icon": "PeopleIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["admin.users"]
+        },
+        {
+          "id": "roles",
+          "title": "Roles",
+          "type": "item",
+          "url": "/admin/roles",
+          "icon": "LockOpenIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["admin.roles"]
+        },
+        {
+          "id": "permissions",
+          "title": "Permissions",
+          "type": "item",
+          "url": "/admin/permissions",
+          "icon": "LockOpenIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["admin.permissions"]
+        },
+        {
+          "id": "admin-system-config",
+          "title": "System Config",
+          "type": "item",
+          "url": "/admin/system-config",
+          "icon": "SettingsIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["admin.system"]
+        },
+        {
+          "id": "menu-management",
+          "title": "Menu Management",
+          "type": "item",
+          "url": "/admin/menu",
+          "icon": "MenuIcon",
+          "visible": true,
+          "order": 7,
+          "permissions": ["admin.menu"]
+        },
+        {
+          "id": "module-management",
+          "title": "Module Management",
+          "type": "item",
+          "url": "/admin/modules",
+          "icon": "ExtensionIcon",
+          "visible": true,
+          "order": 8,
+          "permissions": ["admin.modules"]
+        }
+      ]
+    },
+    {
+      "id": "templates",
+      "title": "Templates/Starter",
+      "type": "collapse",
+      "icon": "PaletteIcon",
+      "visible": true,
+      "order": 10,
+      "permissions": ["templates.view"],
+      "children": [
+        {
+          "id": "template-dashboards",
+          "title": "Dashboards",
+          "type": "collapse",
+          "icon": "GridViewIcon",
+          "visible": true,
+          "order": 1,
+          "permissions": ["templates.dashboards"],
+          "children": [
+            {
+              "id": "template-analytics",
+              "title": "Analytics",
+              "type": "item",
+              "url": "/templates/dashboards/analytics",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.dashboards.analytics"]
+            }
+          ]
+        },
+        {
+          "id": "template-apps",
+          "title": "Apps",
+          "type": "collapse",
+          "icon": "AppsIcon",
+          "visible": true,
+          "order": 2,
+          "permissions": ["templates.apps"],
+          "children": [
+            {
+              "id": "template-chat",
+              "title": "Chat",
+              "type": "item",
+              "url": "/templates/apps/chat",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.apps.chat"]
+            },
+            {
+              "id": "template-todo",
+              "title": "Todo",
+              "type": "item",
+              "url": "/templates/apps/todo",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.apps.todo"]
+            },
+            {
+              "id": "template-calendar",
+              "title": "Calendar",
+              "type": "item",
+              "url": "/templates/apps/calendar",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.apps.calendar"]
+            },
+            {
+              "id": "template-user-management",
+              "title": "User Management",
+              "type": "item",
+              "url": "/templates/apps/user-management",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.apps.user_management"]
+            }
+          ]
+        },
+        {
+          "id": "template-ui-elements",
+          "title": "UI Elements",
+          "type": "collapse",
+          "icon": "DesktopWindowsIcon",
+          "visible": true,
+          "order": 3,
+          "permissions": ["templates.ui"],
+          "children": [
+            {
+              "id": "template-typography",
+              "title": "Typography",
+              "type": "item",
+              "url": "/templates/ui/typography",
+              "icon": "TextFieldsIcon",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.ui.typography"]
+            },
+            {
+              "id": "template-colors",
+              "title": "Colors",
+              "type": "item",
+              "url": "/templates/ui/colors",
+              "icon": "FormatPaintIcon",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.ui.colors"]
+            },
+            {
+              "id": "template-icons",
+              "title": "Icons",
+              "type": "item",
+              "url": "/templates/ui/icons",
+              "icon": "StarIcon",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.ui.icons"]
+            },
+            {
+              "id": "template-cards",
+              "title": "Cards",
+              "type": "item",
+              "url": "/templates/ui/cards",
+              "icon": "CardMembershipIcon",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.ui.cards"]
+            },
+            {
+              "id": "template-components",
+              "title": "Components",
+              "type": "item",
+              "url": "/templates/ui/components",
+              "icon": "ViewModuleIcon",
+              "visible": true,
+              "order": 5,
+              "permissions": ["templates.ui.components"]
+            },
+            {
+              "id": "template-extensions",
+              "title": "Extensions",
+              "type": "item",
+              "url": "/templates/ui/extensions",
+              "icon": "ExtensionIcon",
+              "visible": true,
+              "order": 6,
+              "permissions": ["templates.ui.extensions"]
+            }
+          ]
+        },
+        {
+          "id": "template-forms",
+          "title": "Forms & Tables",
+          "type": "collapse",
+          "icon": "EditNoteIcon",
+          "visible": true,
+          "order": 4,
+          "permissions": ["templates.forms"],
+          "children": [
+            {
+              "id": "template-form-elements",
+              "title": "Form Elements",
+              "type": "item",
+              "url": "/templates/forms/elements",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.forms.elements"]
+            },
+            {
+              "id": "template-form-layouts",
+              "title": "Form Layouts",
+              "type": "item",
+              "url": "/templates/forms/layouts",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.forms.layouts"]
+            },
+            {
+              "id": "template-form-validation",
+              "title": "Form Validation",
+              "type": "item",
+              "url": "/templates/forms/validation",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.forms.validation"]
+            },
+            {
+              "id": "template-form-wizard",
+              "title": "Form Wizard",
+              "type": "item",
+              "url": "/templates/forms/wizard",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.forms.wizard"]
+            },
+            {
+              "id": "template-tables",
+              "title": "Tables",
+              "type": "item",
+              "url": "/templates/forms/tables",
+              "icon": "TableChartIcon",
+              "visible": true,
+              "order": 5,
+              "permissions": ["templates.forms.tables"]
+            }
+          ]
+        },
+        {
+          "id": "template-charts",
+          "title": "Charts & Maps",
+          "type": "collapse",
+          "icon": "BarChartIcon",
+          "visible": true,
+          "order": 5,
+          "permissions": ["templates.charts"],
+          "children": [
+            {
+              "id": "template-charts-details",
+              "title": "Charts",
+              "type": "item",
+              "url": "/templates/charts/charts",
+              "icon": "BarChartIcon",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.charts.charts"]
+            },
+            {
+              "id": "template-maps",
+              "title": "Maps",
+              "type": "item",
+              "url": "/templates/charts/maps",
+              "icon": "MapIcon",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.charts.maps"]
+            }
+          ]
+        },
+        {
+          "id": "template-pages",
+          "title": "Pages",
+          "type": "collapse",
+          "icon": "DescriptionIcon",
+          "visible": true,
+          "order": 6,
+          "permissions": ["templates.pages"],
+          "children": [
+            {
+              "id": "template-authentication",
+              "title": "Authentication",
+              "type": "item",
+              "url": "/templates/pages/auth",
+              "icon": "LoginIcon",
+              "visible": true,
+              "order": 1,
+              "permissions": ["templates.pages.auth"]
+            },
+            {
+              "id": "template-miscellaneous",
+              "title": "Miscellaneous",
+              "type": "item",
+              "url": "/templates/pages/misc",
+              "icon": "WorkIcon",
+              "visible": true,
+              "order": 2,
+              "permissions": ["templates.pages.misc"]
+            },
+            {
+              "id": "template-account-settings",
+              "title": "Account Settings",
+              "type": "item",
+              "url": "/templates/pages/account",
+              "icon": "AccountCircleIcon",
+              "visible": true,
+              "order": 3,
+              "permissions": ["templates.pages.account"]
+            },
+            {
+              "id": "template-faq",
+              "title": "FAQ",
+              "type": "item",
+              "url": "/templates/pages/faq",
+              "icon": "HelpIcon",
+              "visible": true,
+              "order": 4,
+              "permissions": ["templates.pages.faq"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

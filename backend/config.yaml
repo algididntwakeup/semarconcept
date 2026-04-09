@@ -1,0 +1,210 @@
+# platform/backend/config.yaml
+# Enhanced JWT Configuration for Automatic Token Refresh
+# Environment variables will override these values.
+
+ENVIRONMENT: "development" # development, staging, production
+
+HTTP_SERVER:
+  PORT: "4072"
+  READ_TIMEOUT: 15 # seconds
+  WRITE_TIMEOUT: 15 # seconds
+
+DATABASE:
+  DB_DRIVER: "postgres"
+  DB_HOST: "localhost" # For local development, use 'db' if using docker-compose with a service named 'db'
+  DB_PORT: 5432
+  DB_USER: "postgres" # Override with DB_USER env var
+  DB_PASSWORD: "" # REQUIRED: Set via DB_PASSWORD env var — never commit real passwords
+  DB_NAME: "reksolindo_platform" # Override with DB_NAME env var
+  DB_SSL_MODE: "disable" # "require" or "verify-full" for production
+  SEARCH_PATH: "public"
+
+#  ENHANCED: Redis Configuration for Token Blacklisting and Session Management
+REDIS:
+  HOST: "localhost"
+  PORT: "6379"
+  PASSWORD: "" # Set via REDIS_PASSWORD env var for production
+  DB: 3 # Redis database number for token blacklist
+  SESSION_TIMEOUT: 1800 # Session timeout in seconds (30 minutes)
+  TOKEN_BLACKLIST_DB: 4 # Separate DB for token blacklisting
+  MAX_IDLE: 10 # Maximum idle connections
+  MAX_ACTIVE: 100 # Maximum active connections
+  CONNECT_TIMEOUT: 30 # Connection timeout in seconds
+  READ_TIMEOUT: 30 # Read timeout in seconds
+  WRITE_TIMEOUT: 30 # Write timeout in seconds
+
+#  OPTIMIZED: JWT Configuration for Automatic Token Refresh
+JWT:
+  #  CRITICAL: Shorter access token duration for security with automatic refresh
+  JWT_SECRET_KEY: "" # REQUIRED: Set via JWT_SECRET_KEY env var — must be a strong random string
+  
+  #  OPTIMIZED: Short access token with automatic refresh
+  JWT_ACCESS_TOKEN_DURATION_MINUTES: 30 # 30 minutes (was 15, increased for better UX)
+  
+  #  OPTIMIZED: Long refresh token for better user experience
+  JWT_REFRESH_TOKEN_DURATION_HOURS: 72 # 3 days (was 168 hours/7 days, reduced for security)
+  
+  #  NEW: Token refresh configuration
+  JWT_REFRESH_BEFORE_EXPIRY_MINUTES: 15 # How long before expiry to allow refresh (15 minutes)
+  JWT_BLACKLIST_ENABLED: true # Enable token blacklisting for security
+  JWT_BLACKLIST_GRACE_PERIOD_SECONDS: 60 # Grace period for processing blacklisted tokens
+  
+  #  NEW: Security enhancements
+  JWT_REQUIRE_FRESH_TOKEN_FOR_SENSITIVE_OPS: true # Require fresh token for sensitive operations
+  JWT_MAX_REFRESH_ATTEMPTS_PER_HOUR: 10 # Limit refresh attempts per hour
+  JWT_ISSUER: "reksolindo-platform" # Token issuer for validation
+  JWT_AUDIENCE: "reksolindo-users" # Token audience for validation
+  
+  #  NEW: Algorithm and security settings
+  JWT_ALGORITHM: "HS256" # Signing algorithm
+  JWT_LEEWAY_SECONDS: 60 # Clock skew tolerance in seconds
+  JWT_NOT_BEFORE_TOLERANCE_SECONDS: 60 # Not-before claim tolerance
+
+#  ENHANCED: Security Configuration
+SECURITY:
+  # Rate limiting for token refresh
+  REFRESH_RATE_LIMIT_REQUESTS: 5 # Max refresh attempts per minute per user
+  REFRESH_RATE_LIMIT_WINDOW_MINUTES: 1 # Rate limit window
+  REFRESH_RATE_LIMIT_BURST: 3 # Burst allowance
+  
+  # Token validation settings
+  TOKEN_VALIDATION_STRICT: true # Strict token validation
+  TOKEN_REQUIRE_EXPIRY: true # Require expiry claim
+  TOKEN_REQUIRE_NOT_BEFORE: true # Require not-before claim
+  TOKEN_REQUIRE_ISSUED_AT: true # Require issued-at claim
+  
+  # Cross-origin settings for token refresh
+  CORS_ALLOW_CREDENTIALS: true # Required for secure token refresh
+  CORS_MAX_AGE: 86400 # CORS preflight cache duration
+  
+  # Security headers
+  SECURITY_HEADERS_ENABLED: true
+  HSTS_MAX_AGE: 31536000 # 1 year in seconds
+  CONTENT_SECURITY_POLICY: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
+#  NEW: Token Blacklist Configuration
+TOKEN_BLACKLIST:
+  ENABLED: true
+  STORAGE_TYPE: "redis" # "redis" or "memory" (redis recommended for production)
+  CLEANUP_INTERVAL_MINUTES: 60 # How often to clean up expired blacklisted tokens
+  MAX_BLACKLIST_SIZE: 100000 # Maximum number of blacklisted tokens to store
+  PERSISTENT_STORAGE: true # Whether to persist blacklist across restarts
+
+#  NEW: Session Management Configuration
+SESSION_MANAGEMENT:
+  ENABLED: true
+  SESSION_TIMEOUT_MINUTES: 60 # Session timeout in minutes
+  MAX_CONCURRENT_SESSIONS: 5 # Maximum concurrent sessions per user
+  SESSION_VALIDATION_INTERVAL_MINUTES: 5 # How often to validate active sessions
+  CROSS_TAB_SYNC_ENABLED: true # Enable cross-tab session synchronization
+
+#  ENHANCED: Logging Configuration
+LOG_LEVEL: "debug" # debug, info, warn, error
+
+# Audit logging for token operations
+AUDIT_LOGGING:
+  ENABLED: true
+  LOG_TOKEN_REFRESH: true
+  LOG_TOKEN_BLACKLIST: true
+  LOG_SESSION_EVENTS: true
+  LOG_SENSITIVE_OPERATIONS: true
+  RETENTION_DAYS: 90 # How long to retain audit logs
+
+#  NEW: Performance Optimization
+PERFORMANCE:
+  # Token caching
+  TOKEN_CACHE_ENABLED: true
+  TOKEN_CACHE_TTL_SECONDS: 300 # 5 minutes
+  TOKEN_CACHE_MAX_SIZE: 10000
+  
+  # Connection pooling
+  DB_MAX_OPEN_CONNS: 25
+  DB_MAX_IDLE_CONNS: 10
+  DB_CONN_MAX_LIFETIME_MINUTES: 60
+  
+  # Redis connection pooling
+  REDIS_POOL_SIZE: 20
+  REDIS_MIN_IDLE_CONNS: 5
+
+#  NEW: Health Check Configuration
+HEALTH_CHECK:
+  ENABLED: true
+  TOKEN_VALIDATION_CHECK: true # Include token validation in health checks
+  REDIS_CONNECTION_CHECK: true # Include Redis connectivity in health checks
+  DATABASE_CONNECTION_CHECK: true # Include database connectivity in health checks
+  BLACKLIST_SERVICE_CHECK: true # Include blacklist service in health checks
+
+#  NEW: Monitoring Configuration
+MONITORING:
+  ENABLED: true
+  METRICS_ENABLED: true
+  METRICS_PORT: "9090"
+  
+  # Token-related metrics
+  TRACK_TOKEN_REFRESH_METRICS: true
+  TRACK_TOKEN_BLACKLIST_METRICS: true
+  TRACK_SESSION_METRICS: true
+  TRACK_AUTH_FAILURE_METRICS: true
+
+#  ENVIRONMENT-SPECIFIC OVERRIDES
+# These settings can be overridden by environment variables
+
+# Development environment optimizations
+DEVELOPMENT:
+  JWT_ACCESS_TOKEN_DURATION_MINUTES: 60 # Longer tokens for development convenience
+  JWT_REFRESH_TOKEN_DURATION_HOURS: 168 # 7 days for development
+  TOKEN_VALIDATION_STRICT: false # Relaxed validation for development
+  AUDIT_LOGGING_ENABLED: false # Disable audit logging in development
+
+# Production environment optimizations
+PRODUCTION:
+  JWT_ACCESS_TOKEN_DURATION_MINUTES: 15 # Shorter tokens for production security
+  JWT_REFRESH_TOKEN_DURATION_HOURS: 24 # 1 day for production
+  TOKEN_VALIDATION_STRICT: true # Strict validation for production
+  AUDIT_LOGGING_ENABLED: true # Enable audit logging in production
+  TOKEN_BLACKLIST_ENABLED: true # Enable blacklist in production
+  SESSION_MANAGEMENT_ENABLED: true # Enable session management in production
+
+#  BACKWARD COMPATIBILITY
+# These settings maintain compatibility with existing code
+LEGACY_SUPPORT:
+  ACCEPT_LEGACY_TOKEN_FORMAT: false # Set to true if migrating from old token format
+  LEGACY_SECRET_KEY_FALLBACK: false # Allow fallback to legacy secret key
+  LEGACY_EXPIRY_FORMAT_SUPPORT: false # Support legacy expiry time format
+
+# Add other service configurations as needed, for example:
+# OIDC:
+#   CLIENT_ID: "your_oidc_client_id"
+#   CLIENT_SECRET: "your_oidc_client_secret" # Use ENV VAR
+#   ISSUER_URL: "https://your_oidc_provider.com"
+#   REDIRECT_URL: "http://localhost:4072/auth/oidc/callback"
+
+# EMAIL_SERVICE:
+#   SMTP_HOST: "smtp.example.com"
+#   SMTP_PORT: 587
+#   SMTP_USER: "your_email_user"
+#   SMTP_PASSWORD: "your_email_password" # Use ENV VAR
+#   SENDER_EMAIL: "noreply@example.com"
+
+#  CONFIGURATION VALIDATION
+# These settings help validate the configuration at startup
+VALIDATION:
+  REQUIRED_ENV_VARS:
+    - "JWT_SECRET"
+    - "DB_PASSWORD"
+    - "REDIS_PASSWORD" # In production
+  
+  VALIDATE_JWT_SECRET_STRENGTH: true # Validate JWT secret strength
+  VALIDATE_REDIS_CONNECTION: true # Validate Redis connection at startup
+  VALIDATE_DATABASE_CONNECTION: true # Validate database connection at startup
+
+#  FEATURE FLAGS
+# These flags allow enabling/disabling features
+FEATURE_FLAGS:
+  AUTOMATIC_TOKEN_REFRESH: true
+  TOKEN_BLACKLISTING: true
+  SESSION_MANAGEMENT: true
+  CROSS_TAB_SYNCHRONIZATION: true
+  PROACTIVE_TOKEN_REFRESH: true
+  AUDIT_LOGGING: true
+  PERFORMANCE_MONITORING: true

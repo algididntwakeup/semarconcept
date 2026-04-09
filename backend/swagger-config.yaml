@@ -1,0 +1,105 @@
+# Swagger Configuration for Reksolindo EAMS
+project:
+  name: "Reksolindo Enterprise Asset Management System"
+  version: "1.0.0"
+  description: "Comprehensive API for industrial asset management, inspection planning, risk assessment, and compliance tracking"
+  base_path: "/api/v1"
+  host: "localhost:8080"
+  schemes: ["http", "https"]
+
+handlers:
+  auth_handler.go:
+    tag: "Authentication"
+    description: "User authentication and authorization"
+    functions:
+      - name: "Login"
+        method: "POST"
+        path: "/auth/login"
+        summary: "User authentication"
+        description: "Authenticate user with username and password"
+        request_body: "request.LoginRequest"
+        responses:
+          200: "response.AuthResponse"
+          400: "response.ErrorResponse"
+          401: "response.ErrorResponse"
+      - name: "RefreshToken"
+        method: "POST"
+        path: "/auth/refresh"
+        summary: "Refresh JWT token"
+        description: "Refresh expired JWT token"
+        security: true
+        responses:
+          200: "response.AuthResponse"
+          401: "response.ErrorResponse"
+      - name: "Logout"
+        method: "POST"
+        path: "/auth/logout"
+        summary: "User logout"
+        description: "Invalidate user session"
+        security: true
+        responses:
+          200: "response.SuccessResponse"
+          401: "response.ErrorResponse"
+
+  user_handler.go:
+    tag: "Users"
+    description: "User management operations"
+    functions:
+      - name: "GetUsers"
+        method: "GET"
+        path: "/users"
+        summary: "Get all users"
+        description: "Retrieve paginated list of users"
+        security: true
+        parameters:
+          - name: "page"
+            type: "query"
+            data_type: "int"
+            description: "Page number"
+          - name: "per_page"
+            type: "query"
+            data_type: "int"
+            description: "Items per page"
+          - name: "search"
+            type: "query"
+            data_type: "string"
+            description: "Search term"
+        responses:
+          200: "response.PaginatedResponse{data=[]response.UserResponse}"
+          401: "response.ErrorResponse"
+          403: "response.ErrorResponse"
+
+  tenant_handler.go:
+    tag: "Tenants"
+    description: "Multi-tenant management"
+    functions:
+      - name: "GetTenants"
+        method: "GET"
+        path: "/tenants"
+        summary: "Get all tenants"
+        description: "Retrieve paginated list of tenants"
+        security: true
+        responses:
+          200: "response.PaginatedResponse{data=[]response.TenantResponse}"
+          401: "response.ErrorResponse"
+
+  dashboard_handler.go:
+    tag: "Dashboard"
+    description: "Dashboard and analytics data"
+    functions:
+      - name: "GetDashboard"
+        method: "GET"
+        path: "/dashboard"
+        summary: "Get dashboard data"
+        description: "Retrieve dashboard metrics and analytics"
+        security: true
+        responses:
+          200: "response.DashboardResponse"
+          401: "response.ErrorResponse"
+
+security:
+  BearerAuth:
+    type: "apiKey"
+    in: "header"
+    name: "Authorization"
+    description: "Type 'Bearer' followed by a space and JWT token."

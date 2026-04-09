@@ -1,0 +1,4745 @@
+basePath: /api/v1
+definitions:
+  api.AssignPermissionRequest:
+    properties:
+      permission_id:
+        description: Example UUID
+        example: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        type: string
+    required:
+    - permission_id
+    type: object
+  api.AssignRoleRequest:
+    properties:
+      role_id:
+        description: Example UUID
+        example: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        type: string
+    required:
+    - role_id
+    type: object
+  api.BulkUpdateRequest:
+    properties:
+      configs:
+        additionalProperties:
+          type: string
+        description: Map of Key -> New Value
+        example:
+          '"admin_email"': '"admin@new.com"}'
+          '{"site_name"': '"New Site Name"'
+        type: object
+    required:
+    - configs
+    type: object
+  api.BulkUpdateResponse:
+    properties:
+      errors:
+        additionalProperties:
+          type: string
+        description: Only include if errors occurred
+        type: object
+      message:
+        type: string
+      updated_count:
+        type: integer
+    type: object
+  api.ConfigCreateUpdateRequest:
+    properties:
+      category:
+        example: General
+        type: string
+      description:
+        example: The public name of the website
+        type: string
+      is_editable:
+        example: true
+        type: boolean
+      is_encrypted:
+        description: Optional, defaults to false
+        example: false
+        type: boolean
+      key:
+        example: site_name
+        type: string
+      value:
+        description: Value is required, but binding:"required" might fail on empty
+          string? Handle manually.
+        example: Reksolindo CMS
+        type: string
+      value_type:
+        enum:
+        - string
+        - int
+        - bool
+        - json
+        example: string
+        type: string
+    required:
+    - is_editable
+    - key
+    - value_type
+    type: object
+  api.CreateRoleRequest:
+    properties:
+      description:
+        example: Can edit website content
+        type: string
+      name:
+        example: Content Editor
+        type: string
+    required:
+    - name
+    type: object
+  api.CreateUserRequest:
+    properties:
+      email:
+        example: john.doe@example.com
+        type: string
+      first_name:
+        example: John
+        type: string
+      is_active:
+        description: Pointer to distinguish between true and not provided
+        example: true
+        type: boolean
+      is_superuser:
+        description: Pointer to distinguish between false and not provided
+        example: false
+        type: boolean
+      last_name:
+        example: Doe
+        type: string
+      password:
+        example: password123
+        minLength: 8
+        type: string
+      username:
+        example: johndoe
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    - username
+    type: object
+  api.MenuCreateUpdateRequest:
+    properties:
+      icon:
+        description: Optional
+        example: dashboard
+        type: string
+      name:
+        example: Dashboard
+        type: string
+      order:
+        example: 1
+        type: integer
+      parent_id:
+        description: Optional UUID string
+        example: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        type: string
+      path:
+        example: /dashboard
+        type: string
+      required_perm:
+        description: Optional permission name
+        example: dashboard.view
+        type: string
+      show_in_menu:
+        example: true
+        type: boolean
+    required:
+    - name
+    - path
+    - show_in_menu
+    type: object
+  api.ModuleInfo:
+    properties:
+      description:
+        description: Optional description
+        type: string
+      enabled:
+        description: If the module is currently active
+        type: boolean
+      name:
+        type: string
+      version:
+        description: Optional version
+        type: string
+    type: object
+  api.RoleListResponse:
+    properties:
+      data:
+        description: List of roles for the current page
+        items:
+          $ref: '#/definitions/models.Role'
+        type: array
+      total_count:
+        description: Total number of roles available (GORM Count returns int64)
+        type: integer
+    type: object
+  api.UpdateRoleRequest:
+    properties:
+      description:
+        example: Manages website content and structure
+        type: string
+      name:
+        example: Content Manager
+        type: string
+    required:
+    - name
+    type: object
+  api.UpdateUserRequest:
+    properties:
+      email:
+        example: john.doe@example.com
+        type: string
+      first_name:
+        example: John
+        type: string
+      is_active:
+        example: true
+        type: boolean
+      is_superuser:
+        example: false
+        type: boolean
+      last_name:
+        example: Doe
+        type: string
+      username:
+        example: johndoe
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - username
+    type: object
+  api.UserListResponse:
+    properties:
+      data:
+        description: List of users for the current page
+        items:
+          $ref: '#/definitions/models.User'
+        type: array
+      total_count:
+        description: Total number of users available
+        type: integer
+    type: object
+  backend_app_api_handlers.ErrorResponse:
+    properties:
+      details: {}
+      error:
+        type: string
+    type: object
+  backend_app_api_handlers.LogEntry:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      error:
+        additionalProperties: true
+        type: object
+      level:
+        type: string
+      message:
+        type: string
+      method:
+        type: string
+      path:
+        type: string
+      request_id:
+        type: string
+      source:
+        type: string
+      status_code:
+        type: integer
+      timestamp:
+        type: string
+      url:
+        type: string
+      user_agent:
+        type: string
+      user_id:
+        type: string
+    required:
+    - level
+    - message
+    type: object
+  backend_route-fix-backup-20250603_161334_handlers.ErrorResponse:
+    properties:
+      details: {}
+      error:
+        type: string
+    type: object
+  backend_route-fix-backup-20250603_161334_handlers.LogEntry:
+    properties:
+      data:
+        additionalProperties: true
+        type: object
+      error:
+        additionalProperties: true
+        type: object
+      level:
+        type: string
+      message:
+        type: string
+      method:
+        type: string
+      path:
+        type: string
+      request_id:
+        type: string
+      source:
+        type: string
+      status_code:
+        type: integer
+      timestamp:
+        type: string
+      url:
+        type: string
+      user_agent:
+        type: string
+      user_id:
+        type: string
+    required:
+    - level
+    - message
+    type: object
+  models.ConfigurationDTO:
+    properties:
+      category_name:
+        description: Name of the category
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_editable:
+        type: boolean
+      is_encrypted:
+        description: Indicate if the original value is encrypted
+        type: boolean
+      key:
+        type: string
+      updated_at:
+        type: string
+      value:
+        description: Value might be masked if encrypted and user lacks permission
+        type: string
+      value_type:
+        type: string
+    type: object
+  models.ErrorResponse:
+    properties:
+      details:
+        description: Can be string, map[string]string, etc.
+      error:
+        type: string
+    type: object
+  models.JSONBMap:
+    additionalProperties: true
+    type: object
+  models.Media:
+    properties:
+      created_at:
+        type: string
+      description:
+        description: Optional description
+        type: string
+      filename:
+        description: Original filename from upload
+        type: string
+      id:
+        type: string
+      mime_type:
+        description: Detected MIME type (e.g., "image/jpeg", "application/pdf")
+        type: string
+      size:
+        description: File size in bytes
+        type: integer
+      updated_at:
+        type: string
+      uploaded_by:
+        description: User who uploaded the file (nullable for system uploads)
+        type: string
+      url:
+        description: Publicly accessible URL (or path to serve from)
+        type: string
+    type: object
+  models.Menu:
+    properties:
+      children:
+        description: '--- Fields for Tree Structure (populated by service/handler)
+          ---'
+        items:
+          $ref: '#/definitions/models.Menu'
+        type: array
+      created_at:
+        type: string
+      icon:
+        description: Optional icon identifier (e.g., "dashboard", "users")
+        type: string
+      id:
+        type: string
+      name:
+        description: Display name (e.g., "Dashboard", "User Management")
+        type: string
+      order:
+        description: Order within the same parent level
+        type: integer
+      parent_id:
+        description: Pointer for nullable foreign key (root items have NULL)
+        type: string
+      path:
+        description: Frontend route path (e.g., "/dashboard", "/admin/users")
+        type: string
+      show_in_menu:
+        description: Whether to display in the main navigation
+        type: boolean
+      updated_at:
+        type: string
+    type: object
+  models.Permission:
+    properties:
+      action:
+        type: string
+      code:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_system:
+        type: boolean
+      name:
+        type: string
+      resource:
+        type: string
+      roles:
+        items:
+          $ref: '#/definitions/models.Role'
+        type: array
+      scope:
+        description: system, tenant, user
+        type: string
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        description: NULL for system permissions
+        type: integer
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+    type: object
+  models.Role:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      is_system:
+        type: boolean
+      level:
+        description: Role hierarchy level
+        type: integer
+      name:
+        type: string
+      permissions:
+        description: 'ADDED: Missing Permissions relationship for RBAC repository'
+        items:
+          $ref: '#/definitions/models.Permission'
+        type: array
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        description: NULL for system roles
+        type: integer
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+      user_roles:
+        items:
+          $ref: '#/definitions/models.UserRole'
+        type: array
+    type: object
+  models.Tenant:
+    properties:
+      billing:
+        $ref: '#/definitions/models.TenantBilling'
+      branding:
+        $ref: '#/definitions/models.TenantBranding'
+      configs:
+        items:
+          $ref: '#/definitions/models.TenantConfig'
+        type: array
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      domain:
+        type: string
+      id:
+        type: integer
+      max_storage_gb:
+        type: integer
+      max_users:
+        type: integer
+      metadata:
+        $ref: '#/definitions/models.JSONBMap'
+      name:
+        type: string
+      roles:
+        items:
+          $ref: '#/definitions/models.Role'
+        type: array
+      settings:
+        $ref: '#/definitions/models.JSONBMap'
+      slug:
+        type: string
+      status:
+        type: string
+      subdomain:
+        type: string
+      subscription_plan:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+      users:
+        description: Relationships - using slices and pointers to avoid circular dependencies
+        items:
+          $ref: '#/definitions/models.User'
+        type: array
+    type: object
+  models.TenantBilling:
+    properties:
+      billing_address:
+        $ref: '#/definitions/models.JSONBMap'
+      billing_cycle:
+        type: string
+      billing_email:
+        type: string
+      billing_status:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      payment_method:
+        $ref: '#/definitions/models.JSONBMap'
+      subscription_end:
+        type: string
+      subscription_plan:
+        type: string
+      subscription_start:
+        type: string
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        type: integer
+      trial_end:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.TenantBranding:
+    properties:
+      accent_color:
+        type: string
+      background_color:
+        type: string
+      company_name:
+        type: string
+      created_at:
+        type: string
+      custom_css:
+        type: string
+      email_template:
+        $ref: '#/definitions/models.JSONBMap'
+      favicon_url:
+        type: string
+      id:
+        type: integer
+      logo_url:
+        type: string
+      primary_color:
+        type: string
+      secondary_color:
+        type: string
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        type: integer
+      theme:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.TenantConfig:
+    properties:
+      category:
+        type: string
+      config_key:
+        type: string
+      config_value:
+        type: string
+      created_at:
+        type: string
+      data_type:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_encrypted:
+        type: boolean
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      email:
+        type: string
+      first_name:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_admin:
+        type: boolean
+      is_superuser:
+        description: 'FIXED: Added missing field'
+        type: boolean
+      last_login:
+        type: string
+      last_name:
+        type: string
+      roles:
+        description: 'ADDED: Missing Roles relationship for RBAC repository'
+        items:
+          $ref: '#/definitions/models.Role'
+        type: array
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        type: integer
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+      user_roles:
+        items:
+          $ref: '#/definitions/models.UserRole'
+        type: array
+      username:
+        type: string
+    type: object
+  models.UserRole:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      granted_at:
+        type: string
+      granted_by:
+        type: integer
+      granted_by_user:
+        $ref: '#/definitions/models.User'
+      id:
+        type: integer
+      revoked_at:
+        type: string
+      revoked_by:
+        type: integer
+      revoked_by_user:
+        $ref: '#/definitions/models.User'
+      role:
+        $ref: '#/definitions/models.Role'
+      role_id:
+        type: integer
+      status:
+        description: active, inactive, suspended
+        type: string
+      tenant:
+        allOf:
+        - $ref: '#/definitions/models.Tenant'
+        description: Relationships
+      tenant_id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/models.User'
+      user_id:
+        type: integer
+    type: object
+  request.AddUserToTenantRequest:
+    properties:
+      permissions:
+        additionalProperties: true
+        type: object
+      role:
+        type: string
+      tenant_id:
+        type: integer
+      user_id:
+        type: integer
+    required:
+    - role
+    - tenant_id
+    - user_id
+    type: object
+  request.CreatePermissionRequest:
+    properties:
+      action:
+        maxLength: 50
+        minLength: 2
+        type: string
+      description:
+        type: string
+      name:
+        maxLength: 100
+        minLength: 3
+        type: string
+      resource:
+        maxLength: 50
+        minLength: 2
+        type: string
+      scope:
+        type: string
+    required:
+    - action
+    - name
+    - resource
+    - scope
+    type: object
+  request.CreateRoleRequest:
+    properties:
+      code:
+        maxLength: 50
+        minLength: 2
+        type: string
+      description:
+        type: string
+      level:
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - code
+    - name
+    type: object
+  request.CreateTenantBillingRequest:
+    properties:
+      billing_address:
+        additionalProperties: true
+        type: object
+      billing_cycle:
+        enum:
+        - monthly
+        - yearly
+        type: string
+      billing_email:
+        type: string
+      payment_method:
+        additionalProperties: true
+        type: object
+      subscription_end:
+        type: string
+      subscription_plan:
+        enum:
+        - basic
+        - premium
+        - enterprise
+        type: string
+      subscription_start:
+        type: string
+      trial_end:
+        type: string
+    required:
+    - billing_cycle
+    - subscription_plan
+    type: object
+  request.CreateTenantBrandingRequest:
+    properties:
+      accent_color:
+        type: string
+      background_color:
+        type: string
+      company_name:
+        maxLength: 100
+        type: string
+      custom_css:
+        type: string
+      email_template:
+        additionalProperties: true
+        type: object
+      favicon_url:
+        type: string
+      logo_url:
+        type: string
+      primary_color:
+        type: string
+      secondary_color:
+        type: string
+      theme:
+        enum:
+        - light
+        - dark
+        - auto
+        type: string
+    type: object
+  request.CreateTenantRequest:
+    properties:
+      admin_email:
+        type: string
+      admin_first_name:
+        description: Admin user details
+        maxLength: 100
+        minLength: 1
+        type: string
+      admin_last_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      admin_password:
+        minLength: 8
+        type: string
+      billing:
+        allOf:
+        - $ref: '#/definitions/request.CreateTenantBillingRequest'
+        description: Billing (optional)
+      branding:
+        allOf:
+        - $ref: '#/definitions/request.CreateTenantBrandingRequest'
+        description: Branding (optional)
+      domain:
+        type: string
+      max_storage_gb:
+        maximum: 1000
+        minimum: 1
+        type: integer
+      max_users:
+        maximum: 10000
+        minimum: 1
+        type: integer
+      metadata:
+        additionalProperties: true
+        type: object
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      subdomain:
+        maxLength: 50
+        minLength: 3
+        type: string
+      subscription_plan:
+        enum:
+        - basic
+        - premium
+        - enterprise
+        type: string
+    required:
+    - admin_email
+    - admin_first_name
+    - admin_last_name
+    - admin_password
+    - name
+    - subdomain
+    - subscription_plan
+    type: object
+  request.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      first_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      full_name:
+        type: string
+      is_active:
+        description: Pointer to allow explicit true/false, or omit for default
+        type: boolean
+      is_admin:
+        description: 'Added: Admin flag'
+        type: boolean
+      is_superuser:
+        description: Pointer for explicit setting
+        type: boolean
+      last_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      password:
+        maxLength: 100
+        minLength: 8
+        type: string
+      role_ids:
+        description: 'Optional: IDs of roles to assign'
+        items:
+          type: integer
+        type: array
+      tenant_id:
+        description: 'Added: Tenant association'
+        type: integer
+      username:
+        maxLength: 100
+        minLength: 3
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    - username
+    type: object
+  request.DashboardLayoutRequest:
+    properties:
+      description:
+        type: string
+      id:
+        description: Dashboard ID (e.g., "main_dashboard", "user_profile_dashboard")
+        type: string
+      name:
+        type: string
+      widgets:
+        items:
+          $ref: '#/definitions/request.WidgetConfigRequest'
+        type: array
+    required:
+    - id
+    - name
+    - widgets
+    type: object
+  request.DashboardShareRequest:
+    properties:
+      permission_level:
+        description: e.g., "view", "edit", "manage"
+        enum:
+        - view
+        - edit
+        - manage
+        type: string
+      shared_with_role_id:
+        description: Pointer to allow null
+        type: integer
+      shared_with_user_id:
+        description: Pointer to allow null
+        type: integer
+    required:
+    - permission_level
+    type: object
+  request.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  request.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        description: Simplified to just use username
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  request.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  request.RegisterUserRequest:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      full_name:
+        type: string
+      last_name:
+        type: string
+      password:
+        maxLength: 100
+        minLength: 8
+        type: string
+      phone:
+        type: string
+      username:
+        maxLength: 100
+        minLength: 3
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    - username
+    type: object
+  request.ResetPasswordRequest:
+    properties:
+      new_password:
+        maxLength: 100
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  request.UpdatePermissionRequest:
+    properties:
+      action:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      resource:
+        type: string
+      scope:
+        type: string
+    type: object
+  request.UpdateRoleRequest:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      level:
+        type: integer
+      name:
+        type: string
+    type: object
+  request.UpdateTenantBrandingRequest:
+    properties:
+      accent_color:
+        type: string
+      background_color:
+        type: string
+      company_name:
+        maxLength: 100
+        type: string
+      custom_css:
+        type: string
+      email_template:
+        additionalProperties: true
+        type: object
+      favicon_url:
+        type: string
+      logo_url:
+        type: string
+      primary_color:
+        type: string
+      secondary_color:
+        type: string
+      theme:
+        enum:
+        - light
+        - dark
+        - auto
+        type: string
+    type: object
+  request.UpdateTenantConfigRequest:
+    properties:
+      settings:
+        additionalProperties: true
+        type: object
+    required:
+    - settings
+    type: object
+  request.UpdateTenantRequest:
+    properties:
+      domain:
+        type: string
+      max_storage_gb:
+        maximum: 1000
+        minimum: 1
+        type: integer
+      max_users:
+        maximum: 10000
+        minimum: 1
+        type: integer
+      metadata:
+        additionalProperties: true
+        type: object
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      status:
+        enum:
+        - active
+        - inactive
+        - suspended
+        type: string
+      subdomain:
+        maxLength: 50
+        minLength: 3
+        type: string
+      subscription_plan:
+        enum:
+        - basic
+        - premium
+        - enterprise
+        type: string
+    type: object
+  request.UpdateUserRequest:
+    properties:
+      email:
+        description: Pointer to allow partial updates
+        type: string
+      first_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      full_name:
+        type: string
+      is_active:
+        type: boolean
+      is_admin:
+        description: 'Added: Admin flag'
+        type: boolean
+      is_superuser:
+        type: boolean
+      last_name:
+        maxLength: 100
+        minLength: 1
+        type: string
+      password:
+        description: 'Optional: for password change'
+        maxLength: 100
+        minLength: 8
+        type: string
+      role_ids:
+        description: For changing role assignments
+        items:
+          type: integer
+        type: array
+      username:
+        maxLength: 100
+        minLength: 3
+        type: string
+    type: object
+  request.WidgetConfigRequest:
+    properties:
+      h:
+        description: Grid height
+        type: integer
+      id:
+        description: Unique ID for the widget instance on a dashboard
+        type: string
+      parameters:
+        additionalProperties: true
+        description: Widget-specific parameters
+        type: object
+      type:
+        description: e.g., "summary_stats", "line_chart", "user_list"
+        type: string
+      w:
+        description: Grid width
+        type: integer
+      x:
+        description: Grid position X
+        type: integer
+      "y":
+        description: Grid position Y
+        type: integer
+    required:
+    - id
+    - type
+    type: object
+  response.AvailabilityCheckResponse:
+    properties:
+      available:
+        example: true
+        type: boolean
+      message:
+        example: Subdomain is available
+        type: string
+      subdomain:
+        example: mycompany
+        type: string
+    type: object
+  response.DashboardListEntry:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      owner_user_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  response.DashboardListResponse:
+    properties:
+      dashboards:
+        items:
+          $ref: '#/definitions/response.DashboardListEntry'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  response.DashboardResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        description: Dashboard ID
+        type: string
+      name:
+        type: string
+      owner_user_id:
+        description: Or string if using UUIDs
+        type: integer
+      updated_at:
+        type: string
+      widgets:
+        items:
+          $ref: '#/definitions/response.WidgetResponse'
+        type: array
+    type: object
+  response.DashboardShareResponse:
+    properties:
+      created_at:
+        type: string
+      dashboard_id:
+        type: string
+      id:
+        type: integer
+      permission_level:
+        type: string
+      shared_with_role_id:
+        type: integer
+      shared_with_role_name:
+        description: Populated if SharedWithRoleID is not nil
+        type: string
+      shared_with_user_id:
+        type: integer
+      shared_with_username:
+        description: Populated if SharedWithUserID is not nil
+        type: string
+    type: object
+  response.ErrorResponse:
+    properties:
+      code:
+        example: VALIDATION_ERROR
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      error:
+        example: Invalid request
+        type: string
+      message:
+        example: Validation failed
+        type: string
+    type: object
+  response.LoginResponse:
+    properties:
+      access_token:
+        description: Add this field
+        type: string
+      expires_at:
+        type: string
+      refresh_token:
+        type: string
+      token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/response.UserResponse'
+    type: object
+  response.PaginationResponse:
+    properties:
+      current_page:
+        type: integer
+      from:
+        type: integer
+      last_page:
+        type: integer
+      per_page:
+        type: integer
+      to:
+        type: integer
+      total:
+        type: integer
+    type: object
+  response.PermissionBase:
+    properties:
+      action:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      resource:
+        type: string
+      scope:
+        type: string
+    type: object
+  response.PermissionListResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/response.PaginationResponse'
+      permissions:
+        items:
+          $ref: '#/definitions/response.PermissionResponse'
+        type: array
+    type: object
+  response.PermissionResponse:
+    properties:
+      action:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      resource:
+        type: string
+      scope:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  response.RefreshTokenResponse:
+    properties:
+      expires_at:
+        type: string
+      token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  response.RoleBase:
+    properties:
+      code:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  response.RoleListResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/response.PaginationResponse'
+      roles:
+        items:
+          $ref: '#/definitions/response.RoleResponse'
+        type: array
+    type: object
+  response.RoleResponse:
+    properties:
+      code:
+        type: string
+      color:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      icon:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      is_system:
+        type: boolean
+      level:
+        type: integer
+      name:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/response.PermissionBase'
+        type: array
+      tenant_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  response.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        example: Operation successful
+        type: string
+    type: object
+  response.SystemStatsResponse:
+    properties:
+      active_tenants:
+        type: integer
+      active_users:
+        type: integer
+      average_storage_per_tenant:
+        type: number
+      calculated_at:
+        type: string
+      total_storage_gb:
+        type: number
+      total_tenants:
+        type: integer
+      total_users:
+        type: integer
+    type: object
+  response.TenantBillingResponse:
+    properties:
+      billing_address:
+        additionalProperties: true
+        type: object
+      billing_cycle:
+        type: string
+      billing_email:
+        type: string
+      billing_status:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      payment_method:
+        additionalProperties: true
+        type: object
+      subscription_end:
+        type: string
+      subscription_plan:
+        type: string
+      subscription_start:
+        type: string
+      tenant_id:
+        type: integer
+      trial_end:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  response.TenantBrandingResponse:
+    properties:
+      accent_color:
+        type: string
+      background_color:
+        type: string
+      company_name:
+        type: string
+      created_at:
+        type: string
+      custom_css:
+        type: string
+      email_template:
+        additionalProperties: true
+        type: object
+      favicon_url:
+        type: string
+      id:
+        type: integer
+      logo_url:
+        type: string
+      primary_color:
+        type: string
+      secondary_color:
+        type: string
+      tenant_id:
+        type: integer
+      theme:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  response.TenantConfigResponse:
+    properties:
+      settings:
+        additionalProperties: true
+        type: object
+      tenant_id:
+        type: integer
+    type: object
+  response.TenantListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      tenants:
+        items:
+          $ref: '#/definitions/response.TenantResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  response.TenantResponse:
+    properties:
+      billing:
+        $ref: '#/definitions/response.TenantBillingResponse'
+      branding:
+        $ref: '#/definitions/response.TenantBrandingResponse'
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      domain:
+        type: string
+      id:
+        type: integer
+      max_storage_gb:
+        type: integer
+      max_users:
+        type: integer
+      metadata:
+        additionalProperties: true
+        type: object
+      name:
+        type: string
+      settings:
+        additionalProperties: true
+        type: object
+      slug:
+        type: string
+      status:
+        type: string
+      subdomain:
+        type: string
+      subscription_plan:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+    type: object
+  response.TenantStatsResponse:
+    properties:
+      active_user_count:
+        type: integer
+      asset_count:
+        type: integer
+      created_at:
+        type: string
+      inspection_count:
+        type: integer
+      last_activity:
+        type: string
+      storage_used_gb:
+        type: number
+      storage_utilization:
+        type: number
+      tenant_id:
+        type: integer
+      user_count:
+        type: integer
+      work_order_count:
+        type: integer
+    type: object
+  response.TenantUserListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/response.TenantUserResponse'
+        type: array
+    type: object
+  response.TenantUserResponse:
+    properties:
+      id:
+        type: integer
+      invited_at:
+        type: string
+      invited_by:
+        type: integer
+      joined_at:
+        type: string
+      last_activity:
+        type: string
+      permissions:
+        additionalProperties: true
+        type: object
+      role:
+        type: string
+      status:
+        type: string
+      tenant_id:
+        type: integer
+      user:
+        allOf:
+        - $ref: '#/definitions/response.UserResponse'
+        description: User details embedded
+      user_id:
+        type: integer
+    type: object
+  response.TokenResponse:
+    properties:
+      access_token:
+        description: Add this field
+        type: string
+      expires_at:
+        type: string
+      token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  response.UserListResponse:
+    properties:
+      users:
+        items:
+          $ref: '#/definitions/response.UserResponse'
+        type: array
+    type: object
+  response.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      is_admin:
+        description: Add this field
+        type: boolean
+      is_superuser:
+        type: boolean
+      last_login:
+        type: string
+      last_name:
+        type: string
+      roles:
+        items:
+          $ref: '#/definitions/response.RoleBase'
+        type: array
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  response.WidgetDataResponse:
+    properties:
+      data:
+        description: Actual data structure varies by widget
+      updated_at:
+        type: string
+      widget_id:
+        type: string
+    type: object
+  response.WidgetResponse:
+    properties:
+      data:
+        description: Widget data, structure depends on widget type
+      h:
+        description: Grid height
+        type: integer
+      id:
+        description: Unique ID for the widget instance
+        type: string
+      parameters:
+        additionalProperties: true
+        description: Widget-specific parameters
+        type: object
+      type:
+        description: e.g., "summary_stats", "line_chart"
+        type: string
+      updated_at:
+        description: When the widget's data was last updated
+        type: string
+      w:
+        description: Grid width
+        type: integer
+      x:
+        description: Grid position X
+        type: integer
+      "y":
+        description: Grid position Y
+        type: integer
+    type: object
+host: reksolindo.opuschamber.com
+info:
+  contact: {}
+  description: Multi-tenant enterprise asset management system
+  title: Reksolindo Enterprise Asset Management API
+  version: "1.0"
+paths:
+  /api/v1/logs:
+    post:
+      consumes:
+      - application/json
+      description: Receives and processes logs from the frontend application
+      parameters:
+      - description: Log entry from frontend
+        in: body
+        name: log
+        required: true
+        schema:
+          $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.LogEntry'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Handle frontend logs
+      tags:
+      - logs
+  /api/v1/logs/batch:
+    post:
+      consumes:
+      - application/json
+      description: Receives and processes multiple logs from the frontend application
+      parameters:
+      - description: Array of log entries from frontend
+        in: body
+        name: logs
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.LogEntry'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Handle batch frontend logs
+      tags:
+      - logs
+  /audit-logs:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a paginated list of audit logs, optionally filtered.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by User ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Filter by action
+        in: query
+        name: action
+        type: string
+      - description: Filter by resource type
+        in: query
+        name: resource_type
+        type: string
+      - description: Filter by start date (YYYY-MM-DDTHH:MM:SSZ)
+        in: query
+        name: start_date
+        type: string
+      - description: Filter by end date (YYYY-MM-DDTHH:MM:SSZ)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Paginated list of audit logs" // Placeholder - replace with
+            actual response model
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get audit logs
+      tags:
+      - audit-logs
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Sends a password reset link to the user's email if the account
+        exists.
+      parameters:
+      - description: Email address for password reset
+        in: body
+        name: email_request
+        required: true
+        schema:
+          $ref: '#/definitions/request.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: If an account with that email exists, a reset link has been
+            sent.
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request payload
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      summary: Initiate password reset
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user and returns JWT tokens.
+      parameters:
+      - description: User login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/request.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful
+          schema:
+            $ref: '#/definitions/response.LoginResponse'
+        "400":
+          description: Invalid request payload or validation error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Invalid credentials
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Account inactive
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      summary: Log in a user
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Invalidates the user's session (e.g., clears refresh token cookie).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout successful
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Log out a user
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Retrieves details of the currently logged-in user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Current user details
+          schema:
+            $ref: '#/definitions/response.UserResponse'
+        "401":
+          description: Unauthorized - No token or invalid token
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current authenticated user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Provides a new access token using a valid refresh token.
+      parameters:
+      - description: Refresh token
+        in: body
+        name: token
+        required: true
+        schema:
+          $ref: '#/definitions/request.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Access token refreshed successfully
+          schema:
+            $ref: '#/definitions/response.TokenResponse'
+        "400":
+          description: Invalid request payload or missing token
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      summary: Refresh JWT access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account.
+      parameters:
+      - description: User registration details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/request.RegisterUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully" // Added response. prefix
+          schema:
+            $ref: '#/definitions/response.UserResponse'
+        "400":
+          description: Invalid request payload or validation error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Username or email already exists
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Sets a new password for the user using a valid reset token.
+      parameters:
+      - description: Password reset token and new password
+        in: body
+        name: reset_request
+        required: true
+        schema:
+          $ref: '#/definitions/request.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password reset successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid request, token, or password complexity
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Invalid or expired token
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      summary: Reset user password
+      tags:
+      - auth
+  /configurations:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of configuration items, optionally filtered by
+        category.
+      parameters:
+      - description: Filter by category name
+        example: '"General"'
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved list of configuration items
+          schema:
+            items:
+              $ref: '#/definitions/models.ConfigurationDTO'
+            type: array
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List configuration items
+      tags:
+      - Configurations
+    post:
+      consumes:
+      - application/json
+      description: Creates a new system configuration setting.
+      parameters:
+      - description: Configuration details
+        in: body
+        name: config
+        required: true
+        schema:
+          $ref: '#/definitions/api.ConfigCreateUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created configuration item
+          schema:
+            $ref: '#/definitions/models.ConfigurationDTO'
+        "400":
+          description: Invalid request body or validation failed
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict (configuration key already exists)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new configuration item
+      tags:
+      - Configurations
+  /configurations/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a configuration item by its UUID. Only affects editable
+        items by default (repository logic).
+      parameters:
+      - description: Configuration ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully deleted configuration item
+        "400":
+          description: Invalid configuration ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission or item not editable)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Configuration item not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete configuration item by ID
+      tags:
+      - Configurations
+  /configurations/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Updates multiple configuration items at once. Only updates editable
+        items.
+      parameters:
+      - description: Map of configuration keys to new values
+        in: body
+        name: configs
+        required: true
+        schema:
+          $ref: '#/definitions/api.BulkUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Bulk update successful
+          schema:
+            $ref: '#/definitions/api.BulkUpdateResponse'
+        "207":
+          description: Bulk update partially completed with errors
+          schema:
+            $ref: '#/definitions/api.BulkUpdateResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error during update
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Bulk update configuration items
+      tags:
+      - Configurations
+  /configurations/key/{key}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a specific configuration item using its unique key.
+      parameters:
+      - description: Configuration Key
+        example: '"site_name"'
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved configuration item
+          schema:
+            $ref: '#/definitions/models.ConfigurationDTO'
+        "400":
+          description: Configuration key parameter is required
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Configuration item not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get configuration by key
+      tags:
+      - Configurations
+    put:
+      consumes:
+      - application/json
+      description: Updates the value of an existing, editable configuration item using
+        its key.
+      parameters:
+      - description: Configuration Key
+        example: '"site_name"'
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: New configuration value
+        in: body
+        name: config
+        required: true
+        schema:
+          properties:
+            value:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated configuration item
+          schema:
+            $ref: '#/definitions/models.ConfigurationDTO'
+        "400":
+          description: Invalid key format or request body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission or item not editable)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Configuration item not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update configuration by key
+      tags:
+      - Configurations
+  /dashboards:
+    get:
+      description: Retrieves a paginated list of dashboards owned by or shared with
+        the current user.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of dashboards
+          schema:
+            $ref: '#/definitions/response.DashboardListResponse'
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List dashboards accessible to the user
+      tags:
+      - dashboards
+  /dashboards/{dashboardId}/share:
+    post:
+      consumes:
+      - application/json
+      description: Shares a dashboard with a specified user or role.
+      parameters:
+      - description: Dashboard ID to share
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Details of the share (user/role and permission level)
+        in: body
+        name: shareDetails
+        required: true
+        schema:
+          $ref: '#/definitions/request.DashboardShareRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Dashboard shared successfully
+          schema:
+            type: object
+        "400":
+          description: Invalid Dashboard ID or request payload
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Not authorized to share this dashboard
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Dashboard, User, or Role not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Share a dashboard
+      tags:
+      - dashboards
+  /dashboards/{dashboardId}/share/{shareId}:
+    delete:
+      consumes:
+      - application/json
+      description: Removes a specific share for a dashboard using the share ID.
+      parameters:
+      - description: Dashboard ID from which to unshare
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The ID of the share record to delete
+        in: path
+        name: shareId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Dashboard unshared successfully
+          schema:
+            type: object
+        "400":
+          description: Invalid Dashboard ID or Share ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Not authorized to unshare this dashboard
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Dashboard or Share not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unshare a dashboard
+      tags:
+      - dashboards
+  /dashboards/{dashboardId}/shares:
+    get:
+      description: Retrieves all share records for a specific dashboard. Only owner
+        can view.
+      parameters:
+      - description: Dashboard ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of dashboard shares
+          schema:
+            items:
+              $ref: '#/definitions/response.DashboardShareResponse'
+            type: array
+        "400":
+          description: Invalid Dashboard ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Not authorized to view shares
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Dashboard not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get shares for a dashboard
+      tags:
+      - dashboards
+  /dashboards/{dashboardId}/widgets/{widgetId}/data:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves data for a widget on a specific dashboard.
+      parameters:
+      - description: Dashboard ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Widget ID
+        in: path
+        name: widgetId
+        required: true
+        type: string
+      - description: Additional widget parameters
+        in: query
+        name: params
+        type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Widget data
+          schema:
+            $ref: '#/definitions/response.WidgetDataResponse'
+        "400":
+          description: Invalid Dashboard ID, Widget ID, or parameters
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Access to dashboard/widget denied
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Dashboard or Widget not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get data for a specific widget
+      tags:
+      - dashboards
+  /dashboards/{id}/layout:
+    get:
+      description: Retrieves the layout and configuration of a specific dashboard.
+      parameters:
+      - description: Dashboard ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Dashboard layout details
+          schema:
+            $ref: '#/definitions/response.DashboardResponse'
+        "400":
+          description: Invalid Dashboard ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Access to dashboard denied
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Dashboard not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get dashboard layout
+      tags:
+      - dashboards
+    put:
+      consumes:
+      - application/json
+      description: Saves or updates the layout and configuration of a specific dashboard.
+      parameters:
+      - description: Dashboard ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Dashboard layout details
+        in: body
+        name: layout
+        required: true
+        schema:
+          $ref: '#/definitions/request.DashboardLayoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Dashboard layout saved successfully
+          schema:
+            $ref: '#/definitions/response.DashboardResponse'
+        "400":
+          description: Invalid Dashboard ID or request payload
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Not authorized to save this dashboard
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Dashboard not found (for update if ID mismatch)
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Save dashboard layout
+      tags:
+      - dashboards
+  /health:
+    get:
+      description: Returns the health status of the API and its dependencies (e.g.,
+        database).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API is healthy
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: API is unhealthy or database is down
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Check API Health
+      tags:
+      - health
+  /media/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a media file record and the corresponding file(s) from
+        storage.
+      parameters:
+      - description: Media ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully deleted media file
+        "400":
+          description: Invalid media ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Media record not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error during deletion
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete media file by ID
+      tags:
+      - Media
+  /media/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a file (image, document, etc.) and stores its metadata.
+        Generates thumbnails for supported image types.
+      parameters:
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Optional description for the file
+        in: formData
+        name: description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully uploaded media file and created metadata record
+          schema:
+            $ref: '#/definitions/models.Media'
+        "400":
+          description: Invalid form data or file upload error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error during file processing or saving
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload a media file
+      tags:
+      - Media
+  /menus:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new menu item for navigation.
+      parameters:
+      - description: Menu item details
+        in: body
+        name: menu
+        required: true
+        schema:
+          $ref: '#/definitions/api.MenuCreateUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successfully created menu item
+          schema:
+            $ref: '#/definitions/models.Menu'
+        "400":
+          description: Invalid request body, validation failed, or invalid parent
+            ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new menu item
+      tags:
+      - Menus
+  /menus/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a menu item. Consider adding checks for child items.
+      parameters:
+      - description: Menu Item ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully deleted menu item
+        "400":
+          description: Invalid menu ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Menu item not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error (e.g., foreign key constraint)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete menu item by ID
+      tags:
+      - Menus
+    get:
+      consumes:
+      - application/json
+      description: Retrieves details for a specific menu item by its UUID. Does not
+        include children.
+      parameters:
+      - description: Menu Item ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved menu item
+          schema:
+            $ref: '#/definitions/models.Menu'
+        "400":
+          description: Invalid menu ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Menu item not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get menu item by ID
+      tags:
+      - Menus
+    put:
+      consumes:
+      - application/json
+      description: Updates details for an existing menu item.
+      parameters:
+      - description: Menu Item ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Menu item details to update
+        in: body
+        name: menu
+        required: true
+        schema:
+          $ref: '#/definitions/api.MenuCreateUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully updated menu item
+          schema:
+            $ref: '#/definitions/models.Menu'
+        "400":
+          description: Invalid menu ID format, request body, or circular parent reference
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Menu item not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update menu item by ID
+      tags:
+      - Menus
+  /menus/tree/full:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the entire menu structure, including all items, regardless
+        of permissions. Requires admin privileges.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved full menu tree
+          schema:
+            items:
+              $ref: '#/definitions/models.Menu'
+            type: array
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get full menu tree (Admin)
+      tags:
+      - Menus
+  /menus/tree/user:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the menu structure accessible to the currently authenticated
+        user based on their roles and permissions.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved user-specific menu tree
+          schema:
+            items:
+              $ref: '#/definitions/models.Menu'
+            type: array
+        "401":
+          description: Unauthorized (JWT invalid or missing, or user context missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get menu tree for current user
+      tags:
+      - Menus
+  /modules:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of all available modules and their status.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of modules
+          schema:
+            items:
+              $ref: '#/definitions/api.ModuleInfo'
+            type: array
+        "500":
+          description: Internal server error" // Reference ErrorResponse
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List installed/loaded modules
+      tags:
+      - Modules
+  /oidc/{provider}/callback:
+    get:
+      description: Handles the callback from the OIDC provider after user authentication.
+        Exchanges code for tokens, validates ID token, logs user in, and returns tokens.
+      parameters:
+      - description: OIDC Provider Name (e.g., google)
+        in: path
+        name: provider
+        required: true
+        type: string
+      - description: OIDC state parameter
+        in: query
+        name: state
+        required: true
+        type: string
+      - description: OIDC authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Successful login with local tokens
+          schema:
+            $ref: '#/definitions/response.LoginResponse'
+        "400":
+          description: Invalid state, code, or provider error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal server error during token exchange or user provisioning
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Handle OIDC Callback
+      tags:
+      - Authentication OIDC
+  /oidc/{provider}/login:
+    get:
+      description: Redirects the user to the specified OIDC provider for authentication.
+      parameters:
+      - description: OIDC Provider Name (e.g., google)
+        in: path
+        name: provider
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Redirects to OIDC provider
+        "400":
+          description: Invalid provider or configuration error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Initiate OIDC Login
+      tags:
+      - Authentication OIDC
+  /permissions:
+    get:
+      description: Retrieves a paginated list of permissions, optionally filtered.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term for permission name, resource, or action
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of permissions
+          schema:
+            $ref: '#/definitions/response.PermissionListResponse'
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List permissions
+      tags:
+      - permissions
+    post:
+      consumes:
+      - application/json
+      description: Creates a new permission.
+      parameters:
+      - description: Permission creation details
+        in: body
+        name: permission
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreatePermissionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Permission created successfully
+          schema:
+            $ref: '#/definitions/response.PermissionResponse'
+        "400":
+          description: Invalid request payload or validation error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Insufficient permissions
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Permission name already exists
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new permission
+      tags:
+      - permissions
+  /permissions/{id}:
+    delete:
+      description: Deletes a specific permission by its ID.
+      parameters:
+      - description: Permission ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Permission deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid Permission ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Permission not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Permission is in use and cannot be deleted
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete permission by ID
+      tags:
+      - permissions
+    get:
+      description: Retrieves details of a specific permission by its ID.
+      parameters:
+      - description: Permission ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Permission details
+          schema:
+            $ref: '#/definitions/response.PermissionResponse'
+        "400":
+          description: Invalid Permission ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Permission not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get permission by ID
+      tags:
+      - permissions
+    put:
+      consumes:
+      - application/json
+      description: Updates details of a specific permission by its ID.
+      parameters:
+      - description: Permission ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Permission update details
+        in: body
+        name: permission
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdatePermissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Permission updated successfully
+          schema:
+            $ref: '#/definitions/response.PermissionResponse'
+        "400":
+          description: Invalid Permission ID or request payload
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Permission not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Permission name already exists
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update permission by ID
+      tags:
+      - permissions
+  /roles:
+    get:
+      description: Retrieves a paginated list of roles, optionally filtered.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term for role name or description
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of roles
+          schema:
+            $ref: '#/definitions/response.RoleListResponse'
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List roles
+      tags:
+      - roles
+    post:
+      consumes:
+      - application/json
+      description: Creates a new role with specified permissions.
+      parameters:
+      - description: Role creation details
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Role created successfully
+          schema:
+            $ref: '#/definitions/response.RoleResponse'
+        "400":
+          description: Invalid request payload or validation error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Insufficient permissions
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Role name already exists
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new role
+      tags:
+      - roles
+  /roles/{id}:
+    delete:
+      description: Deletes a specific role by its ID.
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Role deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid Role ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Role not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Role is in use and cannot be deleted
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete role by ID
+      tags:
+      - roles
+    get:
+      description: Retrieves details of a specific role by its ID, including permissions.
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Role details
+          schema:
+            $ref: '#/definitions/response.RoleResponse'
+        "400":
+          description: Invalid Role ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Role not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get role by ID
+      tags:
+      - roles
+    put:
+      consumes:
+      - application/json
+      description: Updates details of a specific role by its ID, including permissions.
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Role update details
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Role updated successfully
+          schema:
+            $ref: '#/definitions/response.RoleResponse'
+        "400":
+          description: Invalid Role ID or request payload
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: Role not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Role name already exists
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update role by ID
+      tags:
+      - roles
+  /roles/{id}/permissions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of all permissions assigned to a specific role.
+      parameters:
+      - description: Role ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved list of permissions
+          schema:
+            items:
+              $ref: '#/definitions/models.Permission'
+            type: array
+        "400":
+          description: Invalid role ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Role not found (if checked)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get permissions assigned to a role
+      tags:
+      - Roles
+    post:
+      consumes:
+      - application/json
+      description: Assigns an existing permission to a specific role.
+      parameters:
+      - description: Role ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Permission ID to assign
+        in: body
+        name: permission
+        required: true
+        schema:
+          $ref: '#/definitions/api.AssignPermissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully assigned permission
+        "400":
+          description: Invalid role/permission ID format or request body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Role or Permission not found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign a permission to a role
+      tags:
+      - Roles
+  /roles/{id}/permissions/{permissionId}:
+    delete:
+      consumes:
+      - application/json
+      description: Revokes an assigned permission from a specific role.
+      parameters:
+      - description: Role ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Permission ID (UUID) to revoke
+        format: uuid
+        in: path
+        name: permissionId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully revoked permission
+        "400":
+          description: Invalid role or permission ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke a permission from a role
+      tags:
+      - Roles
+  /saml/{provider}/acs:
+    post:
+      description: Handles the SAML assertion POSTed back from the IdP. Validates
+        the assertion, finds/creates a user, and returns local tokens.
+      parameters:
+      - description: SAML Provider Name (e.g., okta)
+        in: path
+        name: provider
+        required: true
+        type: string
+      - description: The base64-encoded SAML assertion response from the IdP
+        in: formData
+        name: SAMLResponse
+        required: true
+        type: string
+      - description: The RelayState parameter originally sent to the IdP
+        in: formData
+        name: RelayState
+        type: string
+      responses:
+        "200":
+          description: Successful login with local tokens
+          schema:
+            $ref: '#/definitions/response.LoginResponse'
+        "400":
+          description: Invalid assertion, provider, or RelayState
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal server error during assertion processing or user provisioning
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Handle SAML Assertion (ACS)
+      tags:
+      - Authentication SAML
+  /saml/{provider}/login:
+    get:
+      description: Redirects the user to the specified SAML IdP for authentication.
+      parameters:
+      - description: SAML Provider Name (e.g., okta)
+        in: path
+        name: provider
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Redirects to SAML IdP
+        "400":
+          description: Invalid provider or configuration error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Initiate SAML Login (SP-Initiated)
+      tags:
+      - Authentication SAML
+  /saml/{provider}/metadata:
+    get:
+      description: Returns the SAML metadata XML for this application (Service Provider)
+        for the specified provider configuration.
+      parameters:
+      - description: SAML Provider Name (e.g., okta)
+        in: path
+        name: provider
+        required: true
+        type: string
+      produces:
+      - text/xml
+      responses:
+        "200":
+          description: SAML Metadata XML
+          schema:
+            type: string
+        "400":
+          description: Invalid provider or configuration error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal server error generating metadata
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get SAML Service Provider Metadata
+      tags:
+      - Authentication SAML
+  /tenants:
+    get:
+      description: Retrieves a paginated list of tenants with optional filtering
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Filter by subscription plan
+        in: query
+        name: subscription_plan
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get tenants list
+      tags:
+      - tenants
+    post:
+      consumes:
+      - application/json
+      description: Creates a new tenant with the provided information
+      parameters:
+      - description: Tenant information
+        in: body
+        name: tenant
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateTenantRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.TenantResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Create a new tenant
+      tags:
+      - tenants
+  /tenants/{id}:
+    delete:
+      description: Soft deletes a tenant by setting its status to deleted
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Delete a tenant
+      tags:
+      - tenants
+    get:
+      description: Retrieves a tenant with the specified ID
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get a tenant by ID
+      tags:
+      - tenants
+    put:
+      consumes:
+      - application/json
+      description: Updates a tenant with the provided information
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated tenant information
+        in: body
+        name: tenant
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateTenantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Update a tenant
+      tags:
+      - tenants
+  /tenants/{id}/activate:
+    post:
+      description: Changes a tenant's status to active
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Activate a tenant
+      tags:
+      - tenants
+  /tenants/{id}/branding:
+    get:
+      description: Retrieves the branding settings for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantBrandingResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get tenant branding
+      tags:
+      - tenants
+    put:
+      consumes:
+      - application/json
+      description: Updates the branding settings for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Branding settings
+        in: body
+        name: branding
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateTenantBrandingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Update tenant branding
+      tags:
+      - tenants
+  /tenants/{id}/config:
+    get:
+      description: Retrieves the configuration settings for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantConfigResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get tenant configuration
+      tags:
+      - tenants
+    put:
+      consumes:
+      - application/json
+      description: Updates the configuration settings for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Configuration settings
+        in: body
+        name: config
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateTenantConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Update tenant configuration
+      tags:
+      - tenants
+  /tenants/{id}/deactivate:
+    post:
+      description: Changes a tenant's status to inactive
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Deactivate a tenant
+      tags:
+      - tenants
+  /tenants/{id}/stats:
+    get:
+      description: Retrieves various statistics for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantStatsResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get tenant statistics
+      tags:
+      - tenants
+  /tenants/{id}/suspend:
+    post:
+      description: Changes a tenant's status to suspended
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Suspend a tenant
+      tags:
+      - tenants
+  /tenants/{id}/users:
+    get:
+      description: Retrieves a paginated list of users for a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by role
+        in: query
+        name: role
+        type: string
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Search term
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantUserListResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get tenant users
+      tags:
+      - tenants
+  /tenants/{tenant_id}/users/{user_id}:
+    delete:
+      description: Removes a user from a tenant
+      parameters:
+      - description: Tenant ID
+        in: path
+        name: tenant_id
+        required: true
+        type: integer
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Remove user from tenant
+      tags:
+      - tenants
+  /tenants/check/domain:
+    get:
+      description: Checks if a custom domain is available for registration
+      parameters:
+      - description: Domain to check
+        in: query
+        name: domain
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.AvailabilityCheckResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Check domain availability
+      tags:
+      - tenants
+  /tenants/check/subdomain:
+    get:
+      description: Checks if a subdomain is available for registration
+      parameters:
+      - description: Subdomain to check
+        in: query
+        name: subdomain
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.AvailabilityCheckResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Check subdomain availability
+      tags:
+      - tenants
+  /tenants/current:
+    get:
+      description: Retrieves the current user's tenant information or system info
+        for superusers
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get current tenant
+      tags:
+      - tenants
+  /tenants/subdomain/{subdomain}:
+    get:
+      description: Retrieves a tenant with the specified subdomain
+      parameters:
+      - description: Tenant subdomain
+        in: path
+        name: subdomain
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.TenantResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get a tenant by subdomain
+      tags:
+      - tenants
+  /tenants/system/stats:
+    get:
+      description: Retrieves system-wide statistics across all tenants
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SystemStatsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Get system statistics
+      tags:
+      - tenants
+  /tenants/users:
+    post:
+      consumes:
+      - application/json
+      description: Adds a user to a tenant with specified role and permissions
+      parameters:
+      - description: User assignment information
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/request.AddUserToTenantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: Add user to tenant
+      tags:
+      - tenants
+  /users:
+    get:
+      description: Retrieves a paginated list of users, optionally filtered.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Number of items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search term for username, email, or full name
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of users
+          schema:
+            $ref: '#/definitions/response.UserListResponse'
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Allows an administrator to create a new user account.
+      parameters:
+      - description: User creation details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/request.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully
+          schema:
+            $ref: '#/definitions/response.UserResponse'
+        "400":
+          description: Invalid request payload or validation error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden - Insufficient permissions
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Username or email already exists
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new user (Admin)
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      description: Deletes a specific user by their ID (soft delete typically).
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid User ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user by ID
+      tags:
+      - users
+    get:
+      description: Retrieves details of a specific user by their ID.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User details
+          schema:
+            $ref: '#/definitions/response.UserResponse'
+        "400":
+          description: Invalid User ID
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Updates details of a specific user by their ID.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User update details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/request.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User updated successfully
+          schema:
+            $ref: '#/definitions/response.UserResponse'
+        "400":
+          description: Invalid User ID or request payload
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "409":
+          description: Email already in use by another user
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_route-fix-backup-20250603_161334_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user by ID
+      tags:
+      - users
+  /users/{id}/roles:
+    post:
+      consumes:
+      - application/json
+      description: Assigns an existing role to a specific user.
+      parameters:
+      - description: User ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role ID to assign
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/api.AssignRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully assigned role
+        "400":
+          description: Invalid user/role ID format or request body
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: User or Role not found (if checked)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign a role to a user
+      tags:
+      - Users
+  /users/{id}/roles/{roleId}:
+    delete:
+      consumes:
+      - application/json
+      description: Revokes an assigned role from a specific user.
+      parameters:
+      - description: User ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role ID (UUID) to revoke
+        format: uuid
+        in: path
+        name: roleId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Successfully revoked role
+        "400":
+          description: Invalid user or role ID format
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "401":
+          description: Unauthorized (JWT invalid or missing)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "403":
+          description: Forbidden (user lacks permission)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "404":
+          description: User or Role not found (if checked)
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke a role from a user
+      tags:
+      - Users
+  /users/profile:
+    get:
+      description: Retrieves the profile of the currently authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Current user profile
+          schema:
+            $ref: '#/definitions/response.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/backend_app_api_handlers.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/backend_app_api_handlers.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/backend_app_api_handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - users
+schemes:
+- https
+- http
+swagger: "2.0"

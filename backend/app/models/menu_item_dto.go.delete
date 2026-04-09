@@ -1,0 +1,13 @@
+// platform/backend/app/models/menu_item_dto.go
+package models
+
+// MenuItemDTO represents a menu item for API responses with hierarchical structure
+type MenuItemDTO struct {
+	ID         int            `json:"id"`
+	Title      string         `json:"title"`
+	Route      *string        `json:"route,omitempty"`
+	Icon       *string        `json:"icon,omitempty"`
+	OrderIndex int            `json:"order_index"`
+	IsActive   bool           `json:"is_active"`
+	Children   []*MenuItemDTO `json:"children,omitempty"`
+}

@@ -1,0 +1,15 @@
+# GitHub Actions CI/CD Workflow
+# TODO: Copy the complete content from artifact "GitHub Actions CI/CD Workflow"
+
+name: API Tests - TODO
+
+on:
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: TODO
+        run: echo "Copy complete workflow from artifacts"

@@ -1,0 +1,40 @@
+node_modules/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+dist/
+build/
+.DS_Store
+*.log
+.vite/
+.next/
+coverage/
+_analysis/
+_backups/
+logs/     
+node_modules
+100-fix-repair-dependency.sh
+101-fix-frontend.sh              
+102-frontend-endtoend-analysis.sh
+103-fix-frontend-grid.sh
+104-fix-frontend.sh
+105-frontend-endtoend-analysis.sh  
+
+# Backup and temporary config files
+src/config/menu-items-all-v2.json
+src/config/menu-items-all.v1.json
+src/config/menu-items-all.v1.json
+
+# Backup theme files
+src/styles/theme-animated.ts
+
+# Other common patterns you might want to ignore
+*.backup
+*.bak
+*.tmp
+*-backup.*
+*-old.*
+*-v2.*
+*.orig

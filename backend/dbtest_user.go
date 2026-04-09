@@ -1,0 +1,27 @@
+package main
+
+import (
+"context"
+"fmt"
+"log"
+"github.com/jmoiron/sqlx"
+_ "github.com/lib/pq"
+"backend/app/models"
+)
+
+func main() {
+dsn := "host=localhost user=postgres password=xiZjhF54vDsdAX0p dbname=reksolindo_semar port=5432 sslmode=disable TimeZone=Asia/Shanghai search_path=public"
+db, err := sqlx.Connect("postgres", dsn)
+if err != nil {
+log.Printf("Err: %v\n", err)
+        return
+}
+
+var u models.User
+err = db.GetContext(context.Background(), &u, "SELECT * FROM users WHERE username = 'admin'")
+if err != nil {
+log.Printf("Err GetUser: %v\n", err)
+} else {
+fmt.Printf("Admin: IsSuperuser=%v, TenantID=%v, ID=%d\n", u.IsSuperuser, u.TenantID, u.ID)
+}
+}

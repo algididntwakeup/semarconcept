@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/ico" href="/favicon.ico?v=2" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- 🔥 CRITICAL FIX: Material Icons Font (THIS FIXES YOUR MISSING ICONS!) -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/icon?family=Material+Icons"
+    />
+    
+    <!-- 🔥 ADDITIONAL: Material Icons variants for better coverage -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined"
+    />
+    
+    <!-- 🔥 RECOMMENDED: Fonts for better typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    
+    <!-- 🔥 PERFORMANCE: DNS prefetch for faster loading -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="//fonts.gstatic.com" />
+    
+    <!-- 🔥 META: Better SEO and mobile support -->
+    <meta name="description" content="Reksolindo Enterprise Asset Management System" />
+    <meta name="theme-color" content="#4285F4" />
+    
+    <title>SEMAR - Reliability Meets Intelligence</title>
+    
+    <!-- 🔥 CRITICAL CSS: Prevent layout shifts and improve loading -->
+    <style>
+      /* Prevent flash of unstyled content */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        background-color: #f8fafc;
+        overflow-x: hidden;
+      }
+      
+      #root {
+        min-height: 100vh;
+        background-color: #f8fafc;
+      }
+      
+      /* Loading spinner for initial load */
+      .initial-loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #f8fafc;
+      }
+      
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e3f2fd;
+        border-top: 3px solid #4285f4;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Hide loading when React app mounts */
+      .app-loaded .initial-loading {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 🔥 LOADING STATE: Show spinner until React loads -->
+    <div id="root">
+      <div class="initial-loading">
+        <div class="loading-spinner"></div>
+      </div>
+    </div>
+    
+    <!-- 🔥 DEBUG SCRIPT: Check if Material Icons loaded -->
+    <script>
+      // Debug Material Icons loading
+      window.addEventListener('DOMContentLoaded', function() {
+        setTimeout(() => {
+          const testIcon = document.createElement('span');
+          testIcon.className = 'material-icons';
+          testIcon.style.visibility = 'hidden';
+          testIcon.style.position = 'absolute';
+          testIcon.textContent = 'home';
+          document.body.appendChild(testIcon);
+          
+          const fontFamily = window.getComputedStyle(testIcon).fontFamily;
+          
+          if (fontFamily.includes('Material Icons')) {
+            console.log('✅ Material Icons font loaded successfully');
+          } else {
+            console.error('❌ Material Icons font failed to load - this will cause missing icons!');
+            console.error('👉 Check your internet connection and network tab');
+          }
+          
+          document.body.removeChild(testIcon);
+        }, 500);
+      });
+      
+      // Remove loading spinner when React app starts
+      window.addEventListener('load', function() {
+        document.body.classList.add('app-loaded');
+      });
+    </script>
+    
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

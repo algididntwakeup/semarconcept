@@ -1,0 +1,6 @@
+# Reksolindo Security Keys - Generated on Jum 16 Mei 2025 10:40:08  WIB
+# IMPORTANT: Keep this file secure and do not share it!
+
+REKSOLINDO_ENCRYPTION_KEY=1566da56f61361c36dab9493b1f138d4
+JWT_SECRET=mAiDfbm0pAcpU0wMB/TT/fcU5P+GvmGE+N9FI68Iv40=
+SESSION_SECRET=Vjx1tjg6oZrkKb7iSc0Y91UN8QF1tRL3T3CdHXRTBoM=
