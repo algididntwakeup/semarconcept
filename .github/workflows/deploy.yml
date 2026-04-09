@@ -44,6 +44,11 @@ jobs:
         run: |
           echo "Memulai proses build & deployment..."
           
+          # Fix bug: old example template created a 33-byte key which causes Go backend to crash in init()
+          if [ -f "docker-compose.yml" ]; then
+            sed -i 's/your_32_bytes_encryption_key_here/your_32_byte_encryption_key_here/g' docker-compose.yml
+          fi
+          
           # Matikan dan hapus container (jika ada perubahan file docker-compose.yml dsb)
           docker compose down
           

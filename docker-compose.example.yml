@@ -44,7 +44,7 @@ services:
       - REDIS_PORT=6379
       - APP_PORT=3500
       - JWT_SECRET_KEY=${JWT_SECRET:-your_super_secret_jwt_key}
-      - REKSOLINDO_ENCRYPTION_KEY=${REKSOLINDO_ENCRYPTION_KEY:-your_32_bytes_encryption_key_here}
+      - REKSOLINDO_ENCRYPTION_KEY=${REKSOLINDO_ENCRYPTION_KEY:-your_32_byte_encryption_key_here}
     ports:
       - "3500:3500"
     volumes:
