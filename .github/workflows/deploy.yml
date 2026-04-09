@@ -50,16 +50,11 @@ jobs:
           # Jalankan di background dan paksa build layer terbaru, tunggu (wait) sampai container sehat
           docker compose up -d --build --wait
 
-      - name: Execute Database Seeder (Opsional)
-        run: |
-          # Tunggu beberapa detik agar DB (Postgres) dan Container Backend benar-benar siap dan tidak restart loop
-          echo "Menunggu layanan siap (sleep 15s)..."
-          sleep 15
-          
-          # Eksekusi seeder setelah DB fresh baru di-rebuild/direstart
-          # (Non-aktifkan jika database bersifat persistent dan tidak ingin di-seed ulang setiap deploy)
-          echo "Checking if we should run DB Seeder..."
-          docker exec semar-backend ./reksolindo-backend -seed=true
+      # - name: Execute Database Seeder (Opsional)
+      #   run: |
+      #     # Eksekusi seeder secara manual karena memakan resource dan bisa menyebabkan crash di staging CI/CD
+      #     echo "Seeder dinonaktifkan dari pipeline. Jalankan manual via: docker exec semar-backend ./reksolindo-backend -seed=true"
+      #     # docker exec semar-backend ./reksolindo-backend -seed=true
 
       - name: Clean up Unused Docker Resources
         run: |
