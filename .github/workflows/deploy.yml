@@ -52,6 +52,10 @@ jobs:
 
       - name: Execute Database Seeder (Opsional)
         run: |
+          # Tunggu beberapa detik agar DB (Postgres) dan Container Backend benar-benar siap dan tidak restart loop
+          echo "Menunggu layanan siap (sleep 15s)..."
+          sleep 15
+          
           # Eksekusi seeder setelah DB fresh baru di-rebuild/direstart
           # (Non-aktifkan jika database bersifat persistent dan tidak ingin di-seed ulang setiap deploy)
           echo "Checking if we should run DB Seeder..."
