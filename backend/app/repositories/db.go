@@ -39,28 +39,31 @@ func Connect(cfg config.DatabaseConfig) (*sqlx.DB, error) {
 	utils.Infof("Connecting to database: %s with driver %s", cfg.Name, cfg.Driver)
 
 	var err error
-	DB, err = sqlx.Connect(cfg.Driver, dataSourceName)
+	maxRetries := 10
+	for i := 0; i < maxRetries; i++ {
+		DB, err = sqlx.Connect(cfg.Driver, dataSourceName)
+		if err == nil {
+			err = DB.Ping()
+			if err == nil {
+				break // Success!
+			}
+			DB.Close()
+		}
+
+		utils.Warnf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
+		if i < maxRetries-1 {
+			time.Sleep(3 * time.Second)
+		}
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect/ping database after %d retries: %w", maxRetries, err)
 	}
 
 	// Configure connection pool settings
 	DB.SetMaxOpenConns(cfg.MaxOpenConns)
 	DB.SetMaxIdleConns(cfg.MaxIdleConns)
 	DB.SetConnMaxLifetime(cfg.ConnMaxLifetime * time.Second) // Multiply by time.Second
-
-	err = DB.Ping()
-	// Set search path to public schema explicitly
-	_, err = DB.Exec("SET search_path TO public")
-	if err != nil {
-		utils.Warnf("Failed to set search_path to public: %v", err)
-	} else {
-		utils.Info("Database search_path set to 'public' schema")
-	}
-	if err != nil {
-		DB.Close() // Attempt to close before returning error
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
 
 	_, err = DB.Exec("SET search_path TO public")
 	if err != nil {
