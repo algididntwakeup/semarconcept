@@ -12,5 +12,9 @@ export default defineConfig({
     allowedHosts: [
       'reksolindo.opuschamber.com',
     ]    
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
   }
 });
