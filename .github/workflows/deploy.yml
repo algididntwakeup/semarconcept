@@ -15,6 +15,13 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: Fix Workspace Permissions Before Checkout
+        run: |
+          # Fix permission issues where files created by Docker (as root) cannot be deleted by actions/checkout
+          # Fallback to docker run chown if sudo requires password or isn't available
+          sudo chown -R $USER:$USER ${{ github.workspace }} || \
+          docker run --rm -v ${{ github.workspace }}:/workspace alpine sh -c "chown -R \$(id -u):\$(id -g) /workspace" || true
+
       - name: Checkout Code
         uses: actions/checkout@v4
 
