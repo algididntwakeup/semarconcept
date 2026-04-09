@@ -7,8 +7,48 @@ on:
       - main
 
 jobs:
+  test-backend:
+    name: Unit Test Backend (Go)
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24' # Sesuaikan dengan versi Go Anda
+          cache-dependency-path: backend/go.sum
+          
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          go mod download
+          go test -v ./...
+
+  test-frontend:
+    name: Test Frontend (React/Vite)
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Sesuaikan dengan environment staging
+          
+      - name: Run Frontend Tests/Linter
+        run: |
+          cd frontend
+          npm install
+          # Menjalankan spesifik test (jika ada) dan memeriksa format build
+          npm run test --if-present
+          npm run build
+
   deploy:
     name: Build & Deploy
+    needs: [test-backend, test-frontend]
     # Menggunakan tags 'self-hosted' yang biasanya digunakan untuk server private
     runs-on: self-hosted
 
