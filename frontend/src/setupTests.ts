@@ -1,12 +1,32 @@
 // platform/frontend-mui/src/setupTests.ts
 import '@testing-library/jest-dom';
+import { afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 
-// Add any other global setup or polyfills needed for tests here
-// For example, mocking global objects if necessary:
-// global.matchMedia = global.matchMedia || function() { ... };
+// jsdom tidak mengimplementasikan matchMedia (dipakai MainLayout & MUI).
+window.matchMedia =
+  window.matchMedia ||
+  ((query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList));
 
-// Clean up after each test case (optional but recommended)
-// import { cleanup } from '@testing-library/react';
-// afterEach(() => {
-//   cleanup();
-// });
+// ResizeObserver tidak tersedia pada jsdom (dipakai chart/advanced grid).
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+window.ResizeObserver = window.ResizeObserver || ResizeObserverStub;
+
+// Clean up setelah setiap test (rekomendasi @testing-library/react).
+afterEach(() => {
+  cleanup();
+});

@@ -51,6 +51,11 @@ import {
   Wrench,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store';
+import { MODULE_DESTINATIONS } from '../../config/module-destinations';
+import { useNavigation } from '../../layouts/MainLayout';
+import type { NavItem } from '../../types/navigation';
 
 export type ModuleKey =
   | 'assets'
@@ -61,12 +66,41 @@ export type ModuleKey =
   | 'compliance'
   | 'admin';
 
-interface ModuleDestination {
+/** Kontrak canonical: href harus ada di MODULE_DESTINATIONS[module]. */
+export interface ModuleDestination {
   title: string;
   description: string;
   href: string;
   icon: LucideIcon;
 }
+
+/** Destination diizinkan bila ada di module destination canonical DAN di
+ *  menu runtime user. Superuser melewati pemeriksaan menu. */
+export const filterAllowedModuleDestinations = (
+  module: ModuleKey,
+  destinations: ModuleDestination[],
+  topLevelMenuItems: NavItem[],
+  isSuperuser: boolean,
+  userPermissions: string[] = []
+): ModuleDestination[] => {
+  const valid = new Set(MODULE_DESTINATIONS[module].map((d) => d.href));
+  if (isSuperuser) {
+    return destinations.filter((d) => valid.has(d.href));
+  }
+  const root = topLevelMenuItems.find((item) => (item.url?.replace(/\/$/, '') || '') === `/${module}`);
+  const accessibleHrefs = new Set(
+    (root?.children ?? [])
+      .filter((child) => {
+        if (child.visible === false || child.disabled) return false;
+        if (child.permissions && child.permissions.length > 0) {
+          return child.permissions.some((p) => userPermissions.includes(p));
+        }
+        return true;
+      })
+      .map((child) => child.url?.replace(/\/$/, '') ?? '')
+  );
+  return destinations.filter((d) => valid.has(d.href) && accessibleHrefs.has(d.href));
+};
 
 interface ModuleDefinition {
   eyebrow: string;
@@ -78,7 +112,7 @@ interface ModuleDefinition {
   destinations: ModuleDestination[];
 }
 
-const moduleDefinitions: Record<ModuleKey, ModuleDefinition> = {
+export const moduleDefinitions: Record<ModuleKey, ModuleDefinition> = {
   assets: {
     eyebrow: 'Asset foundation',
     title: 'Asset Management',
@@ -465,6 +499,21 @@ interface ModuleLandingPageProps {
 const ModuleLandingPage = ({ module }: ModuleLandingPageProps) => {
   const definition = moduleDefinitions[module];
   const ModuleIcon = definition.icon;
+  const { topLevelMenuItems } = useNavigation();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const userPermissions = user?.permissions ?? [];
+  const isSuperuser = Boolean(
+    user?.is_superuser || (user as { isSuperuser?: boolean } | null)?.isSuperuser
+  );
+
+  const visibleDestinations = filterAllowedModuleDestinations(
+    module,
+    definition.destinations,
+    topLevelMenuItems,
+    isSuperuser,
+    userPermissions
+  );
+  const totalAreas = visibleDestinations.length;
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -507,40 +556,48 @@ const ModuleLandingPage = ({ module }: ModuleLandingPageProps) => {
               Pilih area kerja
             </h2>
           </div>
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm">
-            {definition.destinations.length} area tersedia
-          </span>
+          {totalAreas > 0 && (
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm">
+              {totalAreas} area tersedia
+            </span>
+          )}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {definition.destinations.map((destination) => {
-            const DestinationIcon = destination.icon;
-            return (
-              <Link
-                key={destination.href}
-                to={destination.href}
-                className="group flex min-h-40 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-              >
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors group-hover:text-white ${definition.iconClass}`}
+        {visibleDestinations.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+            Tidak ada area kerja yang dapat diakses pada modul ini.
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleDestinations.map((destination) => {
+              const DestinationIcon = destination.icon;
+              return (
+                <Link
+                  key={destination.href}
+                  to={destination.href}
+                  className="group flex min-h-40 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
                 >
-                  <DestinationIcon className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <h3 className="mt-4 text-base font-bold text-slate-900">{destination.title}</h3>
-                <p className="mt-1 flex-1 text-sm leading-6 text-slate-500">
-                  {destination.description}
-                </p>
-                <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 transition-colors group-hover:text-blue-700">
-                  Buka area
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                    aria-hidden="true"
-                  />
-                </span>
-              </Link>
-            );
-          })}
-        </div>
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors group-hover:text-white ${definition.iconClass}`}
+                  >
+                    <DestinationIcon className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-slate-900">{destination.title}</h3>
+                  <p className="mt-1 flex-1 text-sm leading-6 text-slate-500">
+                    {destination.description}
+                  </p>
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 transition-colors group-hover:text-blue-700">
+                    Buka area
+                    <ArrowRight
+                      className="h-4 w-4 transition-transform group-hover:translate-x-1"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
     </main>
   );

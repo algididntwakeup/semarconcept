@@ -15,6 +15,12 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Menambahkan landing page reusable untuk Asset, Inspection, Risk, Analytics, Maintenance, Compliance, dan Administration.
 - Mengubah root menu canonical ke `/assets`, `/inspection`, `/risk`, `/analytics`, `/maintenance`, `/compliance`, dan `/admin`.
 - Membersihkan root Content Management legacy dari primary navigation; utility route `/content/*` tetap tersedia untuk deep link/admin workflow.
+- Menjadikan destination landing page permission-aware: card difilter terhadap metadata canonical dan user menu tree runtime (permission + visibility + disabled), dengan superuser bypass dan empty state saat tidak ada akses.
+- Menambahkan `config/module-destinations.ts` sebagai kontrak canonical href per module landing.
+- Memindahkan `NavigationContext` ke `config/navigation-context.ts` agar halaman landing dapat membaca top-level menu tanpa circular import; re-export lama pada MainLayout dipertahankan.
+- Menambahkan test FE-00 (13): kontrak destination landing, filter permission (termasuk hidden/permission child dan superuser), accessible names, keyboard focus, dan empty state.
+- Memperbaiki Vitest setup: cleanup antar test, serta polyfill `matchMedia` dan `ResizeObserver` untuk jsdom; `vite.config.ts` kini memuat `setupFiles` dan menonaktifkan CSS di test.
+- Memperluas `MenuItemDTO` backend user-tree dengan `access_level`, `permissions`, dan `menu_group` untuk mendukung permission filtering di klien.
 
 ### Development environment
 
@@ -38,7 +44,8 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ### Known blockers
 
-- TypeScript check masih gagal pada beberapa komponen legacy/debug/auth/banner/MUI.
-- Frontend test terakhir: 9/12 lulus.
+- TypeScript check masih gagal pada beberapa komponen legacy/debug/auth/banner/MUI (77 error, tidak ada dari file FE-00).
+- Frontend test terakhir: 9/12 lulus (kegagalan FileUpload double-render); 13 test FE-00 lulus.
 - Backend `go test ./...` masih gagal karena test contracts tertinggal.
-- Production build belum boleh dinyatakan hijau sebelum typecheck/test diperbaiki.
+- Production build tetap hijau; typecheck/test warisan ditangani di FE-01.
+- Smoke browser asli (responsive desktop/mobile authenticated) belum berjalan karena belum ada infrastruktur E2E browser.

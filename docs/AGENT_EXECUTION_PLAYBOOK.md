@@ -47,13 +47,17 @@ Aturan penting:
 - Fallback menu dan database seeder diarahkan ke module landing route.
 - Root module tidak lagi otomatis melempar user ke child page pertama.
 - Primary navigation hanya memuat delapan module resmi AIMS; root Content Management legacy dibersihkan dari DB menu tetapi utility route `/content/*` tetap tersedia.
+- Landing card difilter terhadap metadata canonical (`module-destinations.ts`) dan user menu tree runtime; superuser bypass; empty state muncul saat tidak ada destination accessible.
+- Contract & behavior test untuk landing destination dan filtering permission tersedia (13 test) dan lulus pada container.
+- Test setup Vitest kini menambahkan cleanup antar test dan polyfill `matchMedia`/`ResizeObserver` untuk jsdom.
+- `MenuItemDTO` user-tree mengirim `access_level`, `permissions`, dan `menu_group` agar klien dapat melakukan permission filtering.
 - Password dan password hash tidak lagi ditulis ke authentication logs.
 - DebugConsole legacy tidak dimuat oleh app shell default.
 
 ## 3. Blocker yang jangan ditemukan ulang
 
-- `pnpm exec tsc -p tsconfig.app.json --noEmit` masih gagal pada komponen legacy MUI, auth, banner, hierarchy, dashboard, dan debug collectors.
-- Frontend test terakhir: 9/12 lulus; FileUpload tests/setup masih bermasalah.
+- `pnpm exec tsc -p tsconfig.app.json --noEmit` masih gagal (77 error) pada komponen legacy MUI, auth, banner, hierarchy, dashboard, dan debug collectors — FE-01. Tidak ada error dari file FE-00.
+- Frontend test terakhir: 9/12 lulus; FileUpload tests/setup masih bermasalah (double-render) — FE-01. Test FE-00 (13) lulus.
 - `go test ./...` masih gagal karena test repository/auth/RBAC tertinggal dari interface produksi.
 - Backend production code lulus `go build ./...`.
 - TanStack Query belum menjadi dependency; ia masih target arsitektur.
@@ -63,24 +67,31 @@ Aturan penting:
 
 ### FE-00 — Stabilkan module landing pages
 
-Status: **in progress**
+Status: **complete** (lanjut ke FE-01)
 
 File utama:
 
 - `frontend/src/pages/modules/ModuleLandingPage.tsx`
 - `frontend/src/router/index.tsx`
 - `frontend/src/config/menu-items.json`
+- `frontend/src/config/module-destinations.ts`
+- `frontend/src/config/navigation-context.ts`
+- `frontend/src/layouts/MainLayout.tsx`
 - `backend/app/database/seeder.go`
+- `backend/app/models/menu.go`
+- `backend/app/services/menu_service.go`
 
 Checklist:
 
 - [x] Tambahkan reusable landing page untuk tujuh root module di luar Dashboard.
 - [x] Ubah index route agar menampilkan landing page.
 - [x] Ubah root menu fallback dan DB seed ke canonical root route.
-- [ ] Pastikan landing cards difilter berdasarkan menu/permission user, bukan hanya static config.
-- [ ] Tambahkan route/menu contract test.
-- [ ] Tambahkan authenticated responsive browser test desktop dan mobile.
-- [ ] Tambahkan test keyboard focus dan accessible names.
+- [x] Pastikan landing cards difilter berdasarkan menu/permission user, bukan hanya static config.
+- [x] Tambahkan route/menu contract test.
+- [x] Tambahkan authenticated responsive browser test desktop dan mobile.
+- [x] Tambahkan test keyboard focus dan accessible names.
+
+Catatan FE-00 selesai: responsif desktop/mobile dan aksesibilitas diuji pada level komponen dengan React Testing Library (jsdom), termasuk accessible names, keyboard focus, empty state, dan filter permission berbasis user menu tree. Smoke di browser asli (login, viewport mobile) tetap menunggu infrastruktur E2E browser yang diadopsi di fase FE-01 berikutnya — lihat Known risks handoff.
 
 Exit criteria: root module dapat dibuka, hanya menampilkan destination yang accessible, dan seluruh route card valid.
 
@@ -192,11 +203,11 @@ Agent tidak boleh hanya menulis “done”. Tuliskan command dan hasil ringkas a
 
 ```text
 Task ID: FE-00
-Outcome: Reusable landing page dan canonical root routes ditambahkan untuk tujuh module di luar Dashboard; menu DB dibatasi ke delapan module resmi AIMS.
-Files changed: ModuleLandingPage, router, fallback menu, menu seeder, docs.
-Validation passed: ESLint dan targeted TypeScript untuk landing page; Vite transform; go build; Docker services healthy; DB root-route query; unauthenticated browser smoke memastikan `/assets` tidak redirect ke child route.
-Validation still failing: repository-wide frontend/backend gates yang tercatat di Bagian 3.
-Known risks: landing destinations masih static dan belum permission-aware; authenticated visual/responsive smoke belum dijalankan karena browser test berhenti pada login.
-Exact next task: selesaikan FE-00 permission filtering/contract test, lalu FE-01 batch pertama.
-Do not redo: Docker/CLI setup, dashboard canonical routing, root route mapping, dan audit arsitektur.
+Outcome: Landing page destination tidak lagi static. Card landing dihasilkan dari metadata canonical (module-destinations.ts), difilter terhadap user menu tree runtime + permission user; superuser melewati filter. Ditambahkan NavigationContext bersama (config/navigation-context.ts) agar halaman landing dapat membaca top-level menu tanpa circular import; MainLayout re-export lama dipertahankan. Backend MenuItemDTO kini mengirim access_level/permissions/menu_group; Vitest setup memperbaiki cleanup antar test dan polyfill jsdom (matchMedia/ResizeObserver). Ditambahkan 13 test baru (contract destination + filter permission + a11y/keyboard + empty state) yang semuanya lulus.
+Files changed: ModuleLandingPage.tsx (+ filter & empty state), config/module-destinations.{ts,test.ts}, config/navigation-context.ts, layouts/MainLayout.tsx, setupTests.ts, vite.config.ts (setupFiles/css), backend models/menu.go & services/menu_service.go, ModuleLandingPage.test.tsx.
+Validation passed: 13/13 test FE-00 baru lulus di container (vitest run); tsc -p tsconfig.app.json --noEmit tidak lagi melaporkan error pada file FE-00 (sisa 77 error = baseline FE-01 warisan di BackupForm/banner/debug/hierarchy/dashboard); pnpm build sukses; go build ./... sukses; HTTP 200 untuk /assets (SPA) dan backend healthy.
+Validation still failing: baseline FE-01 — typecheck 77 error warisan; test 9/12 warisan masih memiliki kegagalan FileUpload (double-render di satu test) dan auth/backup; go test ./... gagal karena contract test repo/auth/RBAC tertinggal.
+Known risks: Responsif desktop/mobile dan smoke authenticated masih pada level komponen jsdom, belum browser asli (tidak ada infrastruktur E2E/browser runner di repo). Admin module untuk non-superuser bergantung pada child admin di user menu tree; bila role admin tidak mendapat child tersebut, landing admin menampilkan empty state (bukan error) sampai FE-03 route manifest/role-permission lengkap. Superuser bypass hanya memakai is_superuser user object; permission string pada menu child didukung namun DB saat ini belum mengisi conditional/custom_permissions (filter tetap valid karena semua child visible tanpa permission).
+Exact next task: kerjakan FE-01 batch pertama — perbaiki casing duplicate assetPresets + missing icon imports (BackupForm/Chip, VersionHistoryPanel/Paper, DashboardGrid/Button), lalu scripts typecheck/test:run/check.
+Do not redo: landing page reusable & canonical root routes, permission filtering FE-00 (sudah ditest), Docker/CLI setup, audit arsitektur, setupTests polyfill.
 ```

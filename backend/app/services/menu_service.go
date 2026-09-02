@@ -582,5 +582,10 @@ func (s *menuService) menuToDTO(menu *models.Menu) *models.MenuItemDTO {
 		}
 	}
 
+	// Landing page clients derive destinations from children; keep fields
+	// required for filtering on the parent too.
+	dto.MenuGroup = menu.MenuGroup
+	dto.Permissions = []string(menu.CustomPermissions)
+
 	return dto
 }

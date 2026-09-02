@@ -1,5 +1,5 @@
 // platform/frontend-mui/src/layouts/MainLayout.tsx
-import React, { useState, useEffect, useCallback, createContext, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
@@ -20,30 +20,12 @@ import { NavItem } from '../types/navigation';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
 
-// ---------------------------------------------------------------------------
-// Navigation Context
-// ---------------------------------------------------------------------------
-interface NavigationContextType {
-  sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
-  mobileOpen: boolean;
-  setMobileOpen: (open: boolean) => void;
-  activeHorizontalTab: number;
-  setActiveHorizontalTab: (tab: number) => void;
-  openCollapseMenus: Record<string, boolean>;
-  setOpenCollapseMenus: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  topLevelMenuItems: NavItem[];
-  handleMenuItemClick: (item: NavItem, fromHorizontal?: boolean) => void;
-  toggleCollapseMenu: (id: string) => void;
-}
-
-const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
-
-export const useNavigation = () => {
-  const context = useContext(NavigationContext);
-  if (!context) throw new Error('useNavigation must be used within NavigationProvider');
-  return context;
-};
+// Kontrak navigasi bersama dipindah ke config/navigation-context.ts agar dapat
+// dipakai di luar pohon provider (module landing page) tanpa circular import.
+// Re-export lama dipertahankan agar komponen lain tidak berubah.
+import { NavigationContext, NavigationContextType } from '../config/navigation-context';
+export type { NavigationContextType } from '../config/navigation-context';
+export { NavigationContext, useNavigation } from '../config/navigation-context';
 
 // ---------------------------------------------------------------------------
 // Custom hook for click outside
