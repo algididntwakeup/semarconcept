@@ -78,7 +78,7 @@ func (h *SSEHandler) HandleSSE(c *gin.Context) {
 
 	// Handle preflight requests
 	if c.Request.Method == "OPTIONS" {
-		utils.Info("SSE: Preflight request handled for origin: %s", origin)
+		utils.Infof("SSE: Preflight request handled for origin: %s", origin)
 		c.Status(http.StatusOK)
 		return
 	}

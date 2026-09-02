@@ -4,8 +4,8 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm version matching package.json
+RUN npm install -g pnpm@9.9.0
 
 # Copy package.json and lock files
 COPY package.json pnpm-lock.yaml* package-lock.json* ./

@@ -158,32 +158,32 @@ const StorageCollector: React.FC<StorageCollectorProps> = ({
 
       {/* Storage Overview */}
       <Paper sx={{ p: 1, mb: 1, backgroundColor: (theme) => alpha(theme.palette.background.default, 0.02) }}>
-        <Grid container spacing={1}>
-          <Grid item xs={3}>
+        <div className="grid grid-cols-4 gap-1">
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Local</Typography>
               <Typography sx={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
                 {Object.keys(processedData.localStorage).length}
               </Typography>
             </Box>
-          </Grid>
-          <Grid item xs={3}>
+          </div>
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Session</Typography>
               <Typography sx={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
                 {Object.keys(processedData.sessionStorage).length}
               </Typography>
             </Box>
-          </Grid>
-          <Grid item xs={3}>
+          </div>
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Cookies</Typography>
               <Typography sx={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
                 {Object.keys(processedData.cookies).length}
               </Typography>
             </Box>
-          </Grid>
-          <Grid item xs={3}>
+          </div>
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Auth</Typography>
               <Typography sx={{ 
@@ -194,8 +194,8 @@ const StorageCollector: React.FC<StorageCollectorProps> = ({
                 {processedData.userAuth.isLoggedIn ? '✓' : '✗'}
               </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </div>
+        </div>
       </Paper>
 
       {/* User Authentication Status */}

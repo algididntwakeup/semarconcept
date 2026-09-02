@@ -95,17 +95,9 @@ const convertJsonToNavItem = (jsonItem: MenuItemJson): NavItem => {
     description: jsonItem.description,
   };
 
-  // 🔥 ENHANCED: Resolve icon from string to component with better error handling
-  if (jsonItem.icon) {
-    const IconComponent = getIconByName(jsonItem.icon);
-    if (IconComponent) {
-      navItem.icon = IconComponent as any;
-      // console.log(`✅ Icon resolved: ${jsonItem.icon} for "${jsonItem.title}"`);
-    } else {
-      // console.warn(`🚨 Icon "${jsonItem.icon}" not found in icon mapping for menu item "${jsonItem.id}" (${jsonItem.title})`);
-      // console.warn(`👉 Add this import to icon-mapping.ts: import ${jsonItem.icon} from '@mui/icons-material/${jsonItem.icon.replace('Icon', '')}';`);
-    }
-  }
+  // Resolve icon with reliable fallback
+  const resolvedIcon = jsonItem.icon ? getIconByName(jsonItem.icon) : getIconByName(jsonItem.title);
+  navItem.icon = resolvedIcon as any;
 
   // Recursively convert children
   if (jsonItem.children && jsonItem.children.length > 0) {
@@ -122,7 +114,10 @@ const convertJsonToNavItem = (jsonItem: MenuItemJson): NavItem => {
  */
 export const convertMenuItemToNavItem = (item: any): NavItem => {
   const navItem: NavItem = {
-    id: item.id.toString(),
+    // Slugs are stable across databases and deployments; numeric IDs are not.
+    // Navigation behavior (including the canonical Dashboard click) relies on
+    // these semantic IDs.
+    id: item.slug || item.id.toString(),
     title: item.title,
     type: (item.menu_type === 'collapse' || item.menu_type === 'group' || item.menu_type === 'item') 
       ? item.menu_type 
@@ -132,13 +127,9 @@ export const convertMenuItemToNavItem = (item: any): NavItem => {
     disabled: !item.is_active,
   };
 
-  // Resolve icon
-  if (item.icon) {
-    const IconComponent = getIconByName(item.icon);
-    if (IconComponent) {
-      navItem.icon = IconComponent as any;
-    }
-  }
+  // Resolve icon with reliable fallback
+  const resolvedIcon = item.icon ? getIconByName(item.icon) : getIconByName(item.title);
+  navItem.icon = resolvedIcon as any;
 
   // Recursively convert children
   if (item.children && item.children.length > 0) {

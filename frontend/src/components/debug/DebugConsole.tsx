@@ -794,26 +794,26 @@ const DebugConsole: React.FC = () => {
         <>
           {/* Enhanced Quick Stats */}
           <Box sx={{ p: 0.5, backgroundColor: (theme) => alpha(theme.palette.primary.main, 0.1) }}>
-            <Grid container spacing={0.5}>
-              <Grid item xs={2}>
+            <div className="grid grid-cols-6 gap-1">
+              <div>
                 <Chip label={`Q: ${debugData.queries.length}`} size="small" color="primary" sx={{ fontSize: '0.6rem', height: 20 }} />
-              </Grid>
-              <Grid item xs={2}>
+              </div>
+              <div>
                 <Chip label={`R: ${debugData.routes.length}`} size="small" color="secondary" sx={{ fontSize: '0.6rem', height: 20 }} />
-              </Grid>
-              <Grid item xs={2}>
+              </div>
+              <div>
                 <Chip label={`V: ${debugData.views.length}`} size="small" color="info" sx={{ fontSize: '0.6rem', height: 20 }} />
-              </Grid>
-              <Grid item xs={2}>
+              </div>
+              <div>
                 <Chip label={`E: ${debugData.events.length}`} size="small" color="success" sx={{ fontSize: '0.6rem', height: 20 }} />
-              </Grid>
-              <Grid item xs={2}>
+              </div>
+              <div>
                 <Chip label={`Err: ${debugData.exceptions.length}`} size="small" color="error" sx={{ fontSize: '0.6rem', height: 20 }} />
-              </Grid>
-              <Grid item xs={2}>
+              </div>
+              <div>
                 <Chip label={`${(debugData.memory as any)?.used || 0}MB`} size="small" color="warning" sx={{ fontSize: '0.6rem', height: 20 }} />
-              </Grid>
-            </Grid>
+              </div>
+            </div>
           </Box>
 
           {/* Tabs */}

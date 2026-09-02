@@ -76,7 +76,7 @@ const Breadcrumbs: React.FC = () => {
               to={breadcrumb.path}
               className="flex items-center space-x-1 px-2 py-1 rounded-md transition-colors hover:text-primary-600 hover:bg-primary-50"
             >
-              <span className={index === breadcrumbItems.length - 2 ? "inline" : "hidden sm:inline"}>
+              <span className="inline whitespace-nowrap">
                 {breadcrumb.label}
               </span>
             </RouterLink>

@@ -172,7 +172,8 @@ const MenuList: React.FC<MenuListProps> = ({
   };
 
   // Get badge color and styling
-  const getBadgeProps = (badge: string, isActive: boolean) => {
+  const getBadgeProps = (badge: any, isActive: boolean) => {
+    const badgeStr = typeof badge === 'object' ? String(badge.count ?? '') : String(badge ?? '');
     const props: any = {
       size: "small",
       sx: {
@@ -185,10 +186,10 @@ const MenuList: React.FC<MenuListProps> = ({
       }
     };
 
-    if (badge.toLowerCase() === 'new') {
+    if (badgeStr.toLowerCase() === 'new') {
       props.sx.backgroundColor = isActive ? alpha('#ffffff', 0.2) : alpha('#34A853', 0.1);
       props.sx.color = isActive ? '#ffffff' : '#34A853';
-    } else if (!isNaN(Number(badge))) {
+    } else if (!isNaN(Number(badgeStr)) && badgeStr !== '') {
       props.sx.backgroundColor = isActive ? alpha('#ffffff', 0.2) : alpha('#4285F4', 0.1);
       props.sx.color = isActive ? '#ffffff' : '#4285F4';
     } else {
@@ -308,7 +309,7 @@ const MenuList: React.FC<MenuListProps> = ({
                   {/* Badge */}
                   {item.badge && (
                     <StatusBadge
-                      label={item.badge}
+                      label={typeof item.badge === 'object' ? String((item.badge as any).count || '') : String(item.badge)}
                       {...getBadgeProps(item.badge, isActive)}
                     />
                   )}

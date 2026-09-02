@@ -12,7 +12,6 @@ import {
   Typography,
   Alert
 } from '@mui/material';
-import { register } from '../../features/auth/authSlice';
 
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();

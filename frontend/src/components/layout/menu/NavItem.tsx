@@ -110,7 +110,8 @@ const NavItem: React.FC<NavItemProps> = ({
   const isExternal = item.url?.startsWith('http');
 
   // Get badge styling
-  const getBadgeProps = (badge: string) => {
+  const getBadgeProps = (badge: any) => {
+    const badgeStr = typeof badge === 'object' ? String(badge.count ?? '') : String(badge ?? '');
     const props: any = {
       size: "small",
       sx: {
@@ -122,10 +123,10 @@ const NavItem: React.FC<NavItemProps> = ({
       }
     };
 
-    if (badge.toLowerCase() === 'new') {
+    if (badgeStr.toLowerCase() === 'new') {
       props.sx.backgroundColor = isActive ? alpha('#ffffff', 0.2) : alpha('#34A853', 0.1);
       props.sx.color = isActive ? '#ffffff' : '#34A853';
-    } else if (!isNaN(Number(badge))) {
+    } else if (!isNaN(Number(badgeStr)) && badgeStr !== '') {
       props.sx.backgroundColor = isActive ? alpha('#ffffff', 0.2) : alpha('#4285F4', 0.1);
       props.sx.color = isActive ? '#ffffff' : '#4285F4';
     } else {
@@ -231,7 +232,7 @@ const NavItem: React.FC<NavItemProps> = ({
           {/* Badge/Chip for notifications or status */}
           {item.badge && (
             <StatusBadge
-              label={item.badge}
+              label={typeof item.badge === 'object' ? String((item.badge as any).count || '') : String(item.badge)}
               {...getBadgeProps(item.badge)}
             />
           )}
@@ -269,7 +270,7 @@ const NavItem: React.FC<NavItemProps> = ({
                   fontWeight: 600,
                   fontSize: '0.7rem',
                 }}>
-                  🔥 {item.badge}
+                  🔥 {typeof item.badge === 'object' ? (item.badge as any).count : item.badge}
                 </Typography>
               )}
             </Box>

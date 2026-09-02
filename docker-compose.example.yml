@@ -42,13 +42,13 @@ services:
       - DB_NAME=${DB_NAME:-reksolindo_semar}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - APP_PORT=3500
+      - APP_PORT=4072
       - JWT_SECRET_KEY=${JWT_SECRET:-your_super_secret_jwt_key}
       - REKSOLINDO_ENCRYPTION_KEY=${REKSOLINDO_ENCRYPTION_KEY:-your_32_byte_encryption_key_here}
     ports:
-      - "3500:3500"
+      - "4072:4072"
     volumes:
-      - ./backend/storage:/root/storage
+      - ./backend/storage:/app/storage
     depends_on:
       db:
         condition: service_healthy

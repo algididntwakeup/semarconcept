@@ -345,7 +345,7 @@ const AssetHierarchyPage: React.FC = () => {
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                  <div className="flex items-center gap-6">
                     <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center shadow-inner border group relative ${getNodeColorClass(selectedNodeData.type)}`}>
-                       {React.cloneElement(getNodeIcon(selectedNodeData.type) as React.ReactElement, { size: 40 })}
+                        {React.cloneElement(getNodeIcon(selectedNodeData.type) as React.ReactElement<any>, { size: 40 })}
                     </div>
                     <div>
                        <div className="flex items-center gap-3 mb-1">

@@ -103,7 +103,7 @@ class CSRFService {
   private setupInterceptors(): void {
     // Request interceptor
     axios.interceptors.request.use(
-      async (config: AxiosRequestConfig) => {
+      async (config: any) => {
         // Only add CSRF token to requests to our API
         if (config.url?.startsWith(API_BASE_URL)) {
           // Only add CSRF token to non-GET requests

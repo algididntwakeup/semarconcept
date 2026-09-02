@@ -15,7 +15,7 @@ interface Option {
 }
 
 interface BaseSelectProps<T extends FieldValues>
-  extends Omit<SelectProps, 'name' | 'value' | 'error' | 'helperText'> {
+  extends Omit<SelectProps, 'name' | 'value' | 'error' | 'helperText' | 'variant'> {
   // Add helperText to Omit
   name: Path<T>;
   control: Control<T>;
@@ -23,6 +23,7 @@ interface BaseSelectProps<T extends FieldValues>
   options: Option[];
   rules?: object;
   helperText?: React.ReactNode; // Explicitly add helperText prop
+  variant?: 'standard' | 'outlined' | 'filled';
 }
 
 const BaseSelect = <T extends FieldValues>({
@@ -49,7 +50,7 @@ const BaseSelect = <T extends FieldValues>({
             id={name}
             label={label}
             {...field}
-            {...rest} // Spread the remaining rest props
+            {...(rest as any)} // Spread the remaining rest props
           >
             {options.map((option) => (
               <MenuItem key={option.value} value={option.value}>

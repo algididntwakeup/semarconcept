@@ -35,7 +35,7 @@ const AccessInactivePage: React.FC = () => {
         {/* 🛠️ Tactical Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
            <RouterLink 
-            to="/dashboard/overview" 
+            to="/dashboard" 
             className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group"
            >
              <Home size={16} />

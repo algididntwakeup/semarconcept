@@ -15,8 +15,8 @@ type Asset struct {
 	UnitID                  *int       `gorm:"index" db:"unit_id" json:"unit_id,omitempty"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
 	TagNumber               *string    `gorm:"size:100" db:"tag_number" json:"tag_number"`
-	AssetType               *string    `gorm:"size:100" db:"equipment_type" json:"asset_type"`
-	AssetClass              *string    `gorm:"size:100" db:"equipment_class" json:"asset_class"`
+	AssetType               *string    `gorm:"size:100" db:"asset_type" json:"asset_type"`
+	AssetClass              *string    `gorm:"size:100" db:"asset_class" json:"asset_class"`
 	Manufacturer            *string    `gorm:"size:255" db:"manufacturer" json:"manufacturer"`
 	Model                   *string    `gorm:"size:255" db:"model" json:"model"`
 	SerialNumber            *string    `gorm:"size:255" db:"serial_number" json:"serial_number"`
@@ -95,7 +95,7 @@ const (
 
 // Table name
 func (Asset) TableName() string {
-	return "equipment"
+	return "assets"
 }
 
 // ToMap converts asset to map for audit logging
@@ -255,11 +255,4 @@ func (e *Asset) BeforeUpdate(tx *gorm.DB) error {
 	return e.Validate()
 }
 
-// AfterCreate hook
-func (e *Asset) AfterCreate(tx *gorm.DB) error {
-	if e.TagNumber == nil || *e.TagNumber == "" {
-		e.GenerateTagNumber()
-		return tx.Model(e).Update("tag_number", e.TagNumber).Error
-	}
-	return nil
-}
+

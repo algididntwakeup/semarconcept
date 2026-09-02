@@ -225,13 +225,13 @@ const AnimatedGradientBanner: React.FC<AnimatedGradientBannerProps> = ({
 
         {/* Enhanced Stats with Glass Morphism */}
         {stats && stats.length > 0 && (
-          <Grid container spacing={3} sx={{ position: 'relative', zIndex: 10 }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 relative z-10">
             {stats.map((stat, index) => (
-              <Grid item xs={6} md={12 / Math.min(stats.length, 6)} key={index}>
+              <div key={index}>
                 <StatCard {...stat} delay={index * 0.1} />
-              </Grid>
+              </div>
             ))}
-          </Grid>
+          </div>
         )}
       </Box>
     </Box>

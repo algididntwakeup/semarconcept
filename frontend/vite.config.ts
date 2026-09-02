@@ -1,4 +1,4 @@
-// platform/frontend-mui/src/vite.config.ts
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -8,10 +8,26 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
-    strictPort: true,  // ← ADD THIS LINE
+    strictPort: true,
     allowedHosts: [
       'reksolindo.opuschamber.com',
-    ]    
+    ],
+    watch: {
+      usePolling: process.env.CHOKIDAR_USEPOLLING === 'true',
+      interval: Number(process.env.CHOKIDAR_INTERVAL || 1000),
+      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**'],
+    },
+    proxy: {
+      '/api': {
+        target: process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:4072',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:4072',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   test: {
     environment: 'jsdom',

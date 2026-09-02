@@ -77,13 +77,14 @@ const SiteListPage: React.FC = () => {
         params.search = search.trim();
       }
       
-      const response = await assetService.getSites(params);
+      const response: any = await assetService.getSites(params);
       
-      if (response.status === 'success' && response.data) {
-        setSites(response.data.data);
-        setTotalSites(response.data.total);
+      if (response) {
+        const list = Array.isArray(response) ? response : response.data?.data || response.data || [];
+        setSites(list);
+        setTotalSites(response.data?.total || response.total || list.length);
       } else {
-        throw new Error(response.error?.message || 'Failed to fetch sites');
+        throw new Error('Failed to fetch sites');
       }
     } catch (err: any) {
       console.error('Error fetching sites:', err);
@@ -133,13 +134,13 @@ const SiteListPage: React.FC = () => {
       setDeleteLoading(true);
       const response = await assetService.deleteSite(siteToDelete.id);
       
-      if (response.status === 'success') {
+      if (response && (response.status === 'success' || (response as any).success)) {
         setSuccessMessage('Site deleted successfully');
         setDeleteDialogOpen(false);
         setSiteToDelete(null);
         fetchSites(); // Refresh the list
       } else {
-        throw new Error(response.error?.message || 'Failed to delete site');
+        throw new Error((response as any)?.error?.message || 'Failed to delete site');
       }
     } catch (err: any) {
       console.error('Error deleting site:', err);
@@ -301,19 +302,19 @@ const SiteListPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" fontFamily="monospace">
-                          {site.code || '-'}
+                          {(site as any).code || site.id}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                          {site.site_type || '-'}
+                          {(site as any).site_type || 'Facility'}
                         </Typography>
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           {site.location && <LocationIcon fontSize="small" color="action" />}
                           <Typography variant="body2">
-                            {site.location || '-'}
+                            {typeof site.location === 'string' ? site.location : (site.location as any)?.city || '-'}
                           </Typography>
                         </Box>
                       </TableCell>
@@ -327,7 +328,7 @@ const SiteListPage: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">
-                          {formatDate(site.commission_date)}
+                          {formatDate((site as any).commission_date || (site as any).created_at || (site as any).createdAt)}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">

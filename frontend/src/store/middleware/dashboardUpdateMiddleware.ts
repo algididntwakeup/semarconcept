@@ -1,17 +1,17 @@
-import { Middleware } from 'redux';
+import { Middleware } from '@reduxjs/toolkit';
 import { wsMessage } from '../slices/websocketSlice';
 import { updateWidgetData } from '../slices/dashboardRealTimeSlice';
 
 // Dashboard update middleware
 // This middleware listens for WebSocket messages and updates the dashboard real-time state
-const dashboardUpdateMiddleware: Middleware = store => next => action => {
+const dashboardUpdateMiddleware: Middleware = store => next => (action: any) => {
   // Process WebSocket messages
-  if (action.type === wsMessage.type) {
+  if (action?.type === wsMessage.type) {
     const message = action.payload;
     
     // Check if this is a dashboard update message
     if (
-      message.type === 'update' && 
+      message?.type === 'update' && 
       message.entity === 'dashboard' && 
       message.id && 
       message.data && 
@@ -23,8 +23,8 @@ const dashboardUpdateMiddleware: Middleware = store => next => action => {
       const widgetData = message.data;
       
       // Check if we're subscribed to this dashboard
-      const state = store.getState();
-      const activeSubscriptions = state.dashboardRealTime.activeSubscriptions;
+      const state = (store.getState as any)();
+      const activeSubscriptions = state?.dashboardRealTime?.activeSubscriptions || [];
       
       if (activeSubscriptions.includes(dashboardId)) {
         // Dispatch action to update widget data

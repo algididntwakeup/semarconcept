@@ -22,7 +22,7 @@ import {
 import { styled } from '@mui/material/styles';
 
 // Correct TreeView imports from @mui/x-tree-view
-import { TreeView } from '@mui/x-tree-view/TreeView';
+import { SimpleTreeView as TreeView } from '@mui/x-tree-view/SimpleTreeView';
 import { TreeItem } from '@mui/x-tree-view/TreeItem';
 
 // Icons
@@ -419,7 +419,7 @@ export const AssetHierarchyTree: React.FC<AssetHierarchyTreeProps> = ({
     return (
       <StyledTreeItem
         key={node.id}
-        nodeId={node.id}
+        itemId={node.id}
         level={node.level}
         hasAlerts={hasAlerts}
         selected={selectedNode === node.id}

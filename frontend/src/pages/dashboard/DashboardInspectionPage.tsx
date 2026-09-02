@@ -1,310 +1,219 @@
-// platform/frontend-mui/src/pages/dashboard/DashboardInspectionPage.tsx
-import React from 'react';
-import {
-  Box,
-  Typography,
-  Grid,
-  Card,
-  CardContent,
-  Paper,
-  useTheme,
-  LinearProgress,
-  Chip,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Button,
-  IconButton
-} from '@mui/material';
-import {
-  Assessment as AssessmentIcon,
-  Schedule as ScheduleIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
-  PlayArrow as PlayArrowIcon,
-  Visibility as VisibilityIcon
-} from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { 
+  ClipboardCheck, 
+  Activity, 
+  AlertTriangle, 
+  TrendingUp, 
+  RefreshCcw, 
+  Download, 
+  PlayCircle,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  ShieldCheck,
+  Search,
+  CheckSquare
+} from 'lucide-react';
+import { 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Area,
+  AreaChart,
+} from 'recharts';
+
+// --- MOCK DATA ---
+const inspectionStats = {
+  total: { value: 456, change: 12.5, trend: 'up' },
+  completed: { value: 289, percentage: 63 },
+  pending: { value: 89, percentage: 20 },
+  overdue: { value: 34, percentage: 7 },
+  scheduled: { value: 44, percentage: 10 }
+};
+
+const inspectionTrend = [
+  { month: 'Jan', completed: 210, scheduled: 230, anomalies: 12 },
+  { month: 'Feb', completed: 245, scheduled: 250, anomalies: 8 },
+  { month: 'Mar', completed: 230, scheduled: 260, anomalies: 15 },
+  { month: 'Apr', completed: 275, scheduled: 280, anomalies: 5 },
+  { month: 'May', completed: 290, scheduled: 310, anomalies: 18 },
+  { month: 'Jun', completed: 289, scheduled: 320, anomalies: 9 }
+];
+
+const recentInspections = [
+  { id: 'INS-001', asset: 'Pump A-101', type: 'Visual', status: 'Completed', date: '2025-06-09', score: 98 },
+  { id: 'INS-002', asset: 'Tank B-205', type: 'NDT', status: 'In Progress', date: '2025-06-10', score: null },
+  { id: 'INS-003', asset: 'Valve C-301', type: 'Functional', status: 'Overdue', date: '2025-06-08', score: null },
+  { id: 'INS-004', asset: 'Pipe D-410', type: 'Thickness', status: 'Scheduled', date: '2025-06-12', score: null },
+  { id: 'INS-005', asset: 'Motor E-511', type: 'Vibration', status: 'Completed', date: '2025-06-09', score: 85 }
+];
+
+// --- COMPONENTS ---
+const StatCard: React.FC<{ label: string; value: string | number; sub: string; icon: any; color: string; trend?: number }> = ({ label, value, sub, icon: Icon, color, trend }) => (
+  <div className="glass-card p-6 rounded-[2rem] shadow-premium hover:-translate-y-1 transition-all group overflow-hidden relative">
+    <div className={`absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 ${color.replace('text-', 'bg-')} opacity-5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700`}></div>
+    <div className="flex justify-between items-start mb-4">
+      <div className={`p-3 rounded-2xl bg-white border border-slate-100 shadow-soft group-hover:shadow-md transition-all`}>
+        <Icon className={`w-6 h-6 ${color}`} />
+      </div>
+      {trend !== undefined && (
+        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black ${trend > 0 ? 'text-emerald-500 bg-emerald-50 border border-emerald-100' : 'text-rose-500 bg-rose-50 border border-rose-100'}`}>
+          {trend > 0 ? <TrendingUp size={12} /> : <Activity size={12} />}
+          {Math.abs(trend)}%
+        </div>
+      )}
+    </div>
+    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+    <h3 className="text-3xl font-black text-slate-800 tracking-tighter mb-1">{value}</h3>
+    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest opacity-60">{sub}</p>
+  </div>
+);
+
+const SectionHeader: React.FC<{ title: string; subtitle: string; icon: any; iconColor: string }> = ({ title, subtitle, icon: Icon, iconColor }) => (
+  <div className="flex items-center gap-4 mb-8">
+    <div className={`w-12 h-12 rounded-2xl ${iconColor} flex items-center justify-center shadow-soft`}>
+      <Icon size={24} className="text-white" />
+    </div>
+    <div>
+      <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight leading-none mb-1">{title}</h2>
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{subtitle}</p>
+    </div>
+  </div>
+);
 
 const DashboardInspectionPage: React.FC = () => {
-  const theme = useTheme();
+  const [loading, setLoading] = useState(true);
 
-  // Sample data
-  const inspectionStats = {
-    total: 456,
-    completed: 289,
-    pending: 89,
-    overdue: 34,
-    scheduled: 44
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const completionRate = Math.round((inspectionStats.completed / inspectionStats.total) * 100);
-
-  const recentInspections = [
-    { id: 'INS-001', asset: 'Pump A-101', type: 'Visual', status: 'Completed', date: '2025-06-09' },
-    { id: 'INS-002', asset: 'Tank B-205', type: 'NDT', status: 'In Progress', date: '2025-06-10' },
-    { id: 'INS-003', asset: 'Valve C-301', type: 'Functional', status: 'Overdue', date: '2025-06-08' },
-    { id: 'INS-004', asset: 'Pipe D-410', type: 'Thickness', status: 'Scheduled', date: '2025-06-12' },
-    { id: 'INS-005', asset: 'Motor E-511', type: 'Vibration', status: 'Completed', date: '2025-06-09' }
-  ];
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Completed': return 'success';
-      case 'In Progress': return 'info';
-      case 'Overdue': return 'error';
-      case 'Scheduled': return 'warning';
-      default: return 'default';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'Completed': return <CheckCircleIcon />;
-      case 'In Progress': return <PlayArrowIcon />;
-      case 'Overdue': return <CancelIcon />;
-      case 'Scheduled': return <ScheduleIcon />;
-      default: return <AssessmentIcon />;
-    }
-  };
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><RefreshCcw className="animate-spin text-primary-500" /></div>;
 
   return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Inspection Dashboard
-      </Typography>
-      <Typography variant="body1" color="textSecondary" paragraph>
-        Monitor inspection activities, track completion rates, and manage inspection schedules across all assets.
-      </Typography>
-
-      <Grid container spacing={3}>
-        {/* Key Metrics Cards */}
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-          <Card sx={{ borderRadius: '1.5rem' }}>
-            <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom color="primary">
-                Total Inspections
-              </Typography>
-              <Typography variant="h3" color="primary">
-                {inspectionStats.total}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                All planned inspections
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-          <Card sx={{ borderRadius: '1.5rem' }}>
-            <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom color="success.main">
-                Completed
-              </Typography>
-              <Typography variant="h3" color="success.main">
-                {inspectionStats.completed}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                {completionRate}% completion rate
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-          <Card sx={{ borderRadius: '1.5rem' }}>
-            <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom color="info.main">
-                In Progress
-              </Typography>
-              <Typography variant="h3" color="info.main">
-                {inspectionStats.pending}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Currently active
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-          <Card sx={{ borderRadius: '1.5rem' }}>
-            <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom color="error.main">
-                Overdue
-              </Typography>
-              <Typography variant="h3" color="error.main">
-                {inspectionStats.overdue}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Require immediate attention
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
-          <Card sx={{ borderRadius: '1.5rem' }}>
-            <CardContent>
-              <Typography variant="h6" component="h2" gutterBottom color="warning.main">
-                Scheduled
-              </Typography>
-              <Typography variant="h3" color="warning.main">
-                {inspectionStats.scheduled}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Upcoming this week
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Completion Progress */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Paper sx={{ p: 3, height: 400, borderRadius: '1.5rem' }}>
-            <Typography variant="h6" gutterBottom>
-              Inspection Completion Progress
-            </Typography>
-            <Box sx={{ mb: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Overall Progress</Typography>
-                <Typography variant="body2">{completionRate}%</Typography>
-              </Box>
-              <LinearProgress 
-                variant="determinate" 
-                value={completionRate} 
-                sx={{ height: 8, borderRadius: 4 }}
-              />
-            </Box>
-            
-            <Box 
-              sx={{ 
-                height: 300, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                backgroundColor: theme.palette.grey[50],
-                borderRadius: 1
-              }}
-            >
-              <Typography variant="body1" color="textSecondary">
-                Inspection Trend Chart Placeholder
-              </Typography>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Recent Inspections */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Paper sx={{ p: 3, height: 400, borderRadius: '1.5rem' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Recent Inspections
-              </Typography>
-              <Button size="small" variant="outlined">
-                View All
-              </Button>
-            </Box>
-            <List sx={{ height: 320, overflow: 'auto' }}>
-              {recentInspections.map((inspection) => (
-                <ListItem 
-                  key={inspection.id} 
-                  sx={{ 
-                    mb: 1, 
-                    backgroundColor: theme.palette.grey[50], 
-                    borderRadius: 1,
-                    px: 2
-                  }}
-                  secondaryAction={
-                    <IconButton edge="end" size="small">
-                      <VisibilityIcon />
-                    </IconButton>
-                  }
-                >
-                  <ListItemIcon>
-                    {getStatusIcon(inspection.status)}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {inspection.asset}
-                        </Typography>
-                        <Chip 
-                          label={inspection.status} 
-                          size="small" 
-                          color={getStatusColor(inspection.status)}
-                          variant="outlined"
-                        />
-                      </Box>
-                    }
-                    secondary={
-                      <Box>
-                        <Typography variant="caption" color="textSecondary">
-                          {inspection.type} | {inspection.date}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Paper>
-        </Grid>
-
-        {/* Quick Actions */}
-        <Grid size={{ xs: 12 }}>
-          <Paper sx={{ p: 3, borderRadius: '1.5rem' }}>
-            <Typography variant="h6" gutterBottom>
-              Quick Actions
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Button
-                  variant="contained"
-                  fullWidth
-                  startIcon={<AssessmentIcon />}
-                  sx={{ py: 1.5 }}
-                >
+    <div className="space-y-10 animate-in fade-in duration-700 pb-20">
+      
+      {/* 👑 Hero Spotlight Section */}
+      <section className="relative group overflow-hidden rounded-[3rem] bg-slate-900 shadow-2xl border border-white/10">
+        <div className="absolute inset-0 bg-gradient-to-bl from-teal-600/20 to-emerald-600/20 group-hover:scale-105 transition-transform duration-1000"></div>
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/20 rounded-full blur-[120px]"></div>
+        
+        <div className="relative z-10 p-10 sm:p-14">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-12">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-8 group-hover:translate-x-1 transition-transform">
+                <Search size={14} className="text-emerald-400" />
+                <span className="text-[10px] font-black text-white uppercase tracking-widest">Quality Assurance • Inspections</span>
+              </div>
+              <h1 className="text-5xl sm:text-6xl font-black text-white mb-6 tracking-tighter leading-tight">
+                Inspection <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Command</span> Center
+              </h1>
+              <p className="text-slate-300 font-medium text-lg mb-10 leading-relaxed opacity-80">
+                Monitor inspection activities, track completion rates, and manage inspection schedules across all assets ensuring compliance and safety.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <button className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3">
+                  <CheckSquare size={18} strokeWidth={3} />
                   New Inspection Plan
-                </Button>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<ScheduleIcon />}
-                  sx={{ py: 1.5 }}
-                >
-                  Schedule Inspection
-                </Button>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<WarningIcon />}
-                  sx={{ py: 1.5 }}
-                >
-                  View Overdue
-                </Button>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  startIcon={<CheckCircleIcon />}
-                  sx={{ py: 1.5 }}
-                >
-                  Generate Report
-                </Button>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-      </Grid>
-    </Box>
+                </button>
+                <button className="px-8 py-4 bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white/20 transition-all flex items-center gap-3">
+                  <Download size={18} />
+                  Export Data
+                </button>
+              </div>
+            </div>
+
+            {/* Micro Stats Overlay */}
+            <div className="grid grid-cols-2 gap-4 lg:w-[400px]">
+               <div className="p-6 rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 group-hover:-translate-y-1 transition-all duration-300">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Completion Rate</p>
+                  <p className="text-3xl font-black text-white">{inspectionStats.completed.percentage}%</p>
+                  <div className="mt-4 h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                     <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${inspectionStats.completed.percentage}%` }}></div>
+                  </div>
+               </div>
+               <div className="p-6 rounded-3xl bg-rose-500/10 backdrop-blur-xl border border-rose-500/20 group-hover:-translate-y-1 transition-all duration-300">
+                  <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-2">Overdue Alerts</p>
+                  <p className="text-3xl font-black text-rose-500">{inspectionStats.overdue.value}</p>
+                  <p className="mt-2 text-[9px] font-bold text-rose-300 uppercase tracking-widest">Needs Escalation</p>
+               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 📊 High-Impact Key Metrics */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="Total Inspections" value={inspectionStats.total.value} sub="Planned vs Actual" icon={ClipboardCheck} color="text-teal-500" trend={inspectionStats.total.change} />
+        <StatCard label="In Progress" value={inspectionStats.pending.value} sub={`${inspectionStats.pending.percentage}% of schedule`} icon={PlayCircle} color="text-indigo-500" />
+        <StatCard label="Completed" value={inspectionStats.completed.value} sub={`${inspectionStats.completed.percentage}% success rate`} icon={CheckCircle2} color="text-emerald-500" />
+        <StatCard label="Overdue" value={inspectionStats.overdue.value} sub={`${inspectionStats.overdue.percentage}% requires action`} icon={AlertTriangle} color="text-rose-500" />
+      </section>
+
+      {/* 🛠️ Main Analytics */}
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 glass-card p-10 rounded-[3rem] shadow-premium">
+          <SectionHeader title="Inspection Velocity" subtitle="Completed vs Scheduled over 6 months" icon={Activity} iconColor="bg-teal-500" />
+          <div className="h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={inspectionTrend}>
+                <defs>
+                  <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill:'#94a3b8'}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill:'#94a3b8'}} />
+                <Tooltip contentStyle={{borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'}} />
+                <Area type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorCompleted)" />
+                <Area type="monotone" dataKey="scheduled" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} fill="transparent" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Recent Inspections Sidebar */}
+        <div className="glass-card p-8 rounded-[3rem] shadow-premium bg-slate-50/50">
+          <SectionHeader title="Recent Activity" subtitle="Latest inspection logs" icon={Clock} iconColor="bg-indigo-500" />
+          <div className="space-y-4">
+            {recentInspections.map(insp => (
+              <div key={insp.id} className="p-5 rounded-3xl bg-white border border-slate-100 flex flex-col gap-3 hover:border-indigo-200 transition-all group cursor-pointer shadow-sm hover:shadow-md">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800">{insp.asset}</h4>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{insp.type} | {insp.id}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase ${
+                    insp.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                    insp.status === 'Overdue' ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                    insp.status === 'In Progress' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                    'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}>
+                    {insp.status}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{insp.date}</span>
+                  {insp.score !== null ? (
+                    <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg">Score: {insp.score}</span>
+                  ) : (
+                    <ArrowRight size={14} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button className="w-full mt-6 py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 hover:text-slate-800 transition-all">
+            View All Inspections
+          </button>
+        </div>
+      </section>
+    </div>
   );
 };
 

@@ -139,7 +139,7 @@ export const bulkDeleteAssets = createAsyncThunk(
 // Fetch asset statistics
 export const fetchAssetStatistics = createAsyncThunk(
   'assets/fetchStatistics',
-  async (filters?: AssetSearchParams, { rejectWithValue }) => {
+  async (filters: AssetSearchParams | undefined = undefined, { rejectWithValue }) => {
     try {
       const statistics = await assetService.getAssetStatistics(filters);
       return statistics;

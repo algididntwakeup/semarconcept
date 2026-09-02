@@ -15,11 +15,23 @@ import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-// Import the type from the page or a shared types file
-import { MenuItemData } from '../../../pages/manage/MenuManagementPage';
+export interface MenuItemData {
+  id: string | number;
+  title: string;
+  path: string;
+  icon?: string;
+  order?: number;
+  isActive?: boolean;
+  isVisible?: boolean;
+  type?: string;
+  slug?: string;
+  permissions?: string[];
+  parentId?: string | number | null;
+  children?: MenuItemData[];
+}
 
 // Form data type (excluding id, children, parentId - parentId might be passed separately)
-type MenuItemFormData = Omit<MenuItemData, 'id' | 'children' | 'parentId'>;
+export type MenuItemFormData = Omit<MenuItemData, 'id' | 'children' | 'parentId'>;
 
 // Zod schema for validation
 const menuItemSchema = z.object({
@@ -70,7 +82,7 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
     formState: { errors },
     watch, // To get current permissions for Autocomplete
   } = useForm<MenuItemFormData>({
-    resolver: zodResolver(menuItemSchema),
+    resolver: zodResolver(menuItemSchema) as any,
     defaultValues: {
       title: '',
       path: '/',

@@ -124,20 +124,20 @@ export const selectAssetManagementState = (state: RootState) => ({
 });
 
 export const selectStorePerformance = (state: RootState) => ({
-  assetCount: Object.keys(state.assets?.assets || {}).length,
-  selectedAssets: state.assets?.selectedAssets?.length || 0,
-  isLoading: state.assets?.isLoading || false,
-  lastFetchTime: state.assets?.lastFetchTime || 0,
+  assetCount: Array.isArray((state.assets as any)?.items) ? (state.assets as any).items.length : 0,
+  selectedAssets: (state.assets as any)?.selectedAsset ? 1 : 0,
+  isLoading: Boolean((state.assets as any)?.loading || (state.assets as any)?.isLoading),
+  lastFetchTime: 0,
 });
 
 export const selectAllErrors = (state: RootState) => ({
   auth: state.auth?.error,
-  assets: state.assets?.error,
-  notifications: state.notifications?.error,
+  assets: (state.assets as any)?.error,
+  notifications: (state.notifications as any)?.error,
 });
 
 export const selectGlobalLoading = (state: RootState) => ({
-  auth: state.auth?.isLoading || false,
-  assets: state.assets?.isLoading || false,
-  configurations: state.configurations?.isLoading || false,
+  auth: Boolean(state.auth?.loading || (state.auth as any)?.isLoading),
+  assets: Boolean((state.assets as any)?.loading || (state.assets as any)?.isLoading),
+  configurations: Boolean((state.configurations as any)?.loading || (state.configurations as any)?.isLoading),
 });

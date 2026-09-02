@@ -1,0 +1,105 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: semar-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-your_secure_password_here}
+      POSTGRES_DB: ${DB_NAME:-reksolindo_semar}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - semar-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-reksolindo_semar}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:alpine
+    container_name: semar-redis
+    ports:
+      - "6380:6379"
+    networks:
+      - semar-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: semar-backend
+    working_dir: /app
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-your_secure_password_here}
+      DB_NAME: ${DB_NAME:-reksolindo_semar}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      APP_PORT: 4072
+      JWT_SECRET_KEY: ${JWT_SECRET:-your_super_secret_jwt_key}
+      REKSOLINDO_ENCRYPTION_KEY: ${REKSOLINDO_ENCRYPTION_KEY:-your_32_byte_encryption_key_here}
+    ports:
+      - "4072:4072"
+    volumes:
+      - ./backend:/app
+      - backend_go_modules:/go/pkg/mod
+      - backend_go_build_cache:/root/.cache/go-build
+      - ./backend/storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - semar-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4072/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 120
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: semar-frontend
+    working_dir: /app
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+      VITE_DEV_PROXY_TARGET: http://backend:4072
+      VITE_API_BASE_URL: /api/v1
+      VITE_WS_BASE_URL: ws://localhost:3000/ws
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_pnpm_store:/root/.local/share/pnpm/store
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - semar-network
+    restart: unless-stopped
+
+networks:
+  semar-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  backend_go_modules:
+  backend_go_build_cache:
+  frontend_node_modules:
+  frontend_pnpm_store:

@@ -244,12 +244,11 @@ const Header: React.FC<HeaderProps> = ({
     onSidebarToggle?.();
   };
 
-  // 🆕 ADDED: Logo click handler with debugging
+  // Logo click handler to canonical dashboard route
   const handleLogoClick = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    console.log('Logo clicked - navigating to dashboard'); // Debug log
-    navigate('/dashboard/overview'); // Navigate to dashboard overview
+    navigate('/dashboard');
   };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {

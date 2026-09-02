@@ -332,3 +332,34 @@ export const validateAuthState = (): boolean => {
   
   return isAuthenticated();
 };
+
+export const setMockAuth = (token: string, user: any, tenant?: any) => {
+  localStorage.setItem('auth_token', token);
+  localStorage.setItem('user_data', JSON.stringify(user));
+  if (tenant) {
+    localStorage.setItem('tenant_data', JSON.stringify(tenant));
+  }
+};
+
+export const clearMockAuth = () => {
+  clearAllAuthData();
+};
+
+export const getUserFullName = (user?: User | null): string => {
+  if (!user) return '';
+  if (user.full_name) return user.full_name;
+  if (user.first_name || user.last_name) {
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim();
+  }
+  return user.username || user.email || '';
+};
+
+export const getUserInitials = (user?: User | null): string => {
+  const name = getUserFullName(user);
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+};

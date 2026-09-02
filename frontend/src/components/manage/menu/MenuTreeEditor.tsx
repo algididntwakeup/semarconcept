@@ -25,7 +25,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-import { MenuItemData } from '../../../pages/manage/MenuManagementPage';
+import { MenuItemData } from './MenuItemForm';
 
 interface MenuTreeEditorProps {
   items: MenuItemData[];
@@ -40,7 +40,7 @@ const getAllItemIds = (items: MenuItemData[]): string[] => {
   const ids: string[] = [];
   const recurse = (currentItems: MenuItemData[]) => {
     currentItems.forEach((item) => {
-      ids.push(item.id);
+      ids.push(String(item.id));
       if (item.children && item.children.length > 0) {
         recurse(item.children);
       }
@@ -110,7 +110,7 @@ const SortableTreeItem: React.FC<SortableTreeItemProps> = ({
       {...treeItemProps} // Pass down other TreeItem props like nodeId, key
       ref={setNodeRef}
       style={style}
-      itemId={menuItemData.id}
+      itemId={String(menuItemData.id)}
       label={
         <Box sx={{ display: 'flex', alignItems: 'center', p: 0.5, pr: 0 }} {...attributes}>
           <DragIndicatorIcon
@@ -126,7 +126,7 @@ const SortableTreeItem: React.FC<SortableTreeItemProps> = ({
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                onAddChild(menuItemData.id);
+                onAddChild(String(menuItemData.id));
               }}
               sx={{ mr: 0.5 }}
             >
@@ -150,7 +150,7 @@ const SortableTreeItem: React.FC<SortableTreeItemProps> = ({
               size="small"
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(menuItemData.id);
+                onDelete(String(menuItemData.id));
               }}
               color="error"
             >
@@ -238,7 +238,7 @@ const MenuTreeEditor: React.FC<MenuTreeEditorProps> = ({
               if (parentObject) {
                 parentObject.children = reorderedSiblings;
                 // Update order property for the reordered siblings
-                reorderedSiblings.forEach((item, index) => {
+                reorderedSiblings.forEach((item: any, index) => {
                   item.order = index + 1;
                 });
               }
@@ -257,8 +257,8 @@ const MenuTreeEditor: React.FC<MenuTreeEditorProps> = ({
   // Recursive function to render tree items, now using SortableTreeItem
   const renderSortableTree = (nodes: MenuItemData): React.ReactNode => (
     <SortableTreeItem
-      key={nodes.id}
-      nodeId={nodes.id} // TreeItem needs nodeId
+      key={String(nodes.id)}
+      nodeId={String(nodes.id)} // TreeItem needs nodeId
       menuItemData={nodes}
       onEdit={onEdit}
       onDelete={onDelete}

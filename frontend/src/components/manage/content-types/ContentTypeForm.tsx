@@ -69,7 +69,7 @@ const ContentTypeForm: React.FC<ContentTypeFormProps> = ({
     reset,
     formState: { errors },
   } = useForm<LocalContentTypeFormData>({
-    resolver: zodResolver(contentTypeSchema),
+    resolver: zodResolver(contentTypeSchema) as any,
     defaultValues: {
       name: '',
       apiKey: '',

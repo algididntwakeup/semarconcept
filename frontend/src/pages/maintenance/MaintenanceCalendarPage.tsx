@@ -15,7 +15,6 @@ import {
   Settings,
   HardHat,
   Timer,
-  Tool,
   ArrowRight,
   TrendingUp,
   Box as BoxIcon

@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-//  COMPLETE CORS FIX: Enhanced CORS middleware with comprehensive debugging and SSE support
+// COMPLETE CORS FIX: Enhanced CORS middleware with comprehensive debugging and SSE support
 func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
@@ -36,13 +36,14 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		path := c.Request.URL.Path
 
 		// DEBUG: Log the actual config being used (only in development)
-		isDebugMode := cfg.Environment == "development" || os.Getenv("DEBUG_CORS") == "true" || os.Getenv("APP_ENV") == "development"
+		isDevelopment := cfg.Environment == "development" || os.Getenv("APP_ENV") == "development"
+		debugCORS := os.Getenv("DEBUG_CORS") == "true"
 
-		if isDebugMode {
-			utils.Info("CORS DEBUG: Config loaded - Origins: %v", cfg.CORS.AllowedOrigins)
-			utils.Info("CORS DEBUG: Config loaded - Headers: %v", cfg.CORS.AllowedHeaders)
-			utils.Info("CORS DEBUG: Config loaded - Methods: %v", cfg.CORS.AllowedMethods)
-			utils.Info("CORS DEBUG: Request - Origin: %s, Method: %s, Path: %s", origin, method, path)
+		if debugCORS {
+			utils.Infof("CORS DEBUG: Config loaded - Origins: %v", cfg.CORS.AllowedOrigins)
+			utils.Infof("CORS DEBUG: Config loaded - Headers: %v", cfg.CORS.AllowedHeaders)
+			utils.Infof("CORS DEBUG: Config loaded - Methods: %v", cfg.CORS.AllowedMethods)
+			utils.Infof("CORS DEBUG: Request - Origin: %s, Method: %s, Path: %s", origin, method, path)
 		}
 
 		//  COMPREHENSIVE: Always include these essential headers regardless of config
@@ -80,7 +81,7 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		//  COMPREHENSIVE: Use origins from config
 		allowedOrigins := cfg.CORS.AllowedOrigins
 		if len(allowedOrigins) == 0 {
-			if isDebugMode {
+			if debugCORS {
 				utils.Warn("CORS: Config origins empty, using wildcard as fallback for development")
 			}
 			allowedOrigins = []string{"*"}
@@ -101,7 +102,7 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		// Development mode: be more permissive
-		if !originAllowed && origin != "" && isDebugMode {
+		if !originAllowed && origin != "" && isDevelopment {
 			c.Header("Access-Control-Allow-Origin", origin)
 			originAllowed = true
 			utils.Warnf("CORS: Allowing non-whitelisted origin in development: %s", origin)
@@ -152,30 +153,30 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		c.Header("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
 
 		// DEBUG: Log final headers being sent
-		if isDebugMode {
-			utils.Info("CORS: Final headers sent - Allow-Origin: %s", c.Writer.Header().Get("Access-Control-Allow-Origin"))
-			utils.Info("CORS: Final headers sent - Allow-Headers: %s", c.Writer.Header().Get("Access-Control-Allow-Headers"))
-			utils.Info("CORS: Final headers sent - Allow-Methods: %s", c.Writer.Header().Get("Access-Control-Allow-Methods"))
+		if debugCORS {
+			utils.Infof("CORS: Final headers sent - Allow-Origin: %s", c.Writer.Header().Get("Access-Control-Allow-Origin"))
+			utils.Infof("CORS: Final headers sent - Allow-Headers: %s", c.Writer.Header().Get("Access-Control-Allow-Headers"))
+			utils.Infof("CORS: Final headers sent - Allow-Methods: %s", c.Writer.Header().Get("Access-Control-Allow-Methods"))
 		}
 
 		// Handle preflight requests
 		if c.Request.Method == "OPTIONS" {
-			utils.Info("CORS: Preflight request handled for origin: %s, path: %s", origin, path)
+			utils.Infof("CORS: Preflight request handled for origin: %s, path: %s", origin, path)
 
 			// Additional debug for preflight
-			if isDebugMode {
+			if debugCORS {
 				requestMethod := c.Request.Header.Get("Access-Control-Request-Method")
 				requestHeaders := c.Request.Header.Get("Access-Control-Request-Headers")
-				utils.Info("CORS: Preflight - Requested Method: %s", requestMethod)
-				utils.Info("CORS: Preflight - Requested Headers: %s", requestHeaders)
+				utils.Infof("CORS: Preflight - Requested Method: %s", requestMethod)
+				utils.Infof("CORS: Preflight - Requested Headers: %s", requestHeaders)
 			}
 
 			c.AbortWithStatus(204)
 			return
 		}
 
-		if isDebugMode {
-			utils.Debug("CORS: Request allowed for origin: %s", origin)
+		if debugCORS {
+			utils.Debugf("CORS: Request allowed for origin: %s", origin)
 		}
 		c.Next()
 	}
@@ -266,7 +267,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, cacheService *cache.Servic
 		analyticsService, //  NEW: For widget data
 		userRepo,         //  NEW: For user statistics
 	)
-	
+
 	taxonomyService := services.NewTaxonomyService(taxonomyRepo)
 
 	//  SURGICAL ADD: Media Service for file management
@@ -345,8 +346,8 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, cacheService *cache.Servic
 
 	//  CRITICAL FIX: Use enhanced CORS middleware
 	utils.Info("CORS: Setting up enhanced CORS middleware...")
-	utils.Info("CORS: Allowed Origins: %v", cfg.CORS.AllowedOrigins)
-	utils.Info("CORS: Allowed Headers: %v", cfg.CORS.AllowedHeaders)
+	utils.Infof("CORS: Allowed Origins: %v", cfg.CORS.AllowedOrigins)
+	utils.Infof("CORS: Allowed Headers: %v", cfg.CORS.AllowedHeaders)
 	router.Use(CORSMiddleware(cfg))
 
 	//  COMPLETELY FIXED: Health check route with proper handler
@@ -733,11 +734,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, cacheService *cache.Servic
 	//  SURGICAL ADD: Static file serving for media
 	router.Static("/static/uploads", cfg.Storage.UploadPath)
 
-	utils.Info("Router setup complete with ENHANCED CORS, SSE SUPPORT, and ALL COMPILATION ERRORS FIXED")
-	utils.Info("CORS: Enhanced configuration applied successfully")
-	utils.Info("SSE: Real-time communication routes configured")
-	utils.Info("CRITICAL FIX: Role and Permission routes now available with correct implementations")
-	utils.Info("MENU TOGGLE FIX: Route changed from /status to /toggle to match frontend")
+	utils.Info("Router setup complete")
 
 	return router
 }

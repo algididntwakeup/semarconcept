@@ -95,7 +95,7 @@ const LoginPage: React.FC = () => {
           destination: '/dashboard',
           storageVerified: true
         });
-        navigate('/dashboard/overview');
+        navigate('/dashboard');
       } else {
         console.error('❌ LoginPage: User marked as authenticated but storage is empty!', {
           isAuthenticated,

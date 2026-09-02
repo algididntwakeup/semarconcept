@@ -28,7 +28,7 @@ func DefaultLoggingConfig() LoggingConfig {
 		LogRequestBody:  os.Getenv("REKSOLINDO_LOG_REQUEST_BODY") == "true",
 		LogResponseBody: os.Getenv("REKSOLINDO_LOG_RESPONSE_BODY") == "true",
 		LogHeaders:      true,
-		SkipPaths:       []string{"/api/v1/health", "/swagger"},
+		SkipPaths:       []string{"/health", "/api/v1/health", "/swagger"},
 	}
 }
 

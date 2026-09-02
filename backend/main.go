@@ -22,8 +22,8 @@ import (
 	"backend/app/utils"
 	"backend/docs"
 
-	"gorm.io/gorm"
 	gormPostgres "gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
 	"github.com/gin-gonic/gin/binding"
@@ -101,45 +101,46 @@ func main() {
 
 	// 🔥 AUTO-MIGRATE: Ensure tables exist on startup
 	utils.Info("Running automatic database migration...")
-	
+
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai search_path=public",
 		cfg.Database.Host, cfg.Database.User, cfg.Database.Password, cfg.Database.Name, cfg.Database.Port, cfg.Database.SSLMode)
-		
+
 	gormDB, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger:                                   logger.Default.LogMode(logger.Warn),
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
 		utils.Fatalf("Failed to connect to database using GORM for migration: %v", err)
 	}
-	
+
 	// 🔥 AUTO-MIGRATE: Ensure tables exist on startup
 	err = database.MigrateAll(gormDB)
 	if err != nil {
 		utils.Fatalf("Database migration failed: %v", err)
 	}
 
-	// Run seeder if the -seed flag is true
-	if *seedDb {
-		utils.Info("Seed flag is set to true. Running database seeder...")
-		
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai search_path=public",
-			cfg.Database.Host, cfg.Database.User, cfg.Database.Password, cfg.Database.Name, cfg.Database.Port, cfg.Database.SSLMode)
-			
-		gormDB, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
-		})
-		if err != nil {
-			utils.Fatalf("Failed to connect to database using GORM for seeding: %v", err)
-		}
-		
+	// Auto-seed if database is fresh or seed flag is provided
+	var userCount int64
+	_ = gormDB.Table("users").Count(&userCount)
+	if *seedDb || userCount == 0 {
+		utils.Info("Auto-seeding initial database data...")
 		seeder := database.NewSeeder(gormDB)
 		if err := seeder.SeedAll(); err != nil {
-			utils.Fatalf("Database seeding failed: %v", err)
+			utils.Warnf("Database seeding encountered warning: %v", err)
+		} else {
+			utils.Info("Database seeding finished successfully.")
 		}
-		
-		utils.Info("Finished seeding.")
-		os.Exit(0)
+		if *seedDb {
+			os.Exit(0)
+		}
+	} else {
+		// System navigation is application configuration, not sample data. Keep
+		// it synchronized on every normal startup so existing installations get
+		// canonical routes, new modules, and icon updates without reseeding users.
+		seeder := database.NewSeeder(gormDB)
+		if err := seeder.SeedMenuItems(); err != nil {
+			utils.Warnf("System menu synchronization encountered warning: %v", err)
+		}
 	}
 
 	// Initialize Gin router using the new SetupRouter function

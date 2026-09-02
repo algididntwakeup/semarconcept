@@ -48,9 +48,9 @@ export const websocketSubscribe = (channel: string, scope: string) => ({
 
 // Notification middleware
 // This middleware listens for WebSocket messages and processes notification-related messages
-const notificationMiddleware: Middleware = store => next => action => {
+const notificationMiddleware: Middleware = store => next => (action: any) => {
   // Process WebSocket messages
-  if (action.type === wsMessage.type) {
+  if (action?.type === wsMessage.type) {
     const message = action.payload;
     
     // Check if this is a notification message

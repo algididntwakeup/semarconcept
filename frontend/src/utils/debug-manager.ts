@@ -70,6 +70,8 @@ export interface DebugException {
   source?: string;
   lineno?: number;
   colno?: number;
+  filename?: string;
+  error?: any;
   userAgent?: string;
   url?: string;
 }
@@ -403,7 +405,7 @@ export class DebugManager {
         const options = args[1] || {};
         
         try {
-          const response = await originalFetch(...args);
+          const response = await (originalFetch as any)(...args);
           const endTime = Date.now();
           const duration = endTime - startTime;
           
@@ -991,7 +993,6 @@ export class DebugManager {
       version: '2.0.0',
       userAgent: navigator.userAgent,
       url: window.location.href,
-      logs: this.logs,
       performanceStats: this.performanceMonitor.getStats(),
       ...this.getDebugData()
     };

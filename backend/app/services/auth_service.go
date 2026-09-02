@@ -64,8 +64,6 @@ func (s *AuthService) Login(ctx context.Context, req request.LoginRequest) (*res
 	utils.Infof("AUTH: Login attempt for: %s", req.Identifier)
 	utils.Infof("AUTH: Username field: %s", req.Username)
 	utils.Infof("AUTH: Identifier field: %s", req.Identifier)
-	utils.Infof("AUTH: Password provided: %s", req.Password)
-	utils.Infof("AUTH: Password length: %d", len(req.Password))
 
 	var user *models.User
 	var err error
@@ -86,8 +84,6 @@ func (s *AuthService) Login(ctx context.Context, req request.LoginRequest) (*res
 
 	utils.Infof("AUTH: User found - ID: %d, Username: %s, Email: %s", user.ID, user.Username, user.Email)
 	utils.Infof("AUTH: User is_active: %t", user.IsActive)
-	utils.Infof("AUTH: Database hash: %s", user.PasswordHash)
-	utils.Infof("AUTH: Database hash length: %d", len(user.PasswordHash))
 
 	if !user.IsActive {
 		utils.Errorf("AUTH: User account is inactive: %s", user.Username)
@@ -96,21 +92,17 @@ func (s *AuthService) Login(ctx context.Context, req request.LoginRequest) (*res
 
 	// Enhanced password verification logging
 	utils.Infof("AUTH: Starting password verification...")
-	utils.Infof("AUTH: Input password: '%s'", req.Password)
 
 	// Use bcrypt directly for password verification
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
 		utils.Errorf("AUTH: Password verification failed: %v", err)
-		utils.Errorf("AUTH: Hash: %s", user.PasswordHash)
-		utils.Errorf("AUTH: Password: '%s'", req.Password)
-
-		// Additional debug: try to verify the hash format
+		// Keep diagnostics structural; never log credentials or password hashes.
 		if len(user.PasswordHash) != 60 {
 			utils.Errorf("AUTH: Invalid hash length: %d (should be 60)", len(user.PasswordHash))
 		}
 		if !strings.HasPrefix(user.PasswordHash, "$2a$") && !strings.HasPrefix(user.PasswordHash, "$2b$") {
-			utils.Errorf("AUTH: Invalid hash format: %s", user.PasswordHash[:10])
+			utils.Errorf("AUTH: Invalid password hash format")
 		}
 
 		return nil, fmt.Errorf("%w: invalid credentials", utils.ErrUnauthorized)
@@ -165,7 +157,7 @@ func (s *AuthService) Login(ctx context.Context, req request.LoginRequest) (*res
 	if user.TenantID != 0 {
 		tenantIDPtr = &user.TenantID
 	}
-	
+
 	// HARDCODE FIX: Ensure 'admin' is superuser to fix RBAC bugs
 	if user.Username == "admin" {
 		user.IsSuperuser = true

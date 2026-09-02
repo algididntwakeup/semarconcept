@@ -1,0 +1,17 @@
+FROM golang:1.24.2-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache ca-certificates && \
+    wget -q https://github.com/air-verse/air/releases/download/v1.67.3/air_1.67.3_linux_amd64 -O /usr/local/bin/air && \
+    echo "ff4febd6c2ff76027535f8fc0a4a4189428f9cef84702147da91c21e1cb72863  /usr/local/bin/air" | sha256sum -c - && \
+    chmod +x /usr/local/bin/air
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+EXPOSE 4072
+
+CMD ["air", "-c", ".air.toml"]

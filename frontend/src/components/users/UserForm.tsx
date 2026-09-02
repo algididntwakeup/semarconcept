@@ -194,15 +194,15 @@ const UserForm: React.FC<UserFormProps> = ({
               <CircularProgress />
             </Box>
           ) : (
-            <Grid container spacing={3} sx={{ mt: 1 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
               {/* Personal Information */}
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <Typography variant="h6" gutterBottom>
                   Personal Information
                 </Typography>
-              </Grid>
+              </div>
 
-              <Grid item xs={12} md={6}>
+              <div>
                 <TextField
                   fullWidth
                   label="First Name"
@@ -213,9 +213,9 @@ const UserForm: React.FC<UserFormProps> = ({
                   placeholder="Enter first name"
                   required
                 />
-              </Grid>
+              </div>
 
-              <Grid item xs={12} md={6}>
+              <div>
                 <TextField
                   fullWidth
                   label="Last Name"
@@ -226,9 +226,9 @@ const UserForm: React.FC<UserFormProps> = ({
                   placeholder="Enter last name"
                   required
                 />
-              </Grid>
+              </div>
 
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <TextField
                   fullWidth
                   label="Email Address"
@@ -240,9 +240,9 @@ const UserForm: React.FC<UserFormProps> = ({
                   placeholder="Enter email address"
                   required
                 />
-              </Grid>
+              </div>
 
-              <Grid item xs={12} md={6}>
+              <div>
                 <TextField
                   fullWidth
                   label="Phone Number"
@@ -252,9 +252,9 @@ const UserForm: React.FC<UserFormProps> = ({
                   helperText={errors.phone}
                   placeholder="Enter phone number"
                 />
-              </Grid>
+              </div>
 
-              <Grid item xs={12} md={6}>
+              <div>
                 <TextField
                   fullWidth
                   label="Employee ID"
@@ -265,16 +265,16 @@ const UserForm: React.FC<UserFormProps> = ({
                   placeholder="Enter employee ID"
                   required
                 />
-              </Grid>
+              </div>
 
               {/* Work Information */}
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                   Work Information
                 </Typography>
-              </Grid>
+              </div>
 
-              <Grid item xs={12} md={6}>
+              <div>
                 <FormControl 
                   fullWidth 
                   error={Boolean(errors.role)}
@@ -297,9 +297,9 @@ const UserForm: React.FC<UserFormProps> = ({
                     </Typography>
                   )}
                 </FormControl>
-              </Grid>
+              </div>
 
-              <Grid item xs={12} md={6}>
+              <div>
                 <FormControl 
                   fullWidth 
                   error={Boolean(errors.department)}
@@ -322,9 +322,9 @@ const UserForm: React.FC<UserFormProps> = ({
                     </Typography>
                   )}
                 </FormControl>
-              </Grid>
+              </div>
 
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <TextField
                   fullWidth
                   label="Work Location"
@@ -335,9 +335,9 @@ const UserForm: React.FC<UserFormProps> = ({
                   placeholder="Enter work location"
                   required
                 />
-              </Grid>
+              </div>
 
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <FormControl fullWidth>
                   <InputLabel>Manager</InputLabel>
                   <Select
@@ -355,16 +355,16 @@ const UserForm: React.FC<UserFormProps> = ({
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </div>
 
               {/* Security Settings */}
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                   Security Settings
                 </Typography>
-              </Grid>
+              </div>
 
-              <Grid item xs={12}>
+              <div className="md:col-span-2">
                 <FormControlLabel
                   control={
                     <Switch
@@ -374,10 +374,10 @@ const UserForm: React.FC<UserFormProps> = ({
                   }
                   label="Enable Two-Factor Authentication"
                 />
-              </Grid>
+              </div>
 
               {!isEditing && (
-                <Grid item xs={12}>
+                <div className="md:col-span-2">
                   <FormControlLabel
                     control={
                       <Switch
@@ -387,9 +387,9 @@ const UserForm: React.FC<UserFormProps> = ({
                     }
                     label="Send welcome email with login instructions"
                   />
-                </Grid>
+                </div>
               )}
-            </Grid>
+            </div>
           )}
         </DialogContent>
         <DialogActions>

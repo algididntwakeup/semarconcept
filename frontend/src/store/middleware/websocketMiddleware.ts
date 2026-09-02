@@ -16,13 +16,13 @@ export const websocketSubscribe = (channel: string, scope: string) => ({
 });
 
 // WebSocket unsubscribe action
-export const websocketUnsubscribe = (channel: string) => ({
+export const websocketUnsubscribe = (channel: string, scope?: string) => ({
   type: 'websocket/unsubscribe',
-  payload: { channel }
+  payload: { channel, scope }
 });
 
 // WebSocket connect action
-export const websocketConnect = (url: string) => ({
+export const websocketConnect = (url?: string) => ({
   type: 'websocket/connect',
   payload: { url }
 });
@@ -141,8 +141,8 @@ export const createWebSocketMiddleware = (options: WebSocketMiddlewareOptions = 
     }
   };
 
-  return store => next => action => {
-    switch (action.type) {
+  return store => next => (action: any) => {
+    switch (action?.type) {
       case 'websocket/connect':
         connect(store, action.payload.url || url);
         break;

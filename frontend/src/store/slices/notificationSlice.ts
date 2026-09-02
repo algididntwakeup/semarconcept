@@ -35,6 +35,7 @@ export interface NotificationPreferences {
   desktopNotifications: boolean;
   emailNotifications: boolean;
   soundEnabled: boolean;
+  showToasts?: boolean;
   notificationTypes: {
     [NotificationType.INFO]: boolean;
     [NotificationType.SUCCESS]: boolean;
@@ -169,6 +170,10 @@ export const {
   setError,
   loadNotifications,
 } = notificationSlice.actions;
+
+export const markNotificationAsRead = markAsRead;
+export const markAllNotificationsAsRead = markAllAsRead;
+export const clearNotifications = clearAll;
 
 export default notificationSlice.reducer;
 

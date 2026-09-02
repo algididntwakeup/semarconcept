@@ -219,40 +219,40 @@ const QueryCollector: React.FC<QueryCollectorProps> = ({ data }) => {
                 </Box>
               </AccordionSummary>
               <AccordionDetails sx={{ pt: 0, pb: 1 }}>
-                <Grid container spacing={1} sx={{ mb: 2 }}>
-                  <Grid item xs={3}>
+                <div className="grid grid-cols-4 gap-2 mb-4">
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Total</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold' }}>
                         {apiStats.totalRequests}
                       </Typography>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={3}>
+                  </div>
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'success.main' }}>Success</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold', color: 'success.main' }}>
                         {apiStats.successfulRequests}
                       </Typography>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={3}>
+                  </div>
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'error.main' }}>Errors</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold', color: 'error.main' }}>
                         {apiStats.errorRequests}
                       </Typography>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={3}>
+                  </div>
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'warning.main' }}>Avg Time</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold', color: 'warning.main' }}>
                         {apiStats.averageDuration}ms
                       </Typography>
                     </Paper>
-                  </Grid>
-                </Grid>
+                  </div>
+                </div>
 
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, mb: 1 }}>
                   Top Endpoints:

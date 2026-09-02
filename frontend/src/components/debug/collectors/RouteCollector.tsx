@@ -146,32 +146,32 @@ const RouteCollector: React.FC<RouteCollectorProps> = ({ data }) => {
                 </Box>
               </AccordionSummary>
               <AccordionDetails sx={{ pt: 0, pb: 1 }}>
-                <Grid container spacing={1} sx={{ mb: 2 }}>
-                  <Grid item xs={4}>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Total</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold' }}>
                         {navigationStats.totalNavigations}
                       </Typography>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={4}>
+                  </div>
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Push</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold', color: 'primary.main' }}>
                         {navigationStats.navigationTypes.push || 0}
                       </Typography>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={4}>
+                  </div>
+                  <div>
                     <Paper sx={{ p: 1, textAlign: 'center' }}>
                       <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Back/Forward</Typography>
                       <Typography sx={{ fontSize: '1rem', fontWeight: 'bold', color: 'info.main' }}>
                         {navigationStats.navigationTypes.pop || 0}
                       </Typography>
                     </Paper>
-                  </Grid>
-                </Grid>
+                  </div>
+                </div>
 
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, mb: 1 }}>
                   Most Visited Paths:

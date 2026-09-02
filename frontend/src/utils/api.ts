@@ -79,7 +79,7 @@ class ApiClient {
       (config) => {
         // Get dynamic headers for each request
         const headers = getApiHeaders();
-        config.headers = { ...config.headers, ...headers };
+        config.headers = { ...config.headers, ...headers } as any;
 
         // Log request in development
         if (isDevelopmentMode() && API_CONFIG?.DEVELOPMENT?.LOG_REQUESTS) {
@@ -343,7 +343,7 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     return this.request<T>('POST', endpoint, {
       ...options,
-      body: data,
+      body: data as any,
     });
   }
 
@@ -354,7 +354,7 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     return this.request<T>('PUT', endpoint, {
       ...options,
-      body: data,
+      body: data as any,
     });
   }
 
@@ -369,7 +369,7 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     return this.request<T>('PATCH', endpoint, {
       ...options,
-      body: data,
+      body: data as any,
     });
   }
 

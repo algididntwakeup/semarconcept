@@ -21,6 +21,7 @@ export interface User {
   tenantId?: number | string;
   tenantName?: string;
   role?: string;
+  password?: string;
   last_login?: string;
   created_at?: string;
   updated_at?: string;
@@ -201,6 +202,14 @@ const authSlice = createSlice({
   reducers: {
     clearError: (state) => { state.error = null; },
 
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+
+    setError: (state, action: PayloadAction<string | null>) => {
+      state.error = action.payload;
+    },
+
     setTenant: (state, action: PayloadAction<Tenant>) => {
       state.tenant = action.payload;
       const hasRemembered = localStorage.getItem(TOKEN_KEY);
@@ -276,6 +285,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setTenant, updateTenant, initializeAuth } = authSlice.actions;
+export const { clearError, setTenant, updateTenant, initializeAuth, setLoading, setError } = authSlice.actions;
 export const logout = logoutUser;
 export default authSlice.reducer;

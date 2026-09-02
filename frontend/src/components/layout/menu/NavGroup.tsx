@@ -104,7 +104,7 @@ const NavGroup: React.FC<NavGroupProps> = ({
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
               }}
             >
-              {item.badge}
+              {typeof item.badge === 'object' ? (item.badge as any)?.count : item.badge}
             </Box>
           )}
         </GroupHeader>

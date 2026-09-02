@@ -1,7 +1,68 @@
 // platform/frontend-mui/src/config/icon-mapping.ts
 import React from 'react';
 
-// 🔥 FIXED: Import ALL icons without duplicates
+// Lucide Icons (SEMAR Primary Modern Design System)
+import {
+  LayoutDashboard,
+  Gauge,
+  Activity,
+  TrendingUp,
+  BarChart3,
+  BarChart2,
+  PieChart,
+  LineChart,
+  Package,
+  Boxes,
+  Layers,
+  FolderTree,
+  FileText,
+  FileSpreadsheet,
+  HardDrive,
+  Upload,
+  Download,
+  ClipboardCheck,
+  CheckSquare,
+  FileCheck,
+  Calendar,
+  CalendarDays,
+  AlertCircle,
+  ShieldAlert,
+  ShieldCheck,
+  Shield,
+  AlertTriangle,
+  Flame,
+  Wrench,
+  Hammer,
+  Cog,
+  Clock,
+  CheckCircle,
+  CheckCircle2,
+  Award,
+  FileCode,
+  Settings,
+  Users,
+  UserCheck,
+  Key,
+  Database,
+  Workflow,
+  Sliders,
+  SlidersHorizontal,
+  HelpCircle,
+  Search,
+  Building2,
+  Sparkles,
+  Zap,
+  Box as BoxIcon,
+  CircleDot,
+  Check,
+  FileSearch,
+  Cpu,
+  History,
+  ShieldQuestion,
+  BookOpen,
+} from 'lucide-react';
+
+// MUI Icons (Backward Compatibility)
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import InventoryIcon from '@mui/icons-material/Inventory';
@@ -40,7 +101,7 @@ import LoginIcon from '@mui/icons-material/Login';
 import WorkIcon from '@mui/icons-material/Work';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import HelpIcon from '@mui/icons-material/Help';
-import BusinessCenterIcon from '@mui/icons-material/BusinessCenter'; // ✅ FIXED: Use BusinessCenterIcon
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
 import BrandingWatermarkIcon from '@mui/icons-material/BrandingWatermark';
 import PaymentIcon from '@mui/icons-material/Payment';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
@@ -69,7 +130,66 @@ export type IconName = string;
 export type IconComponent = React.ComponentType<any>;
 
 export const iconMapping: Record<IconName, IconComponent> = {
-  // Dashboard & Analytics
+  // Lucide Names (Modern SEMAR Framework)
+  LayoutDashboard,
+  Gauge,
+  Activity,
+  TrendingUp,
+  BarChart3,
+  BarChart2,
+  PieChart,
+  LineChart,
+  Package,
+  Boxes,
+  Layers,
+  FolderTree,
+  FileText,
+  FileSpreadsheet,
+  HardDrive,
+  Upload,
+  Download,
+  ClipboardCheck,
+  CheckSquare,
+  FileCheck,
+  Calendar,
+  CalendarDays,
+  AlertCircle,
+  ShieldAlert,
+  ShieldCheck,
+  Shield,
+  AlertTriangle,
+  Flame,
+  Wrench,
+  Hammer,
+  Cog,
+  Clock,
+  CheckCircle,
+  CheckCircle2,
+  Award,
+  FileCode,
+  Settings,
+  Users,
+  UserCheck,
+  Key,
+  Database,
+  Workflow,
+  Sliders,
+  SlidersHorizontal,
+  HelpCircle,
+  Search,
+  Building2,
+  Sparkles,
+  Zap,
+  Box: BoxIcon,
+  CircleDot,
+  Check,
+  FileSearch,
+  Cpu,
+  History,
+  ShieldQuestion,
+  BookOpen,
+
+  // Dashboard & Analytics (MUI)
   DashboardIcon,
   BarChartIcon,
   GridViewIcon,
@@ -80,21 +200,21 @@ export const iconMapping: Record<IconName, IconComponent> = {
   CheckCircleIcon,
   AssessmentIcon,
 
-  // Asset Management
+  // Asset Management (MUI)
   InventoryIcon,
   CategoryIcon,
   InsertDriveFileIcon,
   PermMediaIcon,
   LocalOfferIcon,
-  BusinessCenterIcon, // ✅ FIXED: Maps to BusinessCenterIcon
-  BusinessIcon: BusinessCenterIcon, // ✅ ADDED: BusinessIcon alias for backward compatibility
+  BusinessCenterIcon,
+  BusinessIcon: BusinessCenterIcon,
   AccountTreeIcon,
   EngineeringIcon,
   FolderIcon,
   ImportExportIcon,
   PhotoLibraryIcon,
 
-  // Operations
+  // Operations (MUI)
   AssignmentIcon,
   WarningIcon,
   BuildIcon,
@@ -106,13 +226,13 @@ export const iconMapping: Record<IconName, IconComponent> = {
   SecurityIcon,
   GavelIcon,
 
-  // Content Management
+  // Content Management (MUI)
   DescriptionIcon,
   TextFieldsIcon,
   FormatPaintIcon,
   ContentCopyIcon,
 
-  // Administration
+  // Administration (MUI)
   AdminPanelSettingsIcon,
   PeopleIcon,
   LockOpenIcon,
@@ -123,7 +243,7 @@ export const iconMapping: Record<IconName, IconComponent> = {
   ExtensionIcon,
   VpnKeyIcon,
 
-  // Templates & UI
+  // Templates & UI (MUI)
   PaletteIcon,
   AppsIcon,
   DesktopWindowsIcon,
@@ -134,13 +254,13 @@ export const iconMapping: Record<IconName, IconComponent> = {
   TableChartIcon,
   MapIcon,
 
-  // Pages & Auth
+  // Pages & Auth (MUI)
   LoginIcon,
   WorkIcon,
   AccountCircleIcon,
   HelpIcon,
 
-  // Tenant Management
+  // Tenant Management (MUI)
   BrandingWatermarkIcon,
   PaymentIcon,
   QueryStatsIcon,
@@ -149,11 +269,18 @@ export const iconMapping: Record<IconName, IconComponent> = {
   CalendarMonthIcon,
 };
 
-export const getIconByName = (iconName: string): IconComponent | null => {
+export const getIconByName = (iconName: string): IconComponent => {
+  if (!iconName) return CircleDot;
   const icon = iconMapping[iconName];
   if (!icon) {
-    console.warn(`🚨 Icon "${iconName}" not found in icon mapping. Available icons:`, Object.keys(iconMapping));
-    return null;
+    // Attempt case-insensitive or stripped matching
+    const cleanName = iconName.replace(/Icon$/i, '');
+    const matchedKey = Object.keys(iconMapping).find(
+      (k) => k.toLowerCase() === iconName.toLowerCase() || k.toLowerCase() === cleanName.toLowerCase()
+    );
+    if (matchedKey) return iconMapping[matchedKey];
+
+    return CircleDot; // Reliable fallback icon so minimized sidebar never shows blank
   }
   return icon;
 };

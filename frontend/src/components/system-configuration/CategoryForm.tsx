@@ -35,7 +35,7 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
     reset,
     formState: { errors, isDirty }, // isDirty can be used to enable/disable save button
   } = useForm<CategoryFormData>({
-    resolver: zodResolver(categorySchema),
+    resolver: zodResolver(categorySchema) as any,
     defaultValues: {
       name: '',
       description: '',

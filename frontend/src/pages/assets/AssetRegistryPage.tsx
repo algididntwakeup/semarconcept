@@ -51,7 +51,7 @@ const AssetRegistryPage: React.FC = () => {
   const fetchAssets = async () => {
     try {
       const response = await assetService.getAssets({ page, limit: rowsPerPage });
-      const data = response.data || response;
+      const data = (response as any)?.data || (response as any)?.items || response;
       setAssets(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load assets', err);

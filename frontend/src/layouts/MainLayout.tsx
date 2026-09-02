@@ -83,6 +83,8 @@ const MainLayout: React.FC = () => {
   
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+  const headerTabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   useOnClickOutside(userMenuRef, () => setIsUserMenuOpen(false));
   useOnClickOutside(notificationsRef, () => setIsNotificationsOpen(false));
@@ -125,6 +127,20 @@ const MainLayout: React.FC = () => {
     [menuItems]
   );
 
+  useEffect(() => {
+    const activeItem = topLevelMenuItems[activeHorizontalTab];
+    const container = headerMenuRef.current;
+    const activeTab = activeItem ? headerTabRefs.current.get(activeItem.id) : undefined;
+
+    if (!container || !activeTab) return;
+
+    const centeredLeft = activeTab.offsetLeft - (container.clientWidth - activeTab.offsetWidth) / 2;
+    container.scrollTo({
+      left: Math.max(0, centeredLeft),
+      behavior: 'smooth',
+    });
+  }, [activeHorizontalTab, topLevelMenuItems]);
+
   const notifications = useMemo(
     () => [
       { id: 1, title: 'System Update', message: 'New features available', time: '5 min ago', unread: true },
@@ -165,7 +181,7 @@ const MainLayout: React.FC = () => {
     // Prevent direct URL access to inactive, hidden, or unauthorized menu items/modules
     const checkMenuAccess = (items: NavItem[], path: string, parentChain: NavItem[] = []): { blocked: boolean; found: boolean } => {
       // 1. Whitelist basic routes that don't need to be in the menu
-      const whitelist = ['/', '/dashboard', '/dashboard/', '/dashboard/overview', '/home', '/login', '/register', '/test-logging', '/logging-example', '/access-inactive'];
+      const whitelist = ['/', '/dashboard', '/dashboard/', '/dashboard/overview', '/login', '/register', '/access-inactive'];
       if (whitelist.includes(path)) {
         return { blocked: false, found: true };
       }
@@ -214,16 +230,16 @@ const MainLayout: React.FC = () => {
     // 🔥 ENHANCED: If not found in menu, but belongs to a managed module, it's effectively inactive
     const managedModules = [
       'analytics', 'risk', 'inspection', 'maintenance', 'compliance', 
-      'asset', 'content', 'admin', 'manage', 'reporting', 'system-configuration', 
-      'dashboard', 'templates'
+      'assets', 'asset', 'content', 'admin', 'manage', 'reporting', 'system-configuration',
+      'dashboard'
     ];
     const pathSegments = currentPath.split('/').filter(Boolean);
     const isManagedModule = pathSegments.length > 0 && managedModules.includes(pathSegments[0]);
 
     // Skip block if superuser
     if (!isSuperuser && ((found && blocked) || (!found && isManagedModule))) {
-      // Double check whitelist again for managed modules (like /dashboard/overview)
-      const whitelist = ['/', '/dashboard', '/dashboard/', '/dashboard/overview', '/home', '/access-inactive'];
+      // Double check whitelist again for managed modules (like /dashboard)
+      const whitelist = ['/', '/dashboard', '/dashboard/', '/dashboard/overview', '/dashboard/asset', '/dashboard/inspection', '/dashboard/maintenance', '/dashboard/compliance', '/access-inactive'];
       if (!whitelist.includes(currentPath)) {
         console.warn(`🚫 Access blocked to inactive or unauthorized path: ${currentPath}`);
         navigate('/access-inactive', { replace: true });
@@ -270,7 +286,7 @@ const MainLayout: React.FC = () => {
       for (const item of items) {
         const normalizedItemUrl = item.url?.replace(/\/$/, '') || '';
         const normalizedTargetUrl = currentPath.replace(/\/$/, '') || '';
-        if (normalizedItemUrl && normalizedItemUrl === normalizedTargetUrl) {
+        if (normalizedItemUrl && normalizedTargetUrl === normalizedItemUrl) {
           activeTitle = item.title;
           return true;
         }
@@ -313,30 +329,41 @@ const MainLayout: React.FC = () => {
 
   const handleMenuItemClick = useCallback(
     (item: NavItem, fromHorizontal = false) => {
-      // Logic for top-level menu jump to first child
-      if (fromHorizontal && item.children && item.children.length > 0) {
-        // Find FIRST valid descendant URL, skipping the parent's own URL
-        let firstSubUrl: string | null = null;
-        for (const child of item.children) {
-          const subUrl = findFirstUrl(child);
-          if (subUrl) {
-            firstSubUrl = subUrl;
-            break;
-          }
+      // 1. Always prioritize direct /dashboard canonical route for Dashboard module
+      if (item.id === 'dashboard' || item.url === '/dashboard' || item.id === 'dashboard-home' || item.id === 'dashboard-mission-control') {
+        navigate('/dashboard');
+        if (window.innerWidth < 1024) setMobileOpen(false);
+        return;
+      }
+
+      // 2. Direct URL click from sidebar
+      if (item.url && !fromHorizontal) {
+        navigate(item.url);
+        if (window.innerWidth < 1024) setMobileOpen(false);
+        return;
+      }
+
+      // 3. Top horizontal module switcher click
+      if (fromHorizontal) {
+        if (item.type === 'collapse') {
+          const next: Record<string, boolean> = { [item.id]: true };
+          setOpenCollapseMenus(next);
         }
-        
-        if (firstSubUrl) {
-          navigate(firstSubUrl);
+        if (item.url) {
+          navigate(item.url);
           return;
         }
+        if (item.children && item.children.length > 0) {
+          const firstUrl = findFirstUrl(item);
+          if (firstUrl) {
+            navigate(firstUrl);
+            return;
+          }
+        }
       }
-      
-      if (fromHorizontal && item.type === 'collapse') {
-        const next: Record<string, boolean> = { [item.id]: true };
-        setOpenCollapseMenus(next);
-        const firstUrl = findFirstUrl(item);
-        if (firstUrl) navigate(firstUrl);
-      } else if (item.url) {
+
+      // 4. Fallback item click
+      if (item.url) {
         navigate(item.url);
         if (window.innerWidth < 1024) setMobileOpen(false);
       }
@@ -350,9 +377,7 @@ const MainLayout: React.FC = () => {
       if (isOpen) {
         return { ...prev, [id]: false };
       } else {
-        // Accordion: close others when opening one. 
-        // Note: This simple implementation works well for single-level collapses.
-        // For deep nesting, we'd need to keep the parent chain open.
+        // Accordion: close others when opening one.
         return { [id]: true };
       }
     });
@@ -414,12 +439,12 @@ const MainLayout: React.FC = () => {
 
         <div 
           className={`flex-1 flex flex-col min-h-screen transition-all duration-500 ease-in-out ${
-            sidebarOpen ? 'lg:ml-[290px]' : 'lg:ml-[88px]'
+            sidebarOpen ? 'lg:ml-[290px]' : 'lg:ml-[110px]'
           }`}
         >
-          {/* Minimal Floating Header */}
-          <div className="px-4 pt-6 sm:px-6 md:px-8 relative z-50">
-            <div className="glass flex items-center justify-between h-16 px-4 rounded-2xl shadow-premium border-white/40">
+          {/* Modern Floating Header */}
+          <div className="sticky top-4 z-40 px-4 sm:px-6 md:px-8 transition-all duration-300">
+            <div className="glass flex items-center justify-between h-16 px-4 rounded-2xl shadow-premium border-white/50 backdrop-blur-xl bg-white/75">
               <div className="flex items-center gap-1 sm:gap-4 h-full">
                 <button 
                   className="lg:hidden p-2 rounded-xl hover:bg-white/50 text-slate-600 transition-colors"
@@ -430,9 +455,9 @@ const MainLayout: React.FC = () => {
                 <div className="sm:hidden font-black text-primary-600 text-lg tracking-tighter self-center">SEMAR</div>
                 
                 {/* Horizontal Module Switcher (Improved for scalability) */}
-                <div className="hidden lg:flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
                   <button 
-                    className="p-2 rounded-xl hover:bg-white/50 text-slate-400 hover:text-primary-600 transition-all active:scale-95"
+                    className="hidden lg:block p-2 rounded-xl hover:bg-white/50 text-slate-400 hover:text-primary-600 transition-all active:scale-95"
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
                   >
@@ -443,25 +468,31 @@ const MainLayout: React.FC = () => {
                   <div className="relative flex items-center group/nav">
                     {/* Left arrow - visible when scrolled */}
                     <button 
-                      id="scroll-left-btn"
-                      onClick={() => document.getElementById('header-menu-container')?.scrollBy({left: -200, behavior: 'smooth'})}
+                      type="button"
+                      aria-label="Scroll modules left"
+                      onClick={() => headerMenuRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
                       className="absolute -left-3 flex w-8 h-8 items-center justify-center bg-white rounded-full shadow-premium border border-slate-100 text-slate-400 hover:text-primary-600 z-20 transition-all opacity-0 group-hover/nav:opacity-100"
                     >
                       <ChevronLeft size={14} strokeWidth={3} />
                     </button>
 
                     <div 
-                      id="header-menu-container" 
-                      className="flex items-center h-11 px-1.5 bg-slate-100/40 backdrop-blur-sm rounded-2xl border border-slate-200/50 overflow-x-auto no-scrollbar max-w-[40vw] xl:max-w-[50vw] scroll-smooth"
+                      ref={headerMenuRef}
+                      className="flex items-center h-11 px-1.5 bg-slate-100/40 backdrop-blur-sm rounded-2xl border border-slate-200/50 overflow-x-auto overscroll-x-contain touch-pan-x max-w-[50vw] md:max-w-[40vw] xl:max-w-[50vw] scroll-smooth no-scrollbar"
                     >
-                      <div className="flex items-center space-x-1.5 min-w-max px-0.5">
+                      <div className="flex items-center min-w-max px-0.5">
                         {topLevelMenuItems.map((item, idx) => {
                           const isActive = activeHorizontalTab === idx;
                           return (
                             <button
                               key={item.id}
+                              ref={(node) => {
+                                if (node) headerTabRefs.current.set(item.id, node);
+                                else headerTabRefs.current.delete(item.id);
+                              }}
+                              type="button"
                               onClick={() => handleMenuItemClick(item, true)}
-                              className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap border ${
+                              className={`rounded-xl px-3 sm:px-5 py-2.5 mx-0.5 text-[10px] font-black uppercase tracking-widest transition-colors duration-200 whitespace-nowrap border ${
                                 isActive 
                                   ? 'bg-white text-primary-600 shadow-sm border-slate-200/60' 
                                   : 'text-slate-400 border-transparent hover:text-slate-700 hover:bg-white/50'
@@ -476,8 +507,9 @@ const MainLayout: React.FC = () => {
 
                     {/* Right arrow - visible when scrolled */}
                     <button 
-                      id="scroll-right-btn"
-                      onClick={() => document.getElementById('header-menu-container')?.scrollBy({left: 200, behavior: 'smooth'})}
+                      type="button"
+                      aria-label="Scroll modules right"
+                      onClick={() => headerMenuRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
                       className="absolute -right-3 flex w-8 h-8 items-center justify-center bg-white rounded-full shadow-premium border border-slate-100 text-slate-400 hover:text-primary-600 z-20 transition-all opacity-0 group-hover/nav:opacity-100"
                     >
                       <ChevronRight size={14} strokeWidth={3} />

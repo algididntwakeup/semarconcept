@@ -60,20 +60,90 @@ func (s *Seeder) SeedAll() error {
 func (s *Seeder) SeedMenuItems() error {
 	log.Println("Seeding menu items...")
 
-	strPtr := func(s string) *string { return &s }
+	// Remove obsolete system navigation entries for the seeded tenant. The
+	// canonical dashboard lives at /dashboard; /dashboard/overview is retained
+	// only as a frontend redirect for old bookmarks. Content pages remain
+	// routable utilities, but the legacy Content root is not one of the eight
+	// official AIMS modules and must not leak back into the primary navigation.
+	if err := s.DB.Where(
+		"tenant_id = ? AND slug LIKE ?",
+		1,
+		"content-%",
+	).Delete(&models.Menu{}).Error; err != nil {
+		return err
+	}
 
-	// 1. Root Items
+	if err := s.DB.Where(
+		"tenant_id = ? AND (slug LIKE ? OR slug = ? OR slug = ?)",
+		1,
+		"templates%",
+		"dashboard-overview",
+		"content",
+	).Delete(&models.Menu{}).Error; err != nil {
+		return err
+	}
+
+	strPtr := func(s string) *string { return &s }
+	childIconBySlug := map[string]string{
+		"dashboard-mission-control": "Gauge",
+		"dashboard-asset":           "QueryStatsIcon",
+		"dashboard-inspection":      "ClipboardCheck",
+		"dashboard-maintenance":     "Wrench",
+		"dashboard-compliance":      "ShieldCheck",
+		"analytics-performance":     "Activity",
+		"analytics-risk":            "ShieldAlert",
+		"analytics-inspection":      "ClipboardCheck",
+		"analytics-maintenance":     "Wrench",
+		"analytics-compliance":      "ShieldCheck",
+		"analytics-reports":         "FileText",
+		"asset-registry":            "Building2",
+		"asset-hierarchy":           "FolderTree",
+		"asset-technical-data":      "SlidersHorizontal",
+		"asset-documents":           "FileText",
+		"asset-import-export":       "Upload",
+		"admin-users":               "Users",
+		"admin-roles":               "UserCheck",
+		"admin-permissions":         "Key",
+		"admin-taxonomy":            "Layers",
+		"system-config":             "Settings",
+		"backup-restore":            "HardDrive",
+		"admin-workflow":            "Workflow",
+		"inspection-findings":       "AlertTriangle",
+		"inspection-plans":          "ClipboardCheck",
+		"inspection-tasks":          "CheckSquare",
+		"inspection-types":          "Layers",
+		"inspection-calendar":       "CalendarDays",
+		"inspection-reports":        "FileSearch",
+		"risk-matrix":               "GridViewIcon",
+		"risk-degradation":          "Flame",
+		"risk-integrity":            "Activity",
+		"risk-reports":              "BarChart3",
+		"risk-assessments":          "ShieldCheck",
+		"risk-mitigation":           "CheckSquare",
+		"maintenance-work-orders":   "Wrench",
+		"maintenance-plans":         "ClipboardCheck",
+		"maintenance-tasks":         "CheckSquare",
+		"maintenance-resources":     "Users",
+		"maintenance-history":       "History",
+		"maintenance-schedules":     "Calendar",
+		"maintenance-calendar":      "CalendarDays",
+		"compliance-standards":      "BookOpen",
+		"compliance-requirements":   "FileCheck",
+		"compliance-tasks":          "CheckSquare",
+		"compliance-audits":         "FileSearch",
+		"compliance-certifications": "Award",
+	}
+
+	// 1. Root Items (8 Official AIMS Modules)
 	rootItems := []models.Menu{
-		{Title: "Dashboard", Slug: "dashboard", Icon: strPtr("LayoutDashboard"), Route: strPtr("/dashboard/overview"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Analytics", Slug: "analytics", Icon: strPtr("BarChart3"), Route: strPtr("/analytics/dashboard"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Asset Management", Slug: "assets", Icon: strPtr("Package"), Route: strPtr("/asset/registry"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Inspection Management", Slug: "inspection", Icon: strPtr("ClipboardCheck"), Route: strPtr("/inspection/tasks"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Risk Management", Slug: "risk", Icon: strPtr("ShieldAlert"), Route: strPtr("/risk/assessments"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Maintenance Management", Slug: "maintenance", Icon: strPtr("Wrench"), Route: strPtr("/maintenance/work-orders"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Compliance Management", Slug: "compliance", Icon: strPtr("CheckCircle"), Route: strPtr("/compliance/standards"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Content Management", Slug: "content", Icon: strPtr("FileText"), Route: strPtr("/content/items"), OrderIndex: 8, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Administration", Slug: "administration", Icon: strPtr("Settings"), Route: strPtr("/admin/users"), OrderIndex: 9, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Templates/Starter", Slug: "templates", Icon: strPtr("LayoutTemplate"), Route: strPtr("/templates/dashboards/analytics"), OrderIndex: 10, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Dashboard", Slug: "dashboard", Icon: strPtr("LayoutDashboard"), Route: strPtr("/dashboard"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Asset Management", Slug: "assets", Icon: strPtr("Package"), Route: strPtr("/assets"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Inspection Management", Slug: "inspection", Icon: strPtr("ClipboardCheck"), Route: strPtr("/inspection"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Risk Management", Slug: "risk", Icon: strPtr("ShieldAlert"), Route: strPtr("/risk"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Analytics", Slug: "analytics", Icon: strPtr("BarChart3"), Route: strPtr("/analytics"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Maintenance Management", Slug: "maintenance", Icon: strPtr("Wrench"), Route: strPtr("/maintenance"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Compliance Management", Slug: "compliance", Icon: strPtr("CheckCircle"), Route: strPtr("/compliance"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Administration", Slug: "administration", Icon: strPtr("Settings"), Route: strPtr("/admin"), OrderIndex: 8, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
 	}
 
 	slugToID := make(map[string]int)
@@ -103,9 +173,12 @@ func (s *Seeder) SeedMenuItems() error {
 		Menu       models.Menu
 	}{
 		// Dashboard children
-		{"dashboard", models.Menu{Title: "Overview", Slug: "dashboard-overview", Route: strPtr("/dashboard/overview"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"dashboard", models.Menu{Title: "Mission Control Hub", Slug: "dashboard-mission-control", Route: strPtr("/dashboard"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"dashboard", models.Menu{Title: "Asset Dashboard", Slug: "dashboard-asset", Route: strPtr("/dashboard/asset"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		
+		{"dashboard", models.Menu{Title: "Inspection Dashboard", Slug: "dashboard-inspection", Route: strPtr("/dashboard/inspection"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"dashboard", models.Menu{Title: "Maintenance Dashboard", Slug: "dashboard-maintenance", Route: strPtr("/dashboard/maintenance"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"dashboard", models.Menu{Title: "Compliance Dashboard", Slug: "dashboard-compliance", Route: strPtr("/dashboard/compliance"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+
 		// Analytics children
 		{"analytics", models.Menu{Title: "Performance Metrics", Slug: "analytics-performance", Route: strPtr("/analytics/performance"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"analytics", models.Menu{Title: "Risk Analysis", Slug: "analytics-risk", Route: strPtr("/analytics/risk"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
@@ -115,19 +188,20 @@ func (s *Seeder) SeedMenuItems() error {
 		{"analytics", models.Menu{Title: "Custom Reports", Slug: "analytics-reports", Route: strPtr("/analytics/reports"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Asset Management children
-		{"assets", models.Menu{Title: "Asset Registry", Slug: "asset-registry", Route: strPtr("/asset/registry"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"assets", models.Menu{Title: "Asset Hierarchy", Slug: "asset-hierarchy", Route: strPtr("/asset/hierarchy"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"assets", models.Menu{Title: "Technical Data", Slug: "asset-technical-data", Route: strPtr("/asset/technical-data"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"assets", models.Menu{Title: "Documents", Slug: "asset-documents", Route: strPtr("/asset/documents"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"assets", models.Menu{Title: "Import/Export", Slug: "asset-import-export", Route: strPtr("/asset/import-export"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"assets", models.Menu{Title: "Asset Registry", Slug: "asset-registry", Route: strPtr("/assets/registry"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"assets", models.Menu{Title: "Asset Hierarchy", Slug: "asset-hierarchy", Route: strPtr("/assets/hierarchy"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"assets", models.Menu{Title: "Technical Data", Slug: "asset-technical-data", Route: strPtr("/assets/technical-data"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"assets", models.Menu{Title: "Documents", Slug: "asset-documents", Route: strPtr("/assets/documents"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"assets", models.Menu{Title: "Import/Export", Slug: "asset-import-export", Route: strPtr("/assets/import-export"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Administration children
 		{"administration", models.Menu{Title: "Users", Slug: "admin-users", Route: strPtr("/admin/users"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
 		{"administration", models.Menu{Title: "Roles", Slug: "admin-roles", Route: strPtr("/admin/roles"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
 		{"administration", models.Menu{Title: "Permissions", Slug: "admin-permissions", Route: strPtr("/admin/permissions"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
-		{"administration", models.Menu{Title: "Menu Management", Slug: "menu-management", Route: strPtr("/admin/menu"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
+		{"administration", models.Menu{Title: "Taxonomy & Master Data", Slug: "admin-taxonomy", Route: strPtr("/admin/taxonomy"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
 		{"administration", models.Menu{Title: "System Configuration", Slug: "system-config", Route: strPtr("/admin/system-config"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
 		{"administration", models.Menu{Title: "Backup & Restore", Slug: "backup-restore", Route: strPtr("/admin/backup-restore"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
+		{"administration", models.Menu{Title: "Workflow Engine", Slug: "admin-workflow", Route: strPtr("/admin/workflow"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "item"}},
 
 		// Inspection Management children
 		{"inspection", models.Menu{Title: "Findings", Slug: "inspection-findings", Route: strPtr("/inspection/findings"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
@@ -135,42 +209,31 @@ func (s *Seeder) SeedMenuItems() error {
 		{"inspection", models.Menu{Title: "Inspection Tasks", Slug: "inspection-tasks", Route: strPtr("/inspection/tasks"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"inspection", models.Menu{Title: "Inspection Types", Slug: "inspection-types", Route: strPtr("/inspection/types"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"inspection", models.Menu{Title: "Inspection Calendar", Slug: "inspection-calendar", Route: strPtr("/inspection/calendar"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"inspection", models.Menu{Title: "Inspection Reports", Slug: "inspection-reports", Route: strPtr("/inspection/reports"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Risk Management children
-		{"risk", models.Menu{Title: "Risk Assessments", Slug: "risk-assessments", Route: strPtr("/risk/assessments"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Risk Matrix", Slug: "risk-matrix", Route: strPtr("/risk/matrix"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Degradation Mechanisms", Slug: "risk-degradation", Route: strPtr("/risk/degradation"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Integrity Windows", Slug: "risk-integrity", Route: strPtr("/risk/integrity"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Risk Reports", Slug: "risk-reports", Route: strPtr("/risk/reports"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Risk Matrix", Slug: "risk-matrix", Route: strPtr("/risk/matrix"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Degradation Mechanisms", Slug: "risk-degradation", Route: strPtr("/risk/degradation"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Integrity Windows", Slug: "risk-integrity", Route: strPtr("/risk/integrity"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "RBI Reports", Slug: "risk-reports", Route: strPtr("/risk/reports"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Risk Assessments", Slug: "risk-assessments", Route: strPtr("/risk/assessments"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Mitigation Actions", Slug: "risk-mitigation", Route: strPtr("/risk/mitigation"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Maintenance Management children
 		{"maintenance", models.Menu{Title: "Work Orders", Slug: "maintenance-work-orders", Route: strPtr("/maintenance/work-orders"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"maintenance", models.Menu{Title: "Maintenance Plans", Slug: "maintenance-plans", Route: strPtr("/maintenance/plans"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"maintenance", models.Menu{Title: "Maintenance Tasks", Slug: "maintenance-tasks", Route: strPtr("/maintenance/tasks"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"maintenance", models.Menu{Title: "Resources", Slug: "maintenance-resources", Route: strPtr("/maintenance/resources"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"maintenance", models.Menu{Title: "Maintenance Calendar", Slug: "maintenance-calendar", Route: strPtr("/maintenance/calendar"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"maintenance", models.Menu{Title: "Maintenance History", Slug: "maintenance-history", Route: strPtr("/maintenance/history"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"maintenance", models.Menu{Title: "Maintenance Schedules", Slug: "maintenance-schedules", Route: strPtr("/maintenance/schedules"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"maintenance", models.Menu{Title: "Maintenance Calendar", Slug: "maintenance-calendar", Route: strPtr("/maintenance/calendar"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Compliance Management children
 		{"compliance", models.Menu{Title: "Standards", Slug: "compliance-standards", Route: strPtr("/compliance/standards"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"compliance", models.Menu{Title: "Requirements", Slug: "compliance-requirements", Route: strPtr("/compliance/requirements"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 		{"compliance", models.Menu{Title: "Compliance Tasks", Slug: "compliance-tasks", Route: strPtr("/compliance/tasks"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"compliance", models.Menu{Title: "Audits", Slug: "compliance-audits", Route: strPtr("/compliance/audits"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"compliance", models.Menu{Title: "Certifications", Slug: "compliance-certifications", Route: strPtr("/compliance/certifications"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-
-		// Content Management children
-		{"content", models.Menu{Title: "Content Types", Slug: "content-types", Route: strPtr("/content/types"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"content", models.Menu{Title: "Content Items", Slug: "content-items", Route: strPtr("/content/items"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"content", models.Menu{Title: "Media Library", Slug: "content-media", Route: strPtr("/content/media"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"content", models.Menu{Title: "Categories", Slug: "content-categories", Route: strPtr("/content/categories"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"content", models.Menu{Title: "Tags", Slug: "content-tags", Route: strPtr("/content/tags"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-
-		// Templates/Starter children
-		{"templates", models.Menu{Title: "Dashboards", Slug: "templates-dashboards", Route: strPtr("/templates/dashboards"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"templates", models.Menu{Title: "Apps", Slug: "templates-apps", Route: strPtr("/templates/apps"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"templates", models.Menu{Title: "UI Elements", Slug: "templates-ui", Route: strPtr("/templates/ui"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"templates", models.Menu{Title: "Forms & Tables", Slug: "templates-forms", Route: strPtr("/templates/forms"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"templates", models.Menu{Title: "Charts & Maps", Slug: "templates-charts", Route: strPtr("/templates/charts"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"templates", models.Menu{Title: "Pages", Slug: "templates-pages", Route: strPtr("/templates/pages"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"compliance", models.Menu{Title: "Audits & Reviews", Slug: "compliance-audits", Route: strPtr("/compliance/audits"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"compliance", models.Menu{Title: "Asset Certifications", Slug: "compliance-certifications", Route: strPtr("/compliance/certifications"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 	}
 
 	// Upsert Children
@@ -180,10 +243,13 @@ func (s *Seeder) SeedMenuItems() error {
 			log.Printf("Warning: Parent slug %s not found for child %s", mapping.ParentSlug, mapping.Menu.Title)
 			continue
 		}
-		
+
 		item := mapping.Menu
 		item.ParentID = &parentID
-		
+		if iconName, ok := childIconBySlug[item.Slug]; ok {
+			item.Icon = strPtr(iconName)
+		}
+
 		var existing models.Menu
 		if err := s.DB.Where("slug = ? AND tenant_id = ?", item.Slug, item.TenantID).First(&existing).Error; err != nil {
 			if err := s.DB.Create(&item).Error; err != nil {
@@ -289,7 +355,7 @@ func (s *Seeder) SeedPermissions() error {
 	log.Println("Seeding permissions...")
 
 	// Helper function to create string pointers
-// stringPtr removed
+	// stringPtr removed
 	permissions := []models.Permission{
 		// User Management
 		{Name: "Create Users", Resource: "user", Action: "create", Scope: "tenant", Description: "Create new users"},
@@ -353,7 +419,7 @@ func (s *Seeder) SeedPermissions() error {
 	for _, permission := range permissions {
 		// Set default tenant ID to satisfy validation
 		permission.TenantID = 1
-		
+
 		var existingPermission models.Permission
 		if err := s.DB.Where("name = ?", permission.Name).First(&existingPermission).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -417,15 +483,15 @@ func (s *Seeder) SeedDefaultUser() error {
 
 	// Create default admin user
 	user := models.User{
-		TenantID:  tenant.ID,
-		Username:  "admin",
-		Email:     "admin@reksolindo.com",
-		FirstName: "System",
-		LastName:  "Administrator",
-		FullName:  func(s string) *string { return &s }("System Administrator"),
-		IsAdmin:      true,
-		IsSuperuser:  true,
-		IsActive:     true,
+		TenantID:    tenant.ID,
+		Username:    "admin",
+		Email:       "admin@reksolindo.com",
+		FirstName:   "System",
+		LastName:    "Administrator",
+		FullName:    func(s string) *string { return &s }("System Administrator"),
+		IsAdmin:     true,
+		IsSuperuser: true,
+		IsActive:    true,
 	}
 
 	// Set password

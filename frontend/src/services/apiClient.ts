@@ -104,7 +104,7 @@ export const setCurrentTenant = (tenant: any): void => {
 // Request interceptor — attach token & tenant
 // ---------------------------------------------------------------------------
 apiClient.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: any) => {
     config.headers = config.headers || {};
 
     const token = getAuthToken();

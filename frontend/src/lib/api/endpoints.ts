@@ -71,6 +71,7 @@ export interface MenuItem {
   parent_id?: number | null;
   title: string;
   menu_type: string;
+  access_level?: string;
   icon?: string;
   route?: string;
   order_index: number;
@@ -88,6 +89,8 @@ export interface User {
   last_name: string;
   full_name: string;
   is_active: boolean;
+  password?: string;
+  role_ids?: number[];
   is_superuser: boolean;
   is_admin: boolean;
   tenant_id: number;

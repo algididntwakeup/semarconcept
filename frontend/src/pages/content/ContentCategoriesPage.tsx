@@ -22,7 +22,8 @@ import {
   Settings,
   History,
   Shield,
-  Layers
+  Layers,
+  MoreVertical
 } from 'lucide-react';
 
 interface ContentCategory {

@@ -81,7 +81,7 @@ const FieldForm: React.FC<FieldFormProps> = ({
     reset,
     formState: { errors },
   } = useForm<LocalFieldFormData>({
-    resolver: zodResolver(fieldSchema),
+    resolver: zodResolver(fieldSchema) as any,
     defaultValues: {
       name: '',
       apiKey: '',

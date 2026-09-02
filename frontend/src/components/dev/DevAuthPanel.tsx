@@ -216,9 +216,9 @@ const DevAuthPanel: React.FC<DevAuthPanelProps> = ({ onAuthChange }) => {
       }
       
       // Load tenants if API method exists
-      if (typeof api.getTenants === 'function') {
+      if (typeof (api as any).getTenants === 'function') {
         promises.push(
-          api.getTenants({ limit: 10 }).catch((error) => {
+          (api as any).getTenants({ limit: 10 }).catch((error: any) => {
             console.warn('⚠️ Failed to load tenants:', error?.message || error);
             return { data: [] };
           })
@@ -231,8 +231,8 @@ const DevAuthPanel: React.FC<DevAuthPanelProps> = ({ onAuthChange }) => {
       const [usersResponse, tenantsResponse] = await Promise.allSettled(promises);
 
       // Set users data - Only from backend, no fallback mock data
-      if (usersResponse.status === 'fulfilled' && usersResponse.value?.data) {
-        const users = Array.isArray(usersResponse.value.data) ? usersResponse.value.data : [];
+      if (usersResponse.status === 'fulfilled' && (usersResponse.value as any)?.data) {
+        const users = Array.isArray((usersResponse.value as any).data) ? (usersResponse.value as any).data : [];
         setRealUsers(users);
       } else {
         console.warn('⚠️ No users data available from backend');
@@ -240,8 +240,8 @@ const DevAuthPanel: React.FC<DevAuthPanelProps> = ({ onAuthChange }) => {
       }
 
       // Set tenants data - Only from backend, no fallback mock data
-      if (tenantsResponse.status === 'fulfilled' && tenantsResponse.value?.data) {
-        const tenants = Array.isArray(tenantsResponse.value.data) ? tenantsResponse.value.data : [];
+      if (tenantsResponse.status === 'fulfilled' && (tenantsResponse.value as any)?.data) {
+        const tenants = Array.isArray((tenantsResponse.value as any).data) ? (tenantsResponse.value as any).data : [];
         setRealTenants(tenants);
       } else {
         console.warn('⚠️ No tenants data available from backend');
@@ -251,7 +251,7 @@ const DevAuthPanel: React.FC<DevAuthPanelProps> = ({ onAuthChange }) => {
       console.log('📊 Loaded REAL data only:', {
         users: realUsers.length,
         tenants: realTenants.length,
-        apiAvailable: typeof api.getUsers === 'function' && typeof api.getTenants === 'function'
+        apiAvailable: typeof (api as any).getUsers === 'function' && typeof (api as any).getTenants === 'function'
       });
     } catch (error) {
       console.error('❌ Failed to load real data:', error);
@@ -422,26 +422,30 @@ const DevAuthPanel: React.FC<DevAuthPanelProps> = ({ onAuthChange }) => {
     setIsLoggingIn(true);
     try {
       // Check if login method exists
-      if (typeof api.login === 'function') {
-        const response = await api.login({
+      if (typeof (api as any).login === 'function') {
+        const response: any = await (api as any).login({
           email: loginCredentials.email,
           password: loginCredentials.password,
           tenant_id: loginCredentials.tenant_id || undefined
         });
 
-        if (response.token) {
+        const token = response?.token || response?.data?.token;
+        const user = response?.user || response?.data?.user;
+        const tenant = response?.tenant || response?.data?.tenant;
+
+        if (token) {
           // Store real authentication data
-          localStorage.setItem('auth_token', response.token);
-          localStorage.setItem('user_data', JSON.stringify(response.user));
-          if (response.tenant) {
-            localStorage.setItem('tenant_data', JSON.stringify(response.tenant));
+          localStorage.setItem('auth_token', token);
+          if (user) localStorage.setItem('user_data', JSON.stringify(user));
+          if (tenant) {
+            localStorage.setItem('tenant_data', JSON.stringify(tenant));
           }
 
           checkAuthStatus();
           onAuthChange?.();
           setLoginCredentials({ email: '', password: '', tenant_id: '' });
           
-          console.log('✅ Real login successful:', response.user);
+          console.log('✅ Real login successful:', user);
         }
       } else {
         throw new Error('Login API method not available');

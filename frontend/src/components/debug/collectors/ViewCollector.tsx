@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import { getDebugManager } from '../../utils/debug-manager';
+export { useComponentProfiler } from '../../../hooks/useComponentProfiler';
 
 // Enhanced Types
 interface DebugView {
@@ -283,8 +284,8 @@ const clearData = useCallback(() => {
 
       {/* Performance Overview */}
       <Paper sx={{ p: 1, mb: 1, backgroundColor: (theme) => alpha(theme.palette.background.default, 0.02) }}>
-        <Grid container spacing={1}>
-          <Grid item xs={6}>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Avg Render</Typography>
               <Typography sx={{ 
@@ -295,8 +296,8 @@ const clearData = useCallback(() => {
                 {performanceSummary.averageRenderTime}ms
               </Typography>
             </Box>
-          </Grid>
-          <Grid item xs={6}>
+          </div>
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Slow Renders</Typography>
               <Typography sx={{ 
@@ -307,24 +308,24 @@ const clearData = useCallback(() => {
                 {performanceSummary.slowRenders} ({performanceSummary.slowRenderPercentage}%)
               </Typography>
             </Box>
-          </Grid>
-          <Grid item xs={6}>
+          </div>
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Components</Typography>
               <Typography sx={{ fontSize: '1rem', fontWeight: 'bold' }}>
                 {performanceSummary.uniqueComponents}
               </Typography>
             </Box>
-          </Grid>
-          <Grid item xs={6}>
+          </div>
+          <div>
             <Box sx={{ textAlign: 'center' }}>
               <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>Recent (1m)</Typography>
               <Typography sx={{ fontSize: '1rem', fontWeight: 'bold', color: 'primary.main' }}>
                 {performanceSummary.recentRenders}
               </Typography>
             </Box>
-          </Grid>
-        </Grid>
+          </div>
+        </div>
       </Paper>
 
       {/* Component Performance Summary */}

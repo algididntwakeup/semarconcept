@@ -26,9 +26,9 @@ func NewAssetRepository(db *sqlx.DB) AssetRepository {
 // Create inserts a new Asset into the database
 func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error {
 	query := `
-		INSERT INTO equipment (
+		INSERT INTO assets (
 			tenant_id, unit_id, taxonomy_category_id, parent_id, name, tag_number,
-			equipment_type, equipment_class, manufacturer, model, serial_number,
+			asset_type, asset_class, manufacturer, model, serial_number,
 			manufacture_date, installation_date, commissioning_date, warranty_expiry,
 			design_life_years, remaining_life_years, specifications,
 			operating_parameters, design_conditions, materials, drawings_references,
@@ -36,7 +36,7 @@ func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error
 			safety_critical, environmentally_critical, metadata, created_by, updated_by
 		) VALUES (
 			:tenant_id, :unit_id, :taxonomy_category_id, :parent_id, :name, :tag_number,
-			:equipment_type, :equipment_class, :manufacturer, :model, :serial_number,
+			:asset_type, :asset_class, :manufacturer, :model, :serial_number,
 			:manufacture_date, :installation_date, :commissioning_date, :warranty_expiry,
 			:design_life_years, :remaining_life_years, :specifications,
 			:operating_parameters, :design_conditions, :materials, :drawings_references,
@@ -61,7 +61,7 @@ func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error
 
 // FindByTag finds an asset by its tag number
 func (r *assetRepository) FindByTag(ctx context.Context, tenantID int, unitID int, tag string) (*models.Asset, error) {
-	query := `SELECT * FROM equipment WHERE tenant_id = $1 AND unit_id = $2 AND tag_number = $3 AND status != 'deleted'`
+	query := `SELECT * FROM assets WHERE tenant_id = $1 AND unit_id = $2 AND tag_number = $3 AND status != 'deleted'`
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, query, tenantID, unitID, tag)
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *assetRepository) FindByTag(ctx context.Context, tenantID int, unitID in
 
 // FindByName finds an asset by its name
 func (r *assetRepository) FindByName(ctx context.Context, tenantID int, unitID int, name string) (*models.Asset, error) {
-	query := `SELECT * FROM equipment WHERE tenant_id = $1 AND unit_id = $2 AND name = $3 AND status != 'deleted'`
+	query := `SELECT * FROM assets WHERE tenant_id = $1 AND unit_id = $2 AND name = $3 AND status != 'deleted'`
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, query, tenantID, unitID, name)
 	if err != nil {
@@ -90,14 +90,14 @@ func (r *assetRepository) FindByName(ctx context.Context, tenantID int, unitID i
 // Update modifies an existing Asset
 func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error {
 	query := `
-		UPDATE equipment SET
+		UPDATE assets SET
 			unit_id = :unit_id,
 			taxonomy_category_id = :taxonomy_category_id,
 			parent_id = :parent_id,
 			name = :name,
 			tag_number = :tag_number,
-			equipment_type = :equipment_type,
-			equipment_class = :equipment_class,
+			asset_type = :asset_type,
+			asset_class = :asset_class,
 			manufacturer = :manufacturer,
 			model = :model,
 			serial_number = :serial_number,
@@ -143,7 +143,7 @@ func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error
 
 // Delete logically deletes an Asset
 func (r *assetRepository) Delete(ctx context.Context, tenantID int, id int) error {
-	query := `UPDATE equipment SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id = $2`
+	query := `UPDATE assets SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id = $2`
 	result, err := r.db.ExecContext(ctx, query, id, tenantID)
 	if err != nil {
 		return fmt.Errorf("exec context: %w", err)
@@ -171,7 +171,7 @@ func (r *assetRepository) HasActiveComponents(ctx context.Context, tenantID int,
 
 // FindByID retrieves Asset by ID with tenant isolation
 func (r *assetRepository) FindByID(ctx context.Context, tenantID int, id int) (*models.Asset, error) {
-	query := `SELECT * FROM equipment WHERE id = $1 AND tenant_id = $2 AND status != 'deleted'`
+	query := `SELECT * FROM assets WHERE id = $1 AND tenant_id = $2 AND status != 'deleted'`
 
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, query, id, tenantID)
@@ -187,8 +187,8 @@ func (r *assetRepository) FindByID(ctx context.Context, tenantID int, id int) (*
 
 // List retrieves assets with optional filtering
 func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.AssetListQuery) ([]models.Asset, int64, error) {
-	query := `SELECT * FROM equipment WHERE tenant_id = $1 AND status != 'deleted'`
-	countQuery := `SELECT COUNT(*) FROM equipment WHERE tenant_id = $1 AND status != 'deleted'`
+	query := `SELECT * FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
+	countQuery := `SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 	
 	args := []interface{}{tenantID}
 	argIdx := 2
@@ -262,7 +262,7 @@ func (r *assetRepository) GetUnitByID(ctx context.Context, id int, tenantID int)
 
 // GetAssetByID retrieves Asset by ID with tenant isolation
 func (r *assetRepository) GetAssetByID(ctx context.Context, id int, tenantID int) (*models.Asset, error) {
-	query := `SELECT * FROM equipment WHERE id = $1 AND tenant_id = $2 AND status = 'active'`
+	query := `SELECT * FROM assets WHERE id = $1 AND tenant_id = $2 AND status = 'active'`
 
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, query, id, tenantID)
@@ -302,7 +302,7 @@ func (r *assetRepository) GetAssetCounts(ctx context.Context, tenantID int) (map
 			'units' as asset_type, COUNT(*) as count FROM units WHERE tenant_id = $1 AND status = 'active'
 		UNION ALL
 		SELECT 
-			'assets' as asset_type, COUNT(*) as count FROM equipment WHERE tenant_id = $1 AND status = 'active'
+			'assets' as asset_type, COUNT(*) as count FROM assets WHERE tenant_id = $1 AND status = 'active'
 		UNION ALL
 		SELECT 
 			'components' as asset_type, COUNT(*) as count FROM components WHERE tenant_id = $1 AND status = 'active'
@@ -498,7 +498,7 @@ func (r *assetRepository) GetCriticalAssets(ctx context.Context, tenantID int) (
 		WHERE tenant_id = $1 AND (criticality = 5 OR integrity_status = 'critical') AND status = 'active'
 		UNION ALL
 		SELECT 'asset' as type, id, name, criticality, 'N/A' as integrity_status
-		FROM equipment 
+		FROM assets 
 		WHERE tenant_id = $1 AND criticality = 5 AND status = 'active'
 		ORDER BY criticality DESC
 		LIMIT 20

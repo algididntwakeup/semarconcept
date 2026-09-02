@@ -493,9 +493,9 @@ const ContentEntryEditPage: React.FC = () => {
       </Paper>
 
       {/* Main Content */}
-      <Grid container spacing={3}>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Main Form */}
-        <Grid item xs={12} md={8}>
+        <div className="md:col-span-8">
           <Card>
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
               <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
@@ -614,9 +614,9 @@ const ContentEntryEditPage: React.FC = () => {
                   </Button>
                 </Box>
 
-                <Grid container spacing={2}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   {mediaFiles.map((file) => (
-                    <Grid item xs={12} sm={6} md={4} key={file.id}>
+                    <div key={file.id}>
                       <Card variant="outlined">
                         <CardContent>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -649,9 +649,9 @@ const ContentEntryEditPage: React.FC = () => {
                           </Box>
                         </CardContent>
                       </Card>
-                    </Grid>
+                    </div>
                   ))}
-                </Grid>
+                </div>
               </Box>
             </TabPanel>
 
@@ -758,10 +758,10 @@ const ContentEntryEditPage: React.FC = () => {
               </Box>
             </TabPanel>
           </Card>
-        </Grid>
+        </div>
 
         {/* Sidebar */}
-        <Grid item xs={12} md={4}>
+        <div className="md:col-span-4">
           <Box sx={{ space: 'y-3' }}>
             {/* Publishing */}
             <Card sx={{ mb: 3 }}>
@@ -919,8 +919,8 @@ const ContentEntryEditPage: React.FC = () => {
               </Card>
             )}
           </Box>
-        </Grid>
-      </Grid>
+        </div>
+      </div>
 
       {/* Schedule Dialog */}
       <Dialog open={scheduleDialogOpen} onClose={() => setScheduleDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -993,9 +993,9 @@ const ContentEntryEditPage: React.FC = () => {
             Recent Media
           </Typography>
           
-          <Grid container spacing={2}>
+          <div className="grid grid-cols-3 gap-3">
             {mediaFiles.slice(0, 6).map((file) => (
-              <Grid item xs={4} key={file.id}>
+              <div key={file.id}>
                 <Card variant="outlined" sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -1010,9 +1010,9 @@ const ContentEntryEditPage: React.FC = () => {
                     </Box>
                   </CardContent>
                 </Card>
-              </Grid>
+              </div>
             ))}
-          </Grid>
+          </div>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setMediaDialogOpen(false)}>Cancel</Button>
