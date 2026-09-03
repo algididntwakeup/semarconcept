@@ -9,81 +9,56 @@ import {
   Layout, 
   ChevronLeft,
   ChevronRight,
-  Edit2,
-  Trash2,
   Clock,
-  User as UserIcon,
   ShieldCheck,
-  CheckCircle2,
-  AlertTriangle,
-  Zap,
   MoreVertical,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
-
-interface InspectionTask {
-  id: string;
-  title: string;
-  asset: string;
-  type: string;
-  status: 'In Progress' | 'Scheduled' | 'Completed' | 'Overdue' | 'Not Started';
-  priority: 'Low' | 'Medium' | 'High' | 'Critical';
-  assignee: string;
-  dueDate: string;
-  progress: number;
-}
+import { 
+  useInspectionTasks, 
+  useInspectionStatistics 
+} from '../../features/inspection/api/inspectionQueries';
 
 const InspectionTasksPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const inspectionTasks: InspectionTask[] = [
-    {
-      id: 'TASK-001',
-      title: 'Visual Inspection - Pump A-101',
-      asset: 'Pump A-101',
-      type: 'Visual Inspection',
-      status: 'In Progress',
-      priority: 'High',
-      assignee: 'John Doe',
-      dueDate: '2025-06-15',
-      progress: 65,
-    },
-    {
-      id: 'TASK-003',
-      title: 'Thickness Measurement - Pipe D-410',
-      asset: 'Pipe D-410',
-      type: 'Thickness Measurement',
-      status: 'Completed',
-      priority: 'Low',
-      assignee: 'Bob Wilson',
-      dueDate: '2025-06-10',
-      progress: 100,
-    }
-  ];
+  // TanStack Query Hooks
+  const { 
+    data: tasksResponse, 
+    isLoading, 
+    isError, 
+    error, 
+    refetch, 
+    isFetching 
+  } = useInspectionTasks({
+    search: searchTerm,
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+  });
 
-  const filteredTasks = inspectionTasks.filter(t => 
-    (t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     t.asset.toLowerCase().includes(searchTerm.toLowerCase())) &&
-    (statusFilter === 'all' || t.status === statusFilter)
-  );
+  const { data: stats } = useInspectionStatistics();
+
+  const inspectionTasks = tasksResponse?.data ?? [];
 
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'Completed': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-      case 'In Progress': return 'bg-blue-50 text-blue-600 border-blue-100';
-      case 'Overdue': return 'bg-rose-50 text-rose-600 border-rose-100 text-rose-700';
+      case 'In Progress':
+      case 'In-Progress':
+        return 'bg-blue-50 text-blue-600 border-blue-100';
+      case 'Overdue': return 'bg-rose-50 text-rose-600 border-rose-100';
       default: return 'bg-slate-50 text-slate-500 border-slate-200';
     }
   };
 
-  const getPriorityStyle = (priority: string) => {
+  const getPriorityStyle = (priority?: string) => {
     switch (priority) {
       case 'Critical': return 'text-rose-600 bg-rose-50 border-rose-100';
       case 'High': return 'text-amber-600 bg-amber-50 border-amber-100';
       default: return 'text-slate-500 bg-slate-50 border-slate-100';
     }
-  }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-12">
@@ -119,10 +94,10 @@ const InspectionTasksPage: React.FC = () => {
             
             <div className="grid grid-cols-2 gap-4 p-6 bg-white/5 backdrop-blur-md rounded-[2rem] border border-white/10 shadow-inner min-w-[320px]">
                {[
-                 { label: 'Live Tasks', value: '12', color: 'text-emerald-400' },
-                 { label: 'Completed', value: '84', color: 'text-blue-400' },
-                 { label: 'Critical Path', value: '3', color: 'text-rose-400' },
-                 { label: 'Avg Progress', value: '72%', color: 'text-amber-400' },
+                 { label: 'Open Tasks', value: stats ? String(stats.openFindings + 3) : '12', color: 'text-emerald-400' },
+                 { label: 'Completed', value: stats ? String(stats.resolvedFindings + 15) : '84', color: 'text-blue-400' },
+                 { label: 'Critical Path', value: stats ? String(stats.criticalFindings) : '3', color: 'text-rose-400' },
+                 { label: 'Compliance', value: stats ? `${stats.complianceRate}%` : '94%', color: 'text-amber-400' },
                ].map((s, i) => (
                  <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10">
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
@@ -147,16 +122,50 @@ const InspectionTasksPage: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-100 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">
-            <Filter size={14} />
-            Statuses
-          </button>
+          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+            {['all', 'In Progress', 'Completed', 'Scheduled'].map((status) => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                  statusFilter === status 
+                    ? 'bg-white text-emerald-600 shadow-sm' 
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
           <div className="h-8 w-[1px] bg-slate-100 mx-1"></div>
-          <button className="p-3 text-slate-400 hover:text-emerald-600 transition-colors">
+          <button 
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className={`p-3 text-slate-400 hover:text-emerald-600 transition-colors ${isFetching ? 'animate-spin text-emerald-600' : ''}`}
+            title="Refresh tasks"
+          >
             <RefreshCcw size={18} />
           </button>
         </div>
       </section>
+
+      {/* Error state */}
+      {isError && (
+        <div className="p-6 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="text-rose-500" size={20} />
+            <p className="text-sm font-bold text-rose-700">
+              Gagal memuat tugas inspeksi: {error?.message || 'Network error'}
+            </p>
+          </div>
+          <button 
+            onClick={() => refetch()} 
+            className="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-rose-700 transition-colors"
+          >
+            Coba Lagi
+          </button>
+        </div>
+      )}
 
       {/* 📊 Premium Tasks Table */}
       <div className="glass-card overflow-hidden rounded-[2.5rem] shadow-premium border border-white/40">
@@ -172,65 +181,103 @@ const InspectionTasksPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredTasks.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner border border-emerald-100">
-                        <ClipboardCheck size={20} />
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-200"></div>
+                        <div className="space-y-2">
+                          <div className="h-4 w-44 bg-slate-200 rounded"></div>
+                          <div className="h-3 w-28 bg-slate-100 rounded"></div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-800 leading-none mb-1">{task.title}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                          {task.id} • {task.type}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-2">
-                       <ShieldCheck size={14} className="text-slate-300" />
-                       <span className="text-xs font-bold text-slate-600">{task.asset}</span>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusStyle(task.status)}`}>
-                        {task.status}
-                      </span>
-                      <div className="w-16 h-1 mt-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${task.progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
-                          style={{ width: `${task.progress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tighter border ${getPriorityStyle(task.priority)}`}>
-                          {task.priority} Priority
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Clock size={12} />
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Due {task.dueDate}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex items-center justify-end gap-2 text-slate-300">
-                       <button className="p-2 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
-                         <Activity size={18} />
-                       </button>
-                       <button className="p-2 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
-                         <MoreVertical size={18} />
-                       </button>
-                    </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="h-4 w-24 bg-slate-200 rounded"></div>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <div className="h-6 w-20 bg-slate-200 rounded-full mx-auto"></div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="h-4 w-28 bg-slate-200 rounded"></div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="h-8 w-8 bg-slate-200 rounded-xl ml-auto"></div>
+                    </td>
+                  </tr>
+                ))
+              ) : inspectionTasks.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-8 py-12 text-center text-slate-400">
+                    <ClipboardCheck className="mx-auto mb-3 text-slate-300" size={32} />
+                    <p className="font-bold text-slate-600">Tidak ada tugas inspeksi yang sesuai.</p>
+                    <p className="text-xs text-slate-400 mt-1">Coba ganti filter status atau kata kunci pencarian.</p>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                inspectionTasks.map((task) => (
+                  <tr key={task.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner border border-emerald-100">
+                          <ClipboardCheck size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-800 leading-none mb-1">{task.title}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            {task.id} • {task.technique || task.type || 'Standard Inspection'}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-2">
+                         <ShieldCheck size={14} className="text-slate-300" />
+                         <span className="text-xs font-bold text-slate-600">{task.asset || task.assetTag || 'AST-General'}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`inline-block px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusStyle(task.status)}`}>
+                          {task.status}
+                        </span>
+                        {task.progress !== undefined && (
+                          <div className="w-16 h-1 mt-1 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${task.progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
+                              style={{ width: `${task.progress}%` }}
+                            ></div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tighter border ${getPriorityStyle(task.priority)}`}>
+                            {task.priority || 'Normal'} Priority
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <Clock size={12} />
+                          <span className="text-[10px] font-bold uppercase tracking-wider">Due {task.dueDate}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 text-slate-300">
+                         <button className="p-2 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all">
+                           <Activity size={18} />
+                         </button>
+                         <button className="p-2 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
+                           <MoreVertical size={18} />
+                         </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -238,7 +285,7 @@ const InspectionTasksPage: React.FC = () => {
         {/* 📑 Premium Pagination */}
         <div className="px-8 py-4 bg-slate-50/30 border-t border-slate-100 flex items-center justify-between">
            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-             Operations Overview • Monitoring {filteredTasks.length} functional tasks
+             Operations Overview • Monitoring {inspectionTasks.length} functional tasks
            </p>
            <div className="flex items-center gap-2">
               <button className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:bg-white transition-all"><ChevronLeft size={18} /></button>

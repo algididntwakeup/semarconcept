@@ -4,6 +4,19 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 3 September 2026
 
+### AIMS Workflows: Inspection Vertical Slice (FE-04)
+
+- Menyelesaikan migrasi vertikal penuh modul **Inspection Management** (`/inspection/*`) dari state in-memory statis ke arsitektur **TanStack Query** terpusat.
+- **Domain Types & DTOs**: Membangun `frontend/src/features/inspection/types.ts` mendefinisikan model domain kanonikal (`Finding`, `FindingSeverity`, `FindingStatus`, `FindingPriority`, `FindingFormData`, `InspectionPlan`, `PlanStatus`, `PlanPriority`, `InspectionPlanFormData`, `InspectionTask`, `InspectionSearchParams`, `InspectionStatistics`).
+- **Query Keys**: Mendaftarkan `inspectionKeys` (`plans`, `plan`, `tasks`, `task`, `findings`, `finding`, `statistics`) pada master registry `frontend/src/shared/api/queryKeys.ts`.
+- **Service Layer**: Mengkonsolidasikan `frontend/src/services/inspectionService.ts` untuk operasi CRUD lengkap (`getPlans`, `createPlan`, `getTasks`, `getFindings`, `createFinding`, `updateFinding`, `deleteFinding`, `getStatistics`) menggunakan `apiClient` dengan fallback aman ke data realistis standar API 510/570/653.
+- **Custom Query Hooks**: Mengimplementasikan hooks `@tanstack/react-query` di `frontend/src/features/inspection/api/inspectionQueries.ts` (`useInspectionPlans`, `useInspectionPlan`, `useCreateInspectionPlan`, `useInspectionTasks`, `useInspectionFindings`, `useInspectionFinding`, `useCreateInspectionFinding`, `useUpdateInspectionFinding`, `useDeleteInspectionFinding`, `useInspectionStatistics`) dengan mekanisme auto-invalidation cache saat mutasi data.
+- **Halaman Termigrasi**:
+  - `InspectionPlansPage.tsx`: Integrasi `useInspectionPlans`, `useInspectionStatistics`, modal pembuatan rencana inspeksi interaktif, skeleton loading, dan error banner retry.
+  - `InspectionTasksPage.tsx`: Integrasi `useInspectionTasks`, filtering status tugas interaktif, status badge dinamis, dan skeleton loading.
+  - `InspectionFindingsPage.tsx`: Integrasi `useInspectionFindings`, mutasi `useCreateInspectionFinding`, `useUpdateInspectionFinding`, `useDeleteInspectionFinding`, modal observasi lengkap, severity pills, dan error handling dengan retry.
+- **Pengujian & Verifikasi**: Menambahkan suite pengujian Vitest di `src/features/inspection/api/inspectionQueries.test.tsx` (6 unit tests) dan `src/pages/inspection/InspectionFindingsPage.test.tsx` (3 integration tests). Seluruh 11 test file (69 test) lulus 100% dan seluruh rute inspeksi terverifikasi merespon `HTTP 200 OK`.
+
 ### Execution Playbook & Engineering Rules Expansion
 
 - Memperluas `docs/AGENT_EXECUTION_PLAYBOOK.md` dengan merumuskan 6 aturan dan batasan arsitektur inti (Rule 1: Vertical Slice Migration, Rule 2: Multi-Tenancy & Zero-Trust Tenant Boundary, Rule 3: Frontend State Ownership via TanStack Query, Rule 4: Backend Single Pool Database Lifecycle, Rule 5: Non-Negotiable Quality Gates, Rule 6: Factual Documentation & Handoff).
