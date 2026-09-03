@@ -23,9 +23,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	gormPostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 // COMPLETE CORS FIX: Enhanced CORS middleware with comprehensive debugging and SSE support
@@ -182,20 +180,9 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-// SetupRouter initializes and configures the Gin router - COMPLETELY FIXED WITH SSE
-func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, cacheService *cache.Service) *gin.Engine {
-	utils.Info("Setting up router with COMPLETE FIXES + SSE...")
-
-	// Initialize GORM DB from sqlx.DB connection
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai search_path=public",
-		cfg.Database.Host, cfg.Database.User, cfg.Database.Password, cfg.Database.Name, cfg.Database.Port, cfg.Database.SSLMode)
-
-	gormDB, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
-	if err != nil {
-		utils.Fatalf("Failed to connect to database using GORM: %v", err)
-	}
+// SetupRouter initializes and configures the Gin router with unified database pool
+func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheService *cache.Service) *gin.Engine {
+	utils.Info("Setting up router with unified database lifecycle...")
 
 	//  FIXED: Redis client initialization with proper error handling
 	var redisClient *redis.Client

@@ -4,6 +4,23 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 3 September 2026
 
+### Execution Playbook & Engineering Rules Expansion
+
+- Memperluas `docs/AGENT_EXECUTION_PLAYBOOK.md` dengan merumuskan 6 aturan dan batasan arsitektur inti (Rule 1: Vertical Slice Migration, Rule 2: Multi-Tenancy & Zero-Trust Tenant Boundary, Rule 3: Frontend State Ownership via TanStack Query, Rule 4: Backend Single Pool Database Lifecycle, Rule 5: Non-Negotiable Quality Gates, Rule 6: Factual Documentation & Handoff).
+- Memetakan roadmap work queue masa depan secara komprehensif:
+  - **Frontend Track**: `FE-04` (Inspection Vertical Slice), `FE-05` (Risk & RBI Assessment), `FE-06` (Maintenance & Compliance), `FE-07` (Real-Time Telemetry & IoT), `FE-08` (Cross-Route Authenticated E2E Playwright Suite).
+  - **Backend Track**: `BE-01` (Single Database Lifecycle & Connection Pool Management), `BE-02` (API Normalization & Multi-Tenant Isolation), `BE-03` (Vertical Slice Asset Domain Boundary), `BE-04` (Deterministic Calculation Engine & Golden Tests), `BE-05` (Transactional Outbox & Event-Driven Integrations).
+### Single Database Lifecycle & Connection Pool Management (BE-01)
+
+- Mengkonsolidasikan seluruh koneksi database backend ke dalam satu lifecycle dan satu connection pool `*sql.DB` terpadu melalui `backend/app/database/connection.go`.
+- Mengeliminasi fragmentasi koneksi PostgreSQL (sebelumnya membuka 3 pool terpisah: GORM seeder di `main.go`, GORM router di `router.go`, dan SQLX repository di `repositories/db.go`).
+- Menerapkan adapter GORM (`gormPostgres.Open`) dan SQLX (`sqlx.NewDb(sqlDB, "postgres")`) yang berbagi pool underlying `*sql.DB` yang sama.
+- Mengonfigurasi parameter batas connection pool secara eksplisit (`MaxOpenConns: 25`, `MaxIdleConns: 10`, `ConnMaxLifetime: 15m`, `ConnMaxIdleTime: 5m`) dengan mekanisme ping-retry backoff hingga 10 percobaan saat startup.
+- Menyediakan abstraksi `database.TransactionManager` terpusat (`WithTransaction`) untuk atomic operations lintas repositori dan metode `Stats()` untuk observabilitas pool.
+- Menghubungkan graceful shutdown di `main.go` yang memastikan `dbHolder.Close()` menutup pool koneksi database secara bersih saat menerima signal `SIGINT`/`SIGTERM`.
+- Menambahkan unit test suite `backend/app/database/connection_test.go` menggunakan `sqlmock` yang menguji `Stats()`, commit transaksi, rollback saat callback error, dan penutupan pool.
+- Memvalidasi seluruh quality gate backend: `docker exec semar-backend go test ./...` lulus 100% (5 paket teruji), `go vet ./...` 0 error/warning, dan `/health` runtime status `healthy` (database: up).
+
 ### Backend test suite recovery (BE-00)
 
 - Memulihkan dan memperbaiki seluruh suite pengujian Go backend (`docker exec semar-backend go test ./...`) sehingga seluruh paket (`middleware`, `repositories`, `services`, `utils`) lulus 100% (exit code 0).

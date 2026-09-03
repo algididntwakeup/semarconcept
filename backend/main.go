@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -21,10 +20,6 @@ import (
 	"backend/app/repositories"
 	"backend/app/utils"
 	"backend/docs"
-
-	gormPostgres "gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
@@ -92,39 +87,29 @@ func main() {
 
 	utils.Info("Starting backend server...")
 
-	// Setup database connection
-	db, err := repositories.Connect(cfg.Database) // Use repositories.Connect
+	// Setup database connection with a single shared pool lifecycle
+	dbHolder, err := database.InitDatabase(cfg.Database)
 	if err != nil {
 		utils.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer repositories.CloseDB() // Use repositories.CloseDB
+	defer dbHolder.Close()
 
-	// 🔥 AUTO-MIGRATE: Ensure tables exist on startup
+	// Maintain repositories.DB for backward compatibility
+	repositories.DB = dbHolder.SQLX
+
+	// Auto-migrate tables using shared GORM adapter (shares identical *sql.DB pool)
 	utils.Info("Running automatic database migration...")
-
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai search_path=public",
-		cfg.Database.Host, cfg.Database.User, cfg.Database.Password, cfg.Database.Name, cfg.Database.Port, cfg.Database.SSLMode)
-
-	gormDB, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
-		Logger:                                   logger.Default.LogMode(logger.Warn),
-		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		utils.Fatalf("Failed to connect to database using GORM for migration: %v", err)
-	}
-
-	// 🔥 AUTO-MIGRATE: Ensure tables exist on startup
-	err = database.MigrateAll(gormDB)
+	err = database.MigrateAll(dbHolder.GORM)
 	if err != nil {
 		utils.Fatalf("Database migration failed: %v", err)
 	}
 
 	// Auto-seed if database is fresh or seed flag is provided
 	var userCount int64
-	_ = gormDB.Table("users").Count(&userCount)
+	_ = dbHolder.GORM.Table("users").Count(&userCount)
 	if *seedDb || userCount == 0 {
 		utils.Info("Auto-seeding initial database data...")
-		seeder := database.NewSeeder(gormDB)
+		seeder := database.NewSeeder(dbHolder.GORM)
 		if err := seeder.SeedAll(); err != nil {
 			utils.Warnf("Database seeding encountered warning: %v", err)
 		} else {
@@ -137,14 +122,14 @@ func main() {
 		// System navigation is application configuration, not sample data. Keep
 		// it synchronized on every normal startup so existing installations get
 		// canonical routes, new modules, and icon updates without reseeding users.
-		seeder := database.NewSeeder(gormDB)
+		seeder := database.NewSeeder(dbHolder.GORM)
 		if err := seeder.SeedMenuItems(); err != nil {
 			utils.Warnf("System menu synchronization encountered warning: %v", err)
 		}
 	}
 
-	// Initialize Gin router using the new SetupRouter function
-	router := routes.SetupRouter(&cfg, db, cacheService) // Pass config, db connection, and cache service
+	// Initialize Gin router using shared SQLX and GORM adapters
+	router := routes.SetupRouter(&cfg, dbHolder.SQLX, dbHolder.GORM, cacheService)
 
 	utils.Infof("Server listening on %s:%s in %s mode", cfg.HTTPServer.Host, cfg.HTTPServer.Port, cfg.Environment)
 

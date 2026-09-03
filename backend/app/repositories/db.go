@@ -2,77 +2,26 @@
 package repositories
 
 import (
-	"fmt"
-	"time" // Ensure time package is imported
-
-	"backend/app/config" // Adjusted import path
-	"backend/app/utils"  // For logging
+	"backend/app/config"
+	"backend/app/database"
+	"backend/app/utils"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
-	// Add other drivers if needed e.g.:
-	// _ "github.com/go-sql-driver/mysql"
 )
 
-// DB is a global variable to hold the database connection pool.
-// Consider if a global variable is the best approach or if it should be managed and passed around.
-// For now, keeping it similar to the original structure.
+// DB is a global variable to hold the database connection pool (for backward compatibility).
 var DB *sqlx.DB
+var dbHolder *database.Database
 
-// Connect initializes the database connection using the provided configuration.
-// This function will be called by main.go
+// Connect initializes the database connection using the unified database.InitDatabase.
 func Connect(cfg config.DatabaseConfig) (*sqlx.DB, error) {
-	var dataSourceName string
-
-	switch cfg.Driver {
-	case "postgres":
-		dataSourceName = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s search_path=public",
-			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
-	// Add cases for other database drivers if you plan to support them
-	// case "mysql":
-	// dataSourceName = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-	// cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
-	default:
-		return nil, fmt.Errorf("unsupported database driver: %s", cfg.Driver)
-	}
-
-	utils.Infof("Connecting to database: %s with driver %s", cfg.Name, cfg.Driver)
-
-	var err error
-	maxRetries := 10
-	for i := 0; i < maxRetries; i++ {
-		DB, err = sqlx.Connect(cfg.Driver, dataSourceName)
-		if err == nil {
-			err = DB.Ping()
-			if err == nil {
-				break // Success!
-			}
-			DB.Close()
-		}
-
-		utils.Warnf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
-		if i < maxRetries-1 {
-			time.Sleep(3 * time.Second)
-		}
-	}
-
+	holder, err := database.InitDatabase(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect/ping database after %d retries: %w", maxRetries, err)
+		return nil, err
 	}
-
-	// Configure connection pool settings
-	DB.SetMaxOpenConns(cfg.MaxOpenConns)
-	DB.SetMaxIdleConns(cfg.MaxIdleConns)
-	DB.SetConnMaxLifetime(cfg.ConnMaxLifetime * time.Second) // Multiply by time.Second
-
-	_, err = DB.Exec("SET search_path TO public")
-	if err != nil {
-		utils.Warnf("Failed to set search_path to public: %v", err)
-	} else {
-		utils.Info("Database search_path set to 'public' schema")
-	}
-
-	utils.Info("Successfully connected to the database.")
+	dbHolder = holder
+	DB = holder.SQLX
 	return DB, nil
 }
 
@@ -89,12 +38,16 @@ func GetDB() *sqlx.DB {
 // CloseDB closes the database connection.
 // It should be called when the application is shutting down.
 func CloseDB() {
-	if DB != nil {
-		err := DB.Close()
-		if err != nil {
+	if dbHolder != nil {
+		if err := dbHolder.Close(); err != nil {
 			utils.Errorf("Error closing database connection: %v", err)
-		} else {
-			utils.Info("Database connection closed.")
 		}
+		dbHolder = nil
+		DB = nil
+	} else if DB != nil {
+		if err := DB.Close(); err != nil {
+			utils.Errorf("Error closing database connection: %v", err)
+		}
+		DB = nil
 	}
 }
