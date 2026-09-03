@@ -44,7 +44,7 @@ const DashboardSubscription: React.FC<DashboardSubscriptionProps> = ({
       dispatch(subscribeToDashboard(dashboardId));
       
       // Send subscription request to server
-      dispatch(websocketSubscribe('dashboard', dashboardId));
+      dispatch(websocketSubscribe('dashboard', String(dashboardId)));
     }
     
     // Unsubscribe when the component unmounts
@@ -54,7 +54,7 @@ const DashboardSubscription: React.FC<DashboardSubscriptionProps> = ({
         dispatch(unsubscribeFromDashboard(dashboardId));
         
         // Send unsubscription request to server
-        dispatch(websocketUnsubscribe('dashboard', dashboardId));
+        dispatch(websocketUnsubscribe('dashboard', String(dashboardId)));
       }
     };
   }, [dispatch, dashboardId, isConnected, isSubscribed]);

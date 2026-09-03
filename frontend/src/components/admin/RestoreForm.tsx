@@ -27,9 +27,9 @@ import {
   RadioGroup,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
   IconButton
 } from '@mui/material';
 import {
@@ -271,34 +271,37 @@ const RestoreForm: React.FC<RestoreFormProps> = ({
                 {availableBackups.map((backup) => (
                   <ListItem
                     key={backup.id}
-                    button
-                    selected={selectedBackup?.id === backup.id}
-                    onClick={() => handleBackupSelection(backup)}
                     divider
-                  >
-                    <ListItemIcon>
-                      <BackupIcon color={selectedBackup?.id === backup.id ? 'primary' : 'action'} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={backup.name}
-                      secondary={
-                        <Box component="span">
-                          <Typography variant="body2" component="span">
-                            {backup.type} • {backup.size}
-                          </Typography>
-                          <Typography variant="body2" component="span" sx={{ ml: 2 }}>
-                            Created: {formatDate(backup.createdAt)}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    {backup.encryptionType !== BackupEncryptionType.NONE && (
-                      <ListItemSecondaryAction>
+                    disablePadding
+                    secondaryAction={
+                      backup.encryptionType !== BackupEncryptionType.NONE ? (
                         <IconButton edge="end" disabled>
                           <InfoIcon color="action" />
                         </IconButton>
-                      </ListItemSecondaryAction>
-                    )}
+                      ) : null
+                    }
+                  >
+                    <ListItemButton
+                      selected={selectedBackup?.id === backup.id}
+                      onClick={() => handleBackupSelection(backup)}
+                    >
+                      <ListItemIcon>
+                        <BackupIcon color={selectedBackup?.id === backup.id ? 'primary' : 'action'} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={backup.name}
+                        secondary={
+                          <Box component="span">
+                            <Typography variant="body2" component="span">
+                              {backup.type} • {backup.size}
+                            </Typography>
+                            <Typography variant="body2" component="span" sx={{ ml: 2 }}>
+                              Created: {formatDate(backup.createdAt)}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                    </ListItemButton>
                   </ListItem>
                 ))}
               </List>

@@ -7,7 +7,7 @@ import { setLoading, setError } from '../../store/slices/authSlice'; // Using ex
 const ForgotPasswordForm: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const [email, setEmail] = useState('');
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const { loading, error } = useSelector((state: RootState) => state.auth);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -55,16 +55,16 @@ const ForgotPasswordForm: React.FC = () => {
         autoFocus
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        disabled={isLoading || !!successMessage} // Disable if loading or success
+        disabled={loading || !!successMessage}
       />
       <Button
         type="submit"
         fullWidth
         variant="contained"
         sx={{ mt: 3, mb: 2 }}
-        disabled={isLoading || !!successMessage} // Disable if loading or success
+        disabled={loading || !!successMessage}
       >
-        {isLoading ? <CircularProgress size={24} /> : 'Send Reset Link'}
+        {loading ? <CircularProgress size={24} /> : 'Send Reset Link'}
       </Button>
       {/* Add link back to Login page if needed */}
     </Box>

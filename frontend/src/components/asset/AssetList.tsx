@@ -45,7 +45,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 import { Asset, AssetSearchParams } from '../../types/asset';
 import { AssetCard } from './AssetCard';
-import { VirtualScroll } from '../common/VirtualScroll';
+import VirtualScroll from '../common/VirtualScroll';
 
 /**
  * Styled components
@@ -271,7 +271,7 @@ export const AssetList: React.FC<AssetListProps> = ({
     <AssetCard
       key={asset.id}
       asset={asset}
-      view={viewMode}
+      view={viewMode === 'table' ? 'list' : viewMode}
       selectable={showBulkActions}
       selected={selectedAssets.includes(asset.id)}
       onSelect={onAssetSelect}
@@ -348,7 +348,7 @@ export const AssetList: React.FC<AssetListProps> = ({
           items={assets}
           itemHeight={itemHeight}
           renderItem={renderAssetItem}
-          containerHeight={600}
+          height={600}
         />
       );
     }

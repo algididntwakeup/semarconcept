@@ -5,14 +5,14 @@
 
 ## Ringkasan
 
-SEMAR memiliki fondasi AIMS yang luas, tetapi implementasinya belum konsisten dengan arsitektur target. Aplikasi dapat dijalankan lokal: Vite merespons pada port 3000 dan health backend pada port 4072 melaporkan database sehat. Quality gate repository belum hijau dan sebagian modul masih berupa UI/service skeleton.
+SEMAR memiliki fondasi AIMS yang luas, tetapi implementasinya belum konsisten dengan arsitektur target. Aplikasi dapat dijalankan lokal: Vite merespons pada port 3000 dan health backend pada port 4072 melaporkan database sehat. Frontend quality gate sudah hijau; backend test gate masih tertinggal dan sebagian modul masih berupa UI/service skeleton.
 
 | Area | Status | Bukti utama |
 | --- | --- | --- |
 | Docker development | Implemented | Bind mount frontend/backend, Vite polling, Air, dependency cache |
 | Dashboard navigation | Implemented | `/dashboard` canonical; legacy overview redirect; lima child dashboard |
-| Frontend compile | Blocked | `tsc --noEmit` gagal pada komponen legacy MUI, auth, banner, debug, hierarchy, dan dashboard |
-| Frontend tests | Blocked | 2 file test; 9 dari 12 test lulus |
+| Frontend compile | Implemented | `pnpm typecheck` lulus dengan 0 error |
+| Frontend tests | Implemented | 4 file test; 25 dari 25 test lulus |
 | Backend runtime | Implemented | Server aktif dan `/health` mengembalikan database `up` |
 | Backend tests | Blocked | Test repository/auth/RBAC lama tidak cocok dengan interface saat ini |
 | Target server-state | Planned | TanStack Query belum ada di `package.json` |
@@ -23,7 +23,7 @@ SEMAR memiliki fondasi AIMS yang luas, tetapi implementasinya belum konsisten de
 ## Inventaris terverifikasi
 
 - Frontend: React 19, TypeScript 5.7, Vite 6, React Router 7, Redux Toolkit, Axios, MUI 7, Tailwind 4.
-- Frontend sekitar 267 file `.ts/.tsx`, tetapi hanya 2 file test.
+- Frontend sekitar 267 file `.ts/.tsx` dan memiliki 4 file test (25 test).
 - Backend: Go 1.24.2, Gin, PostgreSQL, Redis, GORM, dan SQLX.
 - Backend sekitar 203 file Go dan 16 file test.
 - Runtime dev: PostgreSQL 15, Redis, backend Air, frontend Vite.
@@ -32,9 +32,9 @@ Angka tersebut adalah snapshot, bukan KPI permanen.
 
 ## Temuan frontend
 
-### F-01 — Quality baseline merah (P0)
+### F-01 — Quality baseline dipulihkan (P0, mitigated)
 
-TypeScript gagal karena API MUI berubah, import hilang, duplikasi nama file berbeda casing, state auth tidak sinkron, dan komponen debug/demo rusak. Refactor besar belum aman sebelum baseline hijau.
+TypeScript, test, dan production build kini lulus. Drift API MUI, import/casing, state auth, dan kontrak banner diperbaiki. Debug/demo tanpa production import dikarantina dari TypeScript graph. Baseline ini harus dipertahankan dengan `pnpm check`.
 
 ### F-02 — Arsitektur data bercampur (P0)
 
@@ -86,9 +86,9 @@ Terdapat pula dua implementasi `LoggingMiddleware` di package berbeda; router me
 
 ## Urutan perbaikan
 
-1. Baseline hijau: TypeScript, test frontend, dan test Go.
-2. Bekukan kontrak route/menu/API dan tambahkan contract test.
-3. Sederhanakan frontend shell serta satu API client; karantina dead/debug code.
+1. Pulihkan test Go.
+2. Konsolidasikan frontend ke satu API client dan state ownership.
+3. Bekukan kontrak route/menu/API serta perluas contract test.
 4. Konsolidasikan backend database lifecycle dan transaksi.
 5. Migrasikan satu vertical slice Asset Registry end-to-end sebagai pola acuan.
 6. Baru bangun bounded context berikutnya dan calculation engine.

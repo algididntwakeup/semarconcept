@@ -47,6 +47,9 @@ docker compose -f docker-compose.dev.yml up -d --build
 docker compose -f docker-compose.dev.yml logs -f backend frontend
 
 # Quality gates dalam container
+docker exec semar-frontend pnpm check
+
+# Atau jalankan gate frontend satu per satu
 docker exec semar-frontend pnpm exec tsc -p tsconfig.app.json --noEmit
 docker exec semar-frontend pnpm test -- --run
 docker exec semar-frontend pnpm build

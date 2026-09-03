@@ -43,7 +43,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
       setGlobalError(null);
       const newUploadableFiles: UploadableFile[] = acceptedFiles.map((file) => ({
         file,
-        id: `${file.name}-${file.lastModified}-${Math.random()}`, // More robust unique ID
+        id: `${file.name}-${file.size}-${file.lastModified}`,
         status: 'pending',
       }));
 
@@ -79,15 +79,14 @@ const FileUpload: React.FC<FileUploadProps> = ({
   };
 
   const handleUploadClick = async () => {
-    if (filesToUpload.filter((f) => f.status === 'pending').length === 0) return;
+    const filesToProcess = filesToUpload.filter((f) => f.status === 'pending');
+    if (filesToProcess.length === 0) return;
 
     setGlobalError(null);
     // Mark pending files as uploading
     setFilesToUpload((prev) =>
       prev.map((f) => (f.status === 'pending' ? { ...f, status: 'uploading', progress: 0 } : f))
     );
-
-    const filesToProcess = filesToUpload.filter((f) => f.status === 'uploading');
 
     // This will call the onUpload prop for each file.
     // The onUpload prop should handle individual file progress and status updates.

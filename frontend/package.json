@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit",
+    "test:run": "vitest run",
+    "check": "pnpm typecheck && pnpm test:run && pnpm build",
     "lint": "eslint .",
     "audit:dependencies": "npm audit",
     "preview": "vite preview",
@@ -26,6 +29,7 @@
     "@mui/x-date-pickers-pro": "^8.5.1",
     "@mui/x-tree-view": "^8.5.1",
     "@reduxjs/toolkit": "^2.7.0",
+    "@tanstack/react-query": "^5.102.8",
     "@types/diff": "^7.0.2",
     "axios": "^1.9.0",
     "chart.js": "^4.4.9",

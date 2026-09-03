@@ -10,7 +10,7 @@ const RegisterForm: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const { isLoading, error } = useSelector((state: RootState) => state.auth); // Use isLoading
+  const { loading, error } = useSelector((state: RootState) => state.auth);
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -52,7 +52,7 @@ const RegisterForm: React.FC = () => {
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
-        disabled={isLoading} // Use isLoading
+        disabled={loading}
       />
       <TextField
         margin="normal"
@@ -64,7 +64,7 @@ const RegisterForm: React.FC = () => {
         autoComplete="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        disabled={isLoading} // Use isLoading
+        disabled={loading}
       />
       <TextField
         margin="normal"
@@ -77,7 +77,7 @@ const RegisterForm: React.FC = () => {
         autoComplete="new-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        disabled={isLoading} // Use isLoading
+        disabled={loading}
       />
       <TextField
         margin="normal"
@@ -90,16 +90,16 @@ const RegisterForm: React.FC = () => {
         autoComplete="new-password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
-        disabled={isLoading} // Use isLoading
+        disabled={loading}
       />
       <Button
         type="submit"
         fullWidth
         variant="contained"
         sx={{ mt: 3, mb: 2 }}
-        disabled={isLoading}
+        disabled={loading}
       >
-        {isLoading ? <CircularProgress size={24} /> : 'Sign Up'} {/* Use isLoading */}
+        {loading ? <CircularProgress size={24} /> : 'Sign Up'}
       </Button>
       {/* Add link to Sign In page if needed */}
     </Box>

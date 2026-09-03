@@ -5,6 +5,10 @@ import {
   CheckCircle,
   Build,
   Error,
+  Assessment,
+  TrendingUp,
+  Schedule,
+  Warning,
   Business as BusinessIcon,
   AccountTree as AccountTreeIcon,
   Settings as SettingsIcon

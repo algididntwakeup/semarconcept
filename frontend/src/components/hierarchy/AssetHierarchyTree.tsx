@@ -351,7 +351,7 @@ export const AssetHierarchyTree: React.FC<AssetHierarchyTreeProps> = ({
     });
   }, [filters, onFiltersChange]);
 
-  const handleNodeToggle = useCallback((event: React.SyntheticEvent, nodeIds: string[]) => {
+  const handleNodeToggle = useCallback((_event: React.SyntheticEvent | null, nodeIds: string[]) => {
     // Find newly expanded/collapsed nodes
     const newlyExpanded = nodeIds.filter(id => !expandedNodes.includes(id));
     const newlyCollapsed = expandedNodes.filter(id => !nodeIds.includes(id));
@@ -360,7 +360,8 @@ export const AssetHierarchyTree: React.FC<AssetHierarchyTreeProps> = ({
     newlyCollapsed.forEach(id => onNodeExpand?.(id, false));
   }, [expandedNodes, onNodeExpand]);
 
-  const handleNodeSelect = useCallback((event: React.SyntheticEvent, nodeId: string) => {
+  const handleNodeSelect = useCallback((_event: React.SyntheticEvent | null, nodeId: string | null) => {
+    if (!nodeId) return;
     const node = findNodeById(processedNodes, nodeId);
     if (node) {
       onNodeSelect?.(nodeId, node);
@@ -577,12 +578,11 @@ export const AssetHierarchyTree: React.FC<AssetHierarchyTreeProps> = ({
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         {processedNodes.length > 0 ? (
           <StyledTreeView
-            defaultCollapseIcon={<ExpandMoreIcon />}
-            defaultExpandIcon={<ChevronRightIcon />}
-            expanded={expandedNodes}
-            selected={selectedNode}
-            onNodeToggle={handleNodeToggle}
-            onNodeSelect={handleNodeSelect}
+            slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
+            expandedItems={expandedNodes}
+            selectedItems={selectedNode ?? null}
+            onExpandedItemsChange={handleNodeToggle}
+            onSelectedItemsChange={handleNodeSelect}
           >
             {processedNodes.map(node => renderTreeNode(node))}
           </StyledTreeView>

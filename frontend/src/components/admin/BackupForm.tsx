@@ -6,6 +6,7 @@ import {
   CardContent,
   CardHeader,
   Checkbox,
+  Chip,
   CircularProgress,
   Divider,
   FormControl,
@@ -423,10 +424,10 @@ const BackupForm: React.FC<BackupFormProps> = ({
             onChange={(e) => handleInputChange('encryptionPassword', e.target.value)}
             fullWidth
             type="password"
-            required={backupConfig.encryptionType !== BackupEncryptionType.NONE}
-            error={backupConfig.encryptionType !== BackupEncryptionType.NONE && !backupConfig.encryptionPassword}
+            required
+            error={!backupConfig.encryptionPassword}
             helperText={
-              backupConfig.encryptionType !== BackupEncryptionType.NONE && !backupConfig.encryptionPassword
+              !backupConfig.encryptionPassword
                 ? 'Encryption password is required'
                 : 'Keep this password safe. You will need it to restore the backup.'
             }

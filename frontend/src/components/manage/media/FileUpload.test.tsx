@@ -1,20 +1,21 @@
 import React from 'react';
-import { render /*, screen */ } from '@testing-library/react'; // Comment out screen due to TS error
-// import { fireEvent } from '@testing-library/react';
-// import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest'; // Using vitest globals
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import FileUpload from './FileUpload';
 
 // Mock the onUpload function
 const mockOnUpload = vi.fn(() => Promise.resolve());
 
 describe('FileUpload Component', () => {
+  beforeEach(() => {
+    mockOnUpload.mockClear();
+  });
+
   it('renders the dropzone text', () => {
-    const { getByText } = render(<FileUpload onUpload={mockOnUpload} />);
-    // expect(screen.getByText(/drag 'n' drop some files here/i)).toBeInTheDocument(); // Use getByText from render result
-    // expect(screen.getByText(/click to select files/i)).toBeInTheDocument();
-    expect(getByText(/drag 'n' drop some files here/i)).toBeInTheDocument();
-    expect(getByText(/click to select files/i)).toBeInTheDocument();
+    render(<FileUpload onUpload={mockOnUpload} />);
+    expect(screen.getByText(/drag 'n' drop some files here/i)).toBeInTheDocument();
+    expect(screen.getByText(/click to select files/i)).toBeInTheDocument();
   });
 
   it('displays accepted file types and max size', () => {
@@ -25,16 +26,8 @@ describe('FileUpload Component', () => {
         maxFileSize={2 * 1024 * 1024}
       />
     );
-    const { getByText: getByTextSize } = render(
-      // Use different name to avoid conflict
-      <FileUpload
-        onUpload={mockOnUpload}
-        acceptedFileTypes="image/png,image/jpeg"
-        maxFileSize={2 * 1024 * 1024}
-      />
-    );
     expect(
-      getByTextSize(/\(Accepted: image\/png,image\/jpeg, Max size: 2MB\)/i)
+      screen.getByText(/\(Accepted: image\/png,image\/jpeg, Max size: 2MB\)/i)
     ).toBeInTheDocument();
   });
 
@@ -43,50 +36,28 @@ describe('FileUpload Component', () => {
   // We'll focus on testing the state changes after files are conceptually added.
 
   it('shows added files in the list', async () => {
-    // This test simulates the state *after* files have been dropped/selected,
-    // as directly simulating the drop event is tricky.
-    // const file1 = new File(['hello'], 'hello.png', { type: 'image/png' }); // Unused variable
-    // const file2 = new File(['there'], 'there.jpg', { type: 'image/jpeg' }); // Unused variable
+    const file = new File(['image'], 'hello.png', { type: 'image/png' });
+    const { container } = render(<FileUpload onUpload={mockOnUpload} />);
 
-    // We need a way to manually trigger the state update that onDrop would cause.
-    // Let's modify the component slightly for testability or use more advanced mocking.
-    // For now, we'll assume the component renders the list based on its internal state.
-    // A better approach would be to mock the useDropzone hook.
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [file] },
+    });
 
-    // Render the component
-    render(<FileUpload onUpload={mockOnUpload} />); // Removed unused rerender
-
-    // Simulate state update (this part is tricky without component modification or hook mocking)
-    // For demonstration, let's assume we could somehow set the internal state (not ideal)
-    // Or, better, we test the list rendering part separately if possible.
-
-    // Let's test the upload button visibility instead
-    const { queryByRole } = render(<FileUpload onUpload={mockOnUpload} />); // Get queryByRole from render result
-    expect(queryByRole('button', { name: /upload/i })).not.toBeInTheDocument();
-
-    // If we could simulate adding files (e.g., via a mocked hook):
-    // expect(screen.getByText('hello.png')).toBeInTheDocument();
-    // expect(screen.getByText('there.jpg')).toBeInTheDocument();
-    // expect(screen.getByRole('button', { name: /upload 2 files/i })).toBeInTheDocument();
+    expect(await screen.findByText('hello.png')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /upload 1 file/i })).toBeEnabled();
   });
 
   it('calls onUpload when upload button is clicked', async () => {
-    // Similar limitation as above regarding simulating file addition.
-    // Assuming files were somehow added and the button is present.
+    const user = userEvent.setup();
+    const file = new File(['image'], 'asset.png', { type: 'image/png' });
+    const { container } = render(<FileUpload onUpload={mockOnUpload} />);
 
-    render(<FileUpload onUpload={mockOnUpload} />);
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [file] },
+    });
+    await user.click(await screen.findByRole('button', { name: /upload 1 file/i }));
 
-    // We need to simulate the state where files are pending.
-    // Let's assume the button exists for this test's purpose.
-    // const uploadButton = screen.getByRole('button', { name: /upload/i });
-    // await userEvent.click(uploadButton);
-    // expect(mockOnUpload).toHaveBeenCalled();
-
-    // Placeholder assertion until file addition simulation is addressed
-    expect(mockOnUpload).not.toHaveBeenCalled(); // Initially not called
+    await waitFor(() => expect(mockOnUpload).toHaveBeenCalledWith([file]));
+    expect(await screen.findByText('Uploaded')).toBeInTheDocument();
   });
-
-  // TODO: Add tests for file rejection messages
-  // TODO: Add tests for removing files
-  // TODO: Add tests for upload progress simulation (if keeping simulation logic)
 });

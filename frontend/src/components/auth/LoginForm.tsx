@@ -5,7 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Box, TextField, Button, CircularProgress, Alert } from '@mui/material';
 import { AppDispatch, RootState } from '../../store';
-import { clearErrors } from '../../store/slices/authSlice';
+import { clearError } from '../../store/slices/authSlice';
 import { login } from '../../store/slices/authThunks';
 import logger from '../../utils/logger';
 
@@ -60,7 +60,7 @@ const LoginForm: React.FC = () => {
       hasPassword: Boolean(password),
     });
     
-    dispatch(clearErrors());
+    dispatch(clearError());
     dispatch(login({ username, password }));
   };
 

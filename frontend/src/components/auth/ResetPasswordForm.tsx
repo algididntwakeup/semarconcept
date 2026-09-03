@@ -14,7 +14,7 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token }) => {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  const { loading, error } = useSelector((state: RootState) => state.auth);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -70,7 +70,7 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token }) => {
         autoComplete="new-password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        disabled={isLoading || !!successMessage}
+        disabled={loading || !!successMessage}
       />
       <TextField
         margin="normal"
@@ -83,16 +83,16 @@ const ResetPasswordForm: React.FC<ResetPasswordFormProps> = ({ token }) => {
         autoComplete="new-password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
-        disabled={isLoading || !!successMessage}
+        disabled={loading || !!successMessage}
       />
       <Button
         type="submit"
         fullWidth
         variant="contained"
         sx={{ mt: 3, mb: 2 }}
-        disabled={isLoading || !!successMessage}
+        disabled={loading || !!successMessage}
       >
-        {isLoading ? <CircularProgress size={24} /> : 'Reset Password'}
+        {loading ? <CircularProgress size={24} /> : 'Reset Password'}
       </Button>
     </Box>
   );

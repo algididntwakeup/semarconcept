@@ -148,7 +148,7 @@ const AccessibleForm: React.FC<AccessibleFormProps> = ({
   // Handle field change
   const handleChange = (
     fieldId: string,
-    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | { name?: string; value: unknown }>
+    event: { target: { value: unknown; checked?: boolean } }
   ) => {
     const field = fields.find((f) => f.id === fieldId);
     if (!field) return;
@@ -156,7 +156,7 @@ const AccessibleForm: React.FC<AccessibleFormProps> = ({
     let value: string | boolean | string[];
     
     if (field.type === 'checkbox') {
-      value = (event.target as HTMLInputElement).checked;
+      value = event.target.checked ?? false;
     } else if (field.type === 'select' && (event.target as { value: unknown }).value instanceof Array) {
       value = (event.target as { value: string[] }).value;
     } else {

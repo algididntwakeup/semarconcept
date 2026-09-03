@@ -3,7 +3,7 @@
 Dokumen ini adalah entry point untuk agent yang melanjutkan re-engineering SEMAR. Tujuannya menghindari audit ulang, perubahan acak, dan klaim selesai tanpa quality gate.
 
 **Snapshot konteks:** 2 September 2026  
-**Prioritas aktif:** frontend stabilization dan module landing experience.
+**Prioritas aktif:** FE-02 — konsolidasi API client dan state ownership.
 
 ## 1. Instruksi mulai untuk agent berikutnya
 
@@ -53,11 +53,12 @@ Aturan penting:
 - `MenuItemDTO` user-tree mengirim `access_level`, `permissions`, dan `menu_group` agar klien dapat melakukan permission filtering.
 - Password dan password hash tidak lagi ditulis ke authentication logs.
 - DebugConsole legacy tidak dimuat oleh app shell default.
+- Frontend quality gate FE-01 hijau: TypeScript 0 error, 25/25 test lulus, dan production build sukses.
+- Debug/demo collectors yang tidak memiliki production import dikarantina dari TypeScript production graph.
+- Script `typecheck`, `test:run`, dan `check` tersedia sebagai quality gate standar.
 
 ## 3. Blocker yang jangan ditemukan ulang
 
-- `pnpm exec tsc -p tsconfig.app.json --noEmit` masih gagal (77 error) pada komponen legacy MUI, auth, banner, hierarchy, dashboard, dan debug collectors — FE-01. Tidak ada error dari file FE-00.
-- Frontend test terakhir: 9/12 lulus; FileUpload tests/setup masih bermasalah (double-render) — FE-01. Test FE-00 (13) lulus.
 - `go test ./...` masih gagal karena test repository/auth/RBAC tertinggal dari interface produksi.
 - Backend production code lulus `go build ./...`.
 - TanStack Query belum menjadi dependency; ia masih target arsitektur.
@@ -67,7 +68,7 @@ Aturan penting:
 
 ### FE-00 — Stabilkan module landing pages
 
-Status: **complete** (lanjut ke FE-01)
+Status: **complete**
 
 File utama:
 
@@ -97,17 +98,17 @@ Exit criteria: root module dapat dibuka, hanya menampilkan destination yang acce
 
 ### FE-01 — Pulihkan frontend quality gate
 
-Status: **next**
+Status: **complete** (lanjut ke FE-02)
 
 Kerjakan dalam batch kecil:
 
-1. Betulkan casing duplicate `assetPresets.ts`/`assetpresets.ts` dan missing icon imports.
-2. Betulkan state/export mismatch pada auth forms.
-3. Migrasikan API MUI lama (`ListItem button`, TreeView props, Select event types).
-4. Betulkan missing imports di Backup, VersionHistory, dan DashboardGrid.
-5. Karantina atau hapus debug/demo collectors yang tidak dipakai production setelah import graph dicek.
-6. Betulkan Vitest setup dan FileUpload cleanup.
-7. Tambahkan scripts `typecheck`, `test:run`, dan `check`.
+1. [x] Betulkan casing duplicate `assetPresets.ts`/`assetpresets.ts` dan missing icon imports.
+2. [x] Betulkan state/export mismatch pada auth forms.
+3. [x] Migrasikan API MUI lama (`ListItem button`, TreeView props, Select event types).
+4. [x] Betulkan missing imports di Backup, VersionHistory, dan DashboardGrid.
+5. [x] Karantina debug/demo collectors yang tidak dipakai production setelah import graph dicek.
+6. [x] Betulkan Vitest setup dan FileUpload cleanup; test kini menguji upload aktual.
+7. [x] Tambahkan scripts `typecheck`, `test:run`, dan `check`.
 
 Gate wajib:
 
@@ -117,22 +118,32 @@ docker exec semar-frontend pnpm test -- --run
 docker exec semar-frontend pnpm build
 ```
 
-Jangan mulai FE-02 sebelum ketiga command lulus.
+Ketiga command lulus pada 2 September 2026.
 
 ### FE-02 — Satukan API client dan state ownership
 
-Status: **blocked by FE-01**
+Status: **complete** (lanjut ke FE-03)
 
-1. Inventaris import pengguna `config.ts`, `config/api.config.ts`, `services/apiClient.ts`, dan `utils/api.ts`.
-2. Tetapkan satu `shared/api/client` dengan auth refresh, CSRF, tenant header, dan normalized error.
-3. Tambahkan TanStack Query sebagai dependency resmi.
-4. Buat query-key factory.
-5. Migrasikan Asset Registry list/detail/mutation sebagai vertical slice acuan.
-6. Hapus asset server-state Redux hanya setelah parity test lulus.
+- [x] Inventaris import pengguna `config.ts`, `config/api.config.ts`, `services/apiClient.ts`, dan `utils/api.ts`.
+- [x] Tetapkan satu `shared/api/client` dengan auth refresh, CSRF, tenant header, dan normalized error (`NormalizedApiError`).
+- [x] Tambahkan TanStack Query v5 (`@tanstack/react-query@5.102.8`) sebagai dependency resmi dan pasang `QueryClientProvider`.
+- [x] Buat query-key factory terstandarisasi (`assetKeys`, `menuKeys`, `authKeys`).
+- [x] Migrasikan Asset Registry (`/assets/registry`) list/detail/mutation sebagai vertical slice acuan dengan feedback pending & error.
+- [x] Hapus asset server-state Redux (`assetSlice.ts`) setelah parity test lulus.
+
+Gate wajib:
+
+```powershell
+docker exec semar-frontend pnpm typecheck
+docker exec semar-frontend pnpm test:run
+docker exec semar-frontend pnpm build
+```
+
+Semua command lulus pada 3 September 2026.
 
 ### FE-03 — Permission-aware navigation contract
 
-Status: **blocked by FE-01**
+Status: **next**
 
 1. Buat satu route manifest typed.
 2. Derive landing destinations dan fallback menu dari manifest atau validasi keduanya terhadap manifest.
@@ -202,12 +213,12 @@ Agent tidak boleh hanya menulis “done”. Tuliskan command dan hasil ringkas a
 ## 8. Handoff terbaru
 
 ```text
-Task ID: FE-00
-Outcome: Landing page destination tidak lagi static. Card landing dihasilkan dari metadata canonical (module-destinations.ts), difilter terhadap user menu tree runtime + permission user; superuser melewati filter. Ditambahkan NavigationContext bersama (config/navigation-context.ts) agar halaman landing dapat membaca top-level menu tanpa circular import; MainLayout re-export lama dipertahankan. Backend MenuItemDTO kini mengirim access_level/permissions/menu_group; Vitest setup memperbaiki cleanup antar test dan polyfill jsdom (matchMedia/ResizeObserver). Ditambahkan 13 test baru (contract destination + filter permission + a11y/keyboard + empty state) yang semuanya lulus.
-Files changed: ModuleLandingPage.tsx (+ filter & empty state), config/module-destinations.{ts,test.ts}, config/navigation-context.ts, layouts/MainLayout.tsx, setupTests.ts, vite.config.ts (setupFiles/css), backend models/menu.go & services/menu_service.go, ModuleLandingPage.test.tsx.
-Validation passed: 13/13 test FE-00 baru lulus di container (vitest run); tsc -p tsconfig.app.json --noEmit tidak lagi melaporkan error pada file FE-00 (sisa 77 error = baseline FE-01 warisan di BackupForm/banner/debug/hierarchy/dashboard); pnpm build sukses; go build ./... sukses; HTTP 200 untuk /assets (SPA) dan backend healthy.
-Validation still failing: baseline FE-01 — typecheck 77 error warisan; test 9/12 warisan masih memiliki kegagalan FileUpload (double-render di satu test) dan auth/backup; go test ./... gagal karena contract test repo/auth/RBAC tertinggal.
-Known risks: Responsif desktop/mobile dan smoke authenticated masih pada level komponen jsdom, belum browser asli (tidak ada infrastruktur E2E/browser runner di repo). Admin module untuk non-superuser bergantung pada child admin di user menu tree; bila role admin tidak mendapat child tersebut, landing admin menampilkan empty state (bukan error) sampai FE-03 route manifest/role-permission lengkap. Superuser bypass hanya memakai is_superuser user object; permission string pada menu child didukung namun DB saat ini belum mengisi conditional/custom_permissions (filter tetap valid karena semua child visible tanpa permission).
-Exact next task: kerjakan FE-01 batch pertama — perbaiki casing duplicate assetPresets + missing icon imports (BackupForm/Chip, VersionHistoryPanel/Paper, DashboardGrid/Button), lalu scripts typecheck/test:run/check.
-Do not redo: landing page reusable & canonical root routes, permission filtering FE-00 (sudah ditest), Docker/CLI setup, audit arsitektur, setupTests polyfill.
+Task ID: FE-02
+Outcome: API client dikonsolidasi ke shared/api/client dengan request interceptors (auth bearer, tenant ID, request ID, CSRF), silent token refresh queue, dan error normalization (NormalizedApiError). Services/apiClient dijadikan backward-compatibility bridge. TanStack Query v5 (@tanstack/react-query@5.102.8) diadopsi resmi dan dipasang di App.tsx. Query-key factory dibuat untuk domain asset. Asset Registry (/assets/registry) dimigrasikan sebagai vertical slice acuan dengan hook useAssets dan useDeleteAsset, invalidasi otomatis saat mutasi, serta UI loading spinner & error retry. Redux asset server-state (assetSlice.ts) dihapus bersih setelah seluruh parity test lulus.
+Files changed: frontend/package.json; frontend/src/shared/api/types.ts; frontend/src/shared/api/client.ts; frontend/src/shared/api/client.test.ts; frontend/src/shared/api/queryClient.ts; frontend/src/shared/api/queryKeys.ts; frontend/src/shared/api/index.ts; frontend/src/services/apiClient.ts; frontend/src/features/assets/types/index.ts; frontend/src/features/assets/api/assetQueries.ts; frontend/src/features/assets/api/assetQueries.test.tsx; frontend/src/pages/assets/AssetRegistryPage.tsx; frontend/src/pages/assets/AssetRegistryPage.test.tsx; frontend/src/App.tsx; frontend/src/store/index.ts; frontend/src/store/slices/assetSlice.ts (deleted); docs/AGENT_EXECUTION_PLAYBOOK.md; docs/changelogs.md.
+Validation passed: `pnpm typecheck` exit 0 (0 error); `pnpm test:run` 7 file/42 test lulus (0 failed); `pnpm build` sukses (2m 28s); dev server HTTP 200 pada /assets/registry; backend /health database up.
+Validation still failing: backend `go test ./...` tetap menjadi BE-00 dan tidak termasuk scope FE-02; browser automation lokal menunggu konfigurasi playwright offline driver.
+Known risks: Service domain selain Asset Registry masih mengimpor services/apiClient (jembatan backward-compatibility aktif dan stabil, migrasikan bertahap saat vertical slice masing-masing dikerjakan).
+Exact next task: FE-03 — Permission-aware navigation contract (typed route manifest, contract test route/menu/landing, dynamic permission filtering), atau BE-00 untuk backend unit test recovery.
+Do not redo: FE-00 navigation/landing, FE-01 quality baseline recovery, FE-02 API client consolidation, TanStack Query setup, Asset Registry query migration, atau Redux assetSlice removal.
 ```

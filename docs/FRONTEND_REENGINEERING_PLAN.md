@@ -1,6 +1,6 @@
 # Frontend Re-Engineering Plan
 
-**Status awal:** stabilisasi sedang berjalan.  
+**Status:** Fase 0 selesai; FE-02/Fase 2 menjadi pekerjaan aktif.
 **Prinsip:** vertical slice, quality gate lebih dulu, dan satu kontrak untuk routing, data, serta visual language.
 
 ## Target arsitektur
@@ -27,6 +27,8 @@ Aturan dependency: `shared -> entities -> features -> app`. Feature tidak mengim
 - Ikon melalui satu registry bernama stabil.
 
 ## Fase 0 — Baseline hijau (P0)
+
+Status: **complete — 2 September 2026**. TypeScript 0 error, 25/25 test lulus, dan production build sukses.
 
 - Perbaiki seluruh error TypeScript hasil audit.
 - Perbaiki setup `@testing-library/jest-dom`, cleanup antar test, dan FileUpload tests.

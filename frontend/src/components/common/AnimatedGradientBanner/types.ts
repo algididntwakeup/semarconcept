@@ -15,7 +15,7 @@ export interface StatCardProps {
   icon?: SvgIconComponent;
   value: string | number;
   label: string;
-  trend?: ReactNode;
+  trend?: SvgIconComponent;
   trendValue?: string;
   trendColor?: string;
   sx?: SxProps<Theme>;

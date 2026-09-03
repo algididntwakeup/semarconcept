@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   HardHat, 
   Search, 
@@ -6,29 +6,35 @@ import {
   Plus, 
   Download, 
   Edit2, 
-  Eye,
-  MapPin,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Activity,
-  Shield,
-  UploadCloud,
-  Trash2
+  Eye, 
+  MapPin, 
+  ChevronLeft, 
+  ChevronRight, 
+  X, 
+  Activity, 
+  Shield, 
+  UploadCloud, 
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { Asset, AssetStatus, CriticalityLevel } from '../../types/asset';
-import { assetService } from '../../services/assetServices';
+import { useAssets, useDeleteAsset } from '../../features/assets/api/assetQueries';
+import { assetKeys } from '../../shared/api/queryKeys';
 import AssetFormModal, { ASSET_LEVELS } from '../../components/AssetFormModal';
 
 const AssetRegistryPage: React.FC = () => {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [filteredAssets, setFilteredAssets] = useState<Asset[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [page, setPage] = useState(1);
   const [rowsPerPage] = useState(10);
   const [showFilters, setShowFilters] = useState(false);
+
+  // TanStack Query hooks
+  const queryClient = useQueryClient();
+  const { data: assetResponse, isLoading, isError, error, refetch, isFetching } = useAssets({ page, limit: rowsPerPage });
+  const deleteMutation = useDeleteAsset();
 
   // Shared asset form modal
   const [isFormOpen, setFormOpen] = useState(false);
@@ -48,17 +54,11 @@ const AssetRegistryPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [criticalityFilter, setCriticalityFilter] = useState('');
 
-  const fetchAssets = async () => {
-    try {
-      const response = await assetService.getAssets({ page, limit: rowsPerPage });
-      const data = (response as any)?.data || (response as any)?.items || response;
-      setAssets(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load assets', err);
-    }
-  };
-
-  useEffect(() => { fetchAssets(); }, [page, rowsPerPage]);
+  // Unpack assets array from API response envelope
+  const assets: Asset[] = useMemo(() => {
+    const raw = (assetResponse as any)?.data || (assetResponse as any)?.items || (assetResponse as any)?.assets || assetResponse;
+    return Array.isArray(raw) ? raw : [];
+  }, [assetResponse]);
 
   // Build flat map for the shared form's parent picker
   const allAssetsMap = useMemo(() => {
@@ -70,10 +70,11 @@ const AssetRegistryPage: React.FC = () => {
   }, [assets]);
 
   // Filtering
-  useEffect(() => {
-    const filtered = assets.filter(asset => {
-      const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          asset.id.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredAssets = useMemo(() => {
+    return assets.filter(asset => {
+      const nameMatch = asset.name ? asset.name.toLowerCase().includes(searchTerm.toLowerCase()) : false;
+      const idMatch = asset.id ? String(asset.id).toLowerCase().includes(searchTerm.toLowerCase()) : false;
+      const matchesSearch = !searchTerm || nameMatch || idMatch;
       const matchesStatus = !statusFilter || asset.status === statusFilter;
       const matchesCategory = !categoryFilter || asset.type?.toLowerCase() === categoryFilter;
       
@@ -83,18 +84,15 @@ const AssetRegistryPage: React.FC = () => {
       }
       return matchesSearch && matchesStatus && matchesCategory && matchesCriticality;
     });
-    setFilteredAssets(filtered);
-    setPage(1);
-  }, [searchTerm, statusFilter, categoryFilter, criticalityFilter, assets]);
+  }, [assets, searchTerm, statusFilter, categoryFilter, criticalityFilter]);
 
   const handleDeleteAsset = async (assetId: string, assetName: string) => {
     if (!window.confirm(`Are you sure you want to delete "${assetName}"?`)) return;
     try {
-      await assetService.deleteAsset(assetId);
-      await fetchAssets();
-    } catch (err) {
+      await deleteMutation.mutateAsync(assetId);
+    } catch (err: any) {
       console.error('Failed to delete asset:', err);
-      alert('Failed to delete asset.');
+      alert(err?.message || 'Failed to delete asset.');
     }
   };
 
@@ -269,7 +267,33 @@ const AssetRegistryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {paginatedAssets.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center">
+                      <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                      <p className="text-sm font-bold text-slate-500 mb-1">Loading assets...</p>
+                      <p className="text-xs text-slate-400">Fetching live registry data</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : isError ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center">
+                      <Shield size={40} className="text-rose-400 mb-3" />
+                      <p className="text-sm font-bold text-slate-700 mb-1">Failed to load assets</p>
+                      <p className="text-xs text-slate-400 mb-4">{(error as any)?.message || 'An error occurred while fetching the asset registry.'}</p>
+                      <button 
+                        onClick={() => refetch()}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-bold hover:bg-primary-700 transition-colors"
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedAssets.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center">
@@ -285,7 +309,8 @@ const AssetRegistryPage: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ) : paginatedAssets.map((asset) => (
+              ) : (
+                paginatedAssets.map((asset) => (
                 <tr key={asset.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -352,7 +377,7 @@ const AssetRegistryPage: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>
@@ -393,7 +418,10 @@ const AssetRegistryPage: React.FC = () => {
         editingAsset={selectedAsset}
         allAssets={allAssetsMap}
         onClose={() => { setFormOpen(false); setSelectedAsset(null); }}
-        onSaved={() => fetchAssets()}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+          refetch();
+        }}
       />
 
       {/* View Detail Modal */}

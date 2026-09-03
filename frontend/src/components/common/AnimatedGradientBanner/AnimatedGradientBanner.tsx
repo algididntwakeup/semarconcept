@@ -65,7 +65,7 @@ const StatCard: React.FC<StatCardProps & { delay?: number }> = ({
   icon: Icon, 
   value, 
   label, 
-  trend, 
+  trend: TrendIcon,
   trendValue, 
   trendColor = 'success.main',
   delay = 0,
@@ -96,7 +96,7 @@ const StatCard: React.FC<StatCardProps & { delay?: number }> = ({
               color: theme.palette.primary.main 
             }} />
           )}
-          {trend && trendValue && (
+          {TrendIcon && trendValue && (
             <Box sx={{ 
               display: 'flex', 
               alignItems: 'center',
@@ -104,7 +104,7 @@ const StatCard: React.FC<StatCardProps & { delay?: number }> = ({
               fontSize: '0.75rem',
               fontWeight: 'medium'
             }}>
-              {trend}
+              <TrendIcon fontSize="small" />
               <Typography variant="body2" sx={{ ml: 0.5 }}>
                 {trendValue}
               </Typography>

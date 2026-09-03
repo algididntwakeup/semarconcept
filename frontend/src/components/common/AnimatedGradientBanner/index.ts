@@ -20,7 +20,7 @@ export {
   assetHierarchyPreset,
   assetPerformancePreset,
   assetMaintenancePreset
-} from './presets/assetPresets';
+} from './presets/assetpresets';
 
 // Types and themes
 export {

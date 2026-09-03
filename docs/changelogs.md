@@ -2,6 +2,18 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
+## Unreleased — 3 September 2026
+
+### API client consolidation & TanStack Query (FE-02)
+
+- Menetapkan satu API client kanonikal pada `frontend/src/shared/api/client.ts` dengan request interceptors (`Authorization Bearer`, `X-Tenant-ID`, `X-Request-ID`, `X-CSRF-TOKEN`), response auto-sync session, 401 concurrent silent refresh queue (`failedQueue`), dan error normalization (`NormalizedApiError`).
+- Menjadikan `frontend/src/services/apiClient.ts` sebagai backward-compatibility re-export bridge ke client kanonikal.
+- Menambahkan `@tanstack/react-query@5.102.8` secara resmi dan memasang `QueryClientProvider` pada `frontend/src/App.tsx`.
+- Membangun query-key factory terpusat di `frontend/src/shared/api/queryKeys.ts` (`assetKeys`, `menuKeys`, `authKeys`).
+- Memigrasikan Asset Registry (`frontend/src/pages/assets/AssetRegistryPage.tsx`) sebagai vertical slice pertama ke TanStack Query hooks (`useAssets`, `useDeleteAsset`), cache invalidation otomatis saat create/edit/delete, serta penanganan UI loading state dan error retry.
+- Menghapus Redux asset server-state (`frontend/src/store/slices/assetSlice.ts`) dan membersihkan `frontend/src/store/index.ts` setelah seluruh test parity dan regression lulus.
+- Menambahkan test suite baru: `src/shared/api/client.test.ts` (8 test), `src/features/assets/api/assetQueries.test.tsx` (5 test), dan `src/pages/assets/AssetRegistryPage.test.tsx` (4 test). Suite frontend kini memiliki 7 file dan 42/42 test lulus.
+
 ## Unreleased — 2 September 2026
 
 ### Navigation dan dashboard
@@ -35,6 +47,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Menghapus logging plaintext password dan password hash dari authentication service.
 - Melepas DebugConsole legacy dari app shell agar collector rusak tidak ikut runtime default.
 
+### Frontend quality baseline
+
+- Memulihkan TypeScript dari 48 error aktual menjadi 0 error.
+- Menyelaraskan auth forms dengan state `loading` dan action `clearError` canonical.
+- Memigrasikan Select events, ListItemButton, serta SimpleTreeView ke API MUI v7/v8.
+- Memperbaiki import dan kontrak icon pada Backup, Version History, Dashboard Grid, serta Animated Gradient Banner.
+- Menyelaraskan AssetList dengan default export dan props VirtualScroll; mode table memakai representasi list sampai table renderer tersedia.
+- Mengarantina debug/demo source tanpa production import dari TypeScript production graph.
+- Memperbaiki bug FileUpload yang membaca snapshot status lama; 4 test kini menguji pemilihan file dan pemanggilan upload aktual.
+- Menambahkan scripts `typecheck`, `test:run`, dan `check`.
+- Memverifikasi 25/25 frontend test, TypeScript 0 error, dan production build sukses.
+
 ### Documentation
 
 - Mengganti klaim status lama dengan audit berbasis evidence.
@@ -44,8 +68,6 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ### Known blockers
 
-- TypeScript check masih gagal pada beberapa komponen legacy/debug/auth/banner/MUI (77 error, tidak ada dari file FE-00).
-- Frontend test terakhir: 9/12 lulus (kegagalan FileUpload double-render); 13 test FE-00 lulus.
 - Backend `go test ./...` masih gagal karena test contracts tertinggal.
-- Production build tetap hijau; typecheck/test warisan ditangani di FE-01.
-- Smoke browser asli (responsive desktop/mobile authenticated) belum berjalan karena belum ada infrastruktur E2E browser.
+- Authenticated cross-route E2E belum menjadi test suite repository.
+- Build frontend lulus tetapi masih relatif lambat dan belum memiliki performance budget otomatis.

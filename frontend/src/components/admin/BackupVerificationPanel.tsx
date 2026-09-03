@@ -37,6 +37,7 @@ import {
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { BackupInfo } from './RestoreForm';
+import type { SelectChangeEvent } from '@mui/material/Select';
 
 interface VerificationResult {
   success: boolean;
@@ -83,8 +84,8 @@ const BackupVerificationPanel: React.FC<BackupVerificationPanelProps> = ({
   const [activeStep, setActiveStep] = useState(0);
   
   // Handle backup selection
-  const handleBackupSelection = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setSelectedBackupId(event.target.value as string);
+  const handleBackupSelection = (event: SelectChangeEvent<string>) => {
+    setSelectedBackupId(event.target.value);
   };
   
   // Handle verification method change
