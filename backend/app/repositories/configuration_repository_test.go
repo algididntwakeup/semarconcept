@@ -21,7 +21,7 @@ func TestConfigurationRepository_FindByID(t *testing.T) {
 	// gormDB, mock := setupMockDB(t)
 	// repo := NewConfigurationRepository(gormDB) // Assuming constructor
 
-	configID := uint(1)
+	// configID := uint(1)
 	// expectedConfig := &models.SystemConfig{
 	// 	ID:    configID,
 	// 	Key:   "site_name",

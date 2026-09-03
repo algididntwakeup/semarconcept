@@ -163,13 +163,13 @@ Semua command lulus pada 3 September 2026.
 
 ### BE-00 — Pulihkan backend tests
 
-Status: **next** (dapat dikerjakan paralel setelah frontend baseline scope disepakati)
+Status: **complete** (gate `go test ./...` hijau 100%)
 
-1. Update mock/constructor `AuthService` pada test.
-2. Selaraskan RoleRepository interface dan test implementation.
-3. Perbaiki test yang masih merujuk `NewGormUserRepository`.
-4. Hapus unused variables pada test utils/repository.
-5. Pisahkan integration test yang membutuhkan database.
+- [x] Update mock/constructor `AuthService` pada test (`auth_service_test.go`).
+- [x] Selaraskan RoleRepository interface dan test implementation (`rbac_repository_test.go`, `rbac_middleware_integration_test.go`).
+- [x] Perbaiki test yang masih merujuk `NewGormUserRepository` (`user_repository_test.go` dimigrasikan ke `NewUserRepository(sqlxDB)` dengan `sqlmock`).
+- [x] Hapus unused variables pada test utils/repository (`cache_test.go`, `jwt_test.go`, `configuration_repository_test.go`, `rbac_repository_test.go`, serta fix `asset_errors.go`, `logger.go`, `dashboard_layout_repository.go` dari `go vet`).
+- [x] Pisahkan integration test yang membutuhkan database (`rbac_middleware_integration_test.go` menggunakan build tag `//go:build integration` dan ditambahkan unit test suite `rbac_middleware_test.go`).
 
 Gate:
 
@@ -177,9 +177,11 @@ Gate:
 docker exec semar-backend go test ./...
 ```
 
+Semua package backend lulus pada 3 September 2026.
+
 ### BE-01 — Satu database lifecycle
 
-Status: **blocked by BE-00**
+Status: **next** (blocker BE-00 telah selesai)
 
 Ikuti [Backend Re-Engineering Plan](./BACKEND_REENGINEERING_PLAN.md). Jangan memindahkan semua repository sekaligus; gunakan Asset Registry sebagai vertical slice pertama.
 
@@ -223,12 +225,12 @@ Agent tidak boleh hanya menulis “done”. Tuliskan command dan hasil ringkas a
 ## 8. Handoff terbaru
 
 ```text
-Task ID: FE-03
-Outcome: Kontrak navigasi dan permission awareness disatukan menggunakan master Typed Route Manifest (src/config/route-manifest.ts) yang mendefinisikan 60+ rute SEMAR dengan semantic ID, canonical path, modul, permissions, dan metadata. MODULE_DESTINATIONS diturunkan langsung dari ROUTE_MANIFEST untuk menjamin nol desinkronisasi. Router dan MainLayout diperkuat dengan delegasi pengecekan akses ke checkRouteAccess (whitelist, superuser bypass, pemblokiran menu tersembunyi/tidak aktif, dan pengalihan ke /access-inactive). ProtectedRoute meng-export fungsi guard dengan pelestarian target deep link di state.from. 8 contract tests ditambahkan di route-manifest.test.ts (menjamin tidak ada duplikasi slug, duplikasi path, orphan destination, invalid menu URL, dan missing icon). 10 navigation tests ditambahkan di navigation-guard.test.tsx.
-Files changed: frontend/src/config/route-manifest.ts; frontend/src/config/route-manifest.test.ts; frontend/src/config/module-destinations.ts; frontend/src/router/index.tsx; frontend/src/router/navigation-guard.test.tsx; frontend/src/layouts/MainLayout.tsx; docs/AGENT_EXECUTION_PLAYBOOK.md; docs/changelogs.md.
-Validation passed: `pnpm typecheck` exit 0 (0 error); `pnpm test:run` 9 file/60 test lulus (0 failed); `pnpm build` sukses (3m 48s, 14.385 modul); runtime dev server responsif 200 OK pada /assets/registry; backend /health database up.
-Validation still failing: backend `go test ./...` tetap menjadi BE-00 dan tidak termasuk scope FE-03; browser automation lokal menunggu konfigurasi playwright offline driver.
-Known risks: Tidak ada. Struktur URL, aliases, dan permission contract sepenuhnya backward compatible.
-Exact next task: BE-00 — Pulihkan backend unit & repository test suite (update constructor AuthService, selaraskan RoleRepository, perbaiki NewGormUserRepository), atau FE-04 jika melanjutkan frontend vertical slice berikutnya (Inspection).
-Do not redo: FE-00 navigation/landing, FE-01 quality baseline recovery, FE-02 API client consolidation, FE-03 route manifest & navigation contract tests.
+Task ID: BE-00
+Outcome: Suite test Go backend dipulihkan 100% sehingga `go test ./...` lulus bersih pada seluruh paket (middleware, repositories, services, utils). Constructor NewAuthService diselaraskan dengan 7 dependensi aktual dan MockUserRepository diperbarui untuk metode FindByUsernameOrEmail & UpdateLastLogin. Implementasi fiktif NewGormUserRepository pada user_repository_test.go diganti dengan implementasi produksi NewUserRepository(sqlxDB) menggunakan sqlmock. Variabel tidak terpakai pada cache_test.go, jwt_test.go, configuration_repository_test.go, dan rbac_repository_test.go dibersihkan, serta isu go vet pada asset_errors.go, logger.go, dan dashboard_layout_repository.go diperbaiki. Database integration test rbac_middleware_integration_test.go diisolasi dengan tag //go:build integration, dan ditambahkan pure unit test rbac_middleware_test.go.
+Files changed: backend/app/utils/cache_test.go; backend/app/utils/jwt_test.go; backend/app/utils/asset_errors.go; backend/app/utils/logger.go; backend/app/repositories/configuration_repository_test.go; backend/app/repositories/rbac_repository_test.go; backend/app/repositories/user_repository_test.go; backend/app/repositories/dashboard_layout_repository.go; backend/app/services/auth_service_test.go; backend/app/middleware/rbac_middleware_integration_test.go; backend/app/middleware/rbac_middleware_test.go; docs/AGENT_EXECUTION_PLAYBOOK.md; docs/changelogs.md.
+Validation passed: `docker exec semar-backend go test ./...` exit 0 (middleware 0.086s, repositories 0.093s, services 1.268s, utils 1.872s); `docker exec semar-backend go test -tags=integration -run=^$ ./app/middleware/...` exit 0; backend /health database up (healthy); frontend 200 OK.
+Validation still failing: browser automation lokal menunggu konfigurasi playwright offline driver (di luar lingkup backend).
+Known risks: Tidak ada. Tidak ada perubahan logika bisnis runtime produksi selain perbaikan logger format string & redundant check go vet.
+Exact next task: BE-01 — Satu database lifecycle (merapikan pool *sql.DB, transaction manager, dan lifecycle DB sesuai BACKEND_REENGINEERING_PLAN.md Fase 1) ATAU FE-04 — AIMS Workflows (Inspection/Risk vertical slice).
+Do not redo: FE-00, FE-01, FE-02, FE-03, atau BE-00.
 ```

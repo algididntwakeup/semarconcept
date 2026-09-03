@@ -132,23 +132,23 @@ func LogFatalf(format string, args ...interface{}) {
 
 // Simple message functions
 func LogDebug(message string) {
-	LogDebugf(message)
+	LogDebugf("%s", message)
 }
 
 func LogInfo(message string) {
-	LogInfof(message)
+	LogInfof("%s", message)
 }
 
 func LogWarn(message string) {
-	LogWarnf(message)
+	LogWarnf("%s", message)
 }
 
 func LogError(message string) {
-	LogErrorf(message)
+	LogErrorf("%s", message)
 }
 
 func LogFatal(message string) {
-	LogFatalf(message)
+	LogFatalf("%s", message)
 }
 
 // Compatibility functions that handle multiple arguments

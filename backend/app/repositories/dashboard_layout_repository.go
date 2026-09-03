@@ -150,7 +150,7 @@ func (r *gormDashboardLayoutRepository) DeleteShare(ctx context.Context, shareID
 
 	// Check if the user attempting to delete the share owns the dashboard
 	if share.Dashboard.OwnerUserID != userID {
-		return fmt.Errorf("user %d is not authorized to delete share %d for dashboard '%s': %w", userID, shareID, share.DashboardID, utils.ErrForbidden)
+		return fmt.Errorf("user %d is not authorized to delete share %d for dashboard '%d': %w", userID, shareID, share.DashboardID, utils.ErrForbidden)
 	}
 
 	if err := r.db.WithContext(ctx).Delete(&models.DashboardShare{}, shareID).Error; err != nil {

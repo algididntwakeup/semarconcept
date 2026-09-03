@@ -345,8 +345,7 @@ func IsAssetNotFoundError(err error) bool {
 		err == ErrAssetNotFound ||
 		err == ErrComponentNotFound ||
 		err == ErrInspectionPointNotFound ||
-		err == ErrDegradationMechNotFound ||
-		err == ErrAssetNotFound
+		err == ErrDegradationMechNotFound
 }
 
 // IsAssetDuplicateError checks if error is an asset duplicate error

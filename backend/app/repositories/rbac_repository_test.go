@@ -21,7 +21,7 @@ func TestRBACRepository_FindRoleByID(t *testing.T) {
 	// gormDB, mock := setupMockDB(t)
 	// repo := NewRBACRepository(gormDB) // Assuming constructor
 
-	roleID := uint(1)
+	// roleID := uint(1)
 	// expectedRole := &models.Role{
 	// 	ID:   roleID,
 	// 	Name: "Admin",

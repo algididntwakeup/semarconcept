@@ -3,84 +3,82 @@ package utils
 
 import (
 	"testing"
-	// Add imports for necessary packages:
-	// - testing utilities (testify/assert)
-	// - time for expiration tests
-	// - potentially mocking libraries if the cache uses an external store (e.g., Redis)
-	// "github.com/stretchr/testify/assert"
-	// "time"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCache_SetAndGet(t *testing.T) {
-	// Initialize the cache (assuming an in-memory cache for simplicity in this skeleton)
-	// cache := NewCache() // Assuming a constructor
+	cache := NewInMemoryCache()
 
-	key := "myKey"
-	value := "myValue"
-	// duration := 5 * time.Minute // Example duration
+	// 1. Set and retrieve string value
+	cache.Set("myKey", "myValue", 5*time.Minute)
+	val, found := cache.Get("myKey")
+	assert.True(t, found)
+	assert.Equal(t, "myValue", val)
 
-	// Define test cases
-	testCases := []struct {
-		name       string
-		keyToSet   string
-		valueToSet interface{}
-		// duration  time.Duration
-		keyToGet    string
-		expectFound bool
-		// expectedValue interface{} // Value expected if found
-	}{
-		// TODO: Add test cases
-		// Example: Set and Get successfully
-		// {
-		// 	name:       "Set and Get Success",
-		// 	keyToSet:   key,
-		// 	valueToSet: value,
-		// 	duration:   duration,
-		// 	keyToGet:   key,
-		// 	expectFound: true,
-		// 	expectedValue: value,
-		// },
-		// Example: Get non-existent key
-		// {
-		// 	name:       "Get Non-existent Key",
-		// 	keyToSet:   "", // Don't set anything for this case or set a different key
-		// 	valueToSet: nil,
-		// 	keyToGet:   "otherKey",
-		// 	expectFound: false,
-		// 	expectedValue: nil,
-		// },
-		// Example: Set with different type
-		// {
-		// 	name:       "Set and Get Different Type",
-		// 	keyToSet:   "intKey",
-		// 	valueToSet: 123,
-		// 	duration:   duration,
-		// 	keyToGet:   "intKey",
-		// 	expectFound: true,
-		// 	expectedValue: 123,
-		// },
-	}
+	// 2. Retrieve non-existent key
+	val, found = cache.Get("nonExistentKey")
+	assert.False(t, found)
+	assert.Nil(t, val)
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// if tc.keyToSet != "" {
-			// 	cache.Set(tc.keyToSet, tc.valueToSet, tc.duration) // Adjust Set method signature if needed
-			// }
+	// 3. Set different type (int)
+	cache.Set("intKey", 123, 5*time.Minute)
+	val, found = cache.Get("intKey")
+	assert.True(t, found)
+	assert.Equal(t, 123, val)
 
-			// retrievedValue, found := cache.Get(tc.keyToGet) // Adjust Get method signature
-
-			// Assertions
-			// assert.Equal(t, tc.expectFound, found)
-			// if tc.expectFound {
-			// 	assert.Equal(t, tc.expectedValue, retrievedValue)
-			// } else {
-			// 	assert.Nil(t, retrievedValue) // Or check for default zero value
-			// }
-			t.Logf("Test case '%s' needs implementation", tc.name) // Placeholder log
-		})
-	}
+	// 4. Overwrite existing key
+	cache.Set("myKey", "newValue", 5*time.Minute)
+	val, found = cache.Get("myKey")
+	assert.True(t, found)
+	assert.Equal(t, "newValue", val)
 }
 
-// TODO: Add test functions for other Cache methods (e.g., Delete, testing expiration)
-// func TestCache_Expiration(t *testing.T) { ... }
-// func TestCache_Delete(t *testing.T) { ... }
+func TestCache_Delete(t *testing.T) {
+	cache := NewInMemoryCache()
+
+	cache.Set("tempKey", "tempValue", 5*time.Minute)
+	val, found := cache.Get("tempKey")
+	assert.True(t, found)
+	assert.Equal(t, "tempValue", val)
+
+	cache.Delete("tempKey")
+	val, found = cache.Get("tempKey")
+	assert.False(t, found)
+	assert.Nil(t, val)
+}
+
+func TestCache_Clear(t *testing.T) {
+	cache := NewInMemoryCache()
+
+	cache.Set("key1", "val1", 5*time.Minute)
+	cache.Set("key2", "val2", 5*time.Minute)
+
+	cache.Flush()
+
+	_, found1 := cache.Get("key1")
+	_, found2 := cache.Get("key2")
+	assert.False(t, found1)
+	assert.False(t, found2)
+}
+
+func TestCache_Expiration(t *testing.T) {
+	cache := NewInMemoryCache()
+
+	// Set with 20ms TTL
+	cache.Set("expiringKey", "quickValue", 20*time.Millisecond)
+
+	// Immediately accessible
+	val, found := cache.Get("expiringKey")
+	assert.True(t, found)
+	assert.Equal(t, "quickValue", val)
+
+	// Wait for expiration
+	time.Sleep(30 * time.Millisecond)
+
+	// Should be expired now
+	val, found = cache.Get("expiringKey")
+	assert.False(t, found)
+	assert.Nil(t, val)
+}

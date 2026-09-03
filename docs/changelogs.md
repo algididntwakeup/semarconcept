@@ -4,6 +4,14 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 3 September 2026
 
+### Backend test suite recovery (BE-00)
+
+- Memulihkan dan memperbaiki seluruh suite pengujian Go backend (`docker exec semar-backend go test ./...`) sehingga seluruh paket (`middleware`, `repositories`, `services`, `utils`) lulus 100% (exit code 0).
+- **Utils**: Memperbaiki `backend/app/utils/cache_test.go` (`Set`, `Get`, `Delete`, `Flush`, expiration test) dan `backend/app/utils/jwt_test.go` (`GenerateToken`, `ValidateToken`, blacklist, token validation failure), membersihkan duplicate check pada `asset_errors.go`, serta memperbaiki logger string formatting pada `logger.go` dari audit `go vet`.
+- **Repositories**: Membersihkan unused variables pada `configuration_repository_test.go` dan `rbac_repository_test.go`. Memperbaiki format specifier `%s` menjadi `%d` pada `dashboard_layout_repository.go`. Memigrasikan `user_repository_test.go` dari mock GORM fiktif ke konstruktor nyata `NewUserRepository(sqlxDB)` dengan `sqlmock` untuk skenario `FindByUsername` (Found, NotFound, DatabaseError).
+- **Services**: Menyelaraskan `backend/app/services/auth_service_test.go` dengan arsitektur produksi `NewAuthService` (7 parameter), memperbarui mock `UserRepository` (`FindByUsernameOrEmail`, `UpdateLastLogin`), menggunakan tipe DTO kanonikal `request.LoginRequest`, dan menguji 5 skenario autentikasi (Username, Email, User Not Found, Wrong Password, Inactive User).
+- **Middleware**: Memisahkan database integration test pada `backend/app/middleware/rbac_middleware_integration_test.go` menggunakan build tag `//go:build integration` dan menyelaraskan dependensi dengan interface aktual. Membangun unit test murni `backend/app/middleware/rbac_middleware_test.go` dengan mock `RBACRoleProvider` untuk menguji unauthenticated access, superuser bypass, single permission, wildcard (`*`), dan permission denied.
+
 ### Permission-aware navigation contract (FE-03)
 
 - Membangun Typed Route Manifest terpusat pada `frontend/src/config/route-manifest.ts` yang mendefinisikan seluruh 60+ rute aplikasi SEMAR beserta metadata semantic ID, path kanonikal, module association, access control (`isProtected`), permissions, dan landing destination status.
