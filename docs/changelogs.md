@@ -4,6 +4,16 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 3 September 2026
 
+### Permission-aware navigation contract (FE-03)
+
+- Membangun Typed Route Manifest terpusat pada `frontend/src/config/route-manifest.ts` yang mendefinisikan seluruh 60+ rute aplikasi SEMAR beserta metadata semantic ID, path kanonikal, module association, access control (`isProtected`), permissions, dan landing destination status.
+- Menyelaraskan `frontend/src/config/module-destinations.ts` agar diturunkan secara langsung dari `ROUTE_MANIFEST`.
+- Mengimplementasikan helper validasi dan access check murni `checkRouteAccess(items, path, isSuperuser)` untuk proteksi deep-link terhadap rute yang tersembunyi, non-aktif, atau belum diberi lisensi.
+- Memperkuat `ProtectedRoute` pada `frontend/src/router/index.tsx` dengan ekspor modular dan pelestarian target path serta search parameters pada `state.from`.
+- Mendelegasikan verifikasi akses pada `frontend/src/layouts/MainLayout.tsx` ke `checkRouteAccess` untuk pengalihan konsisten ke `/access-inactive`.
+- Menambahkan 8 contract tests pada `frontend/src/config/route-manifest.test.ts` (mencegah duplikasi slug, duplikasi path, orphan landing destinations, invalid menu URLs, dan missing icons).
+- Menambahkan 10 navigation tests pada `frontend/src/router/navigation-guard.test.tsx` (menguji skenario unauthenticated redirect, deep link search query preservation, authorized direct access, menu inactivity guard, dan superuser bypass). Total test suite frontend meningkat menjadi 9 file dan 60/60 test lulus.
+
 ### API client consolidation & TanStack Query (FE-02)
 
 - Menetapkan satu API client kanonikal pada `frontend/src/shared/api/client.ts` dengan request interceptors (`Authorization Bearer`, `X-Tenant-ID`, `X-Request-ID`, `X-CSRF-TOKEN`), response auto-sync session, 401 concurrent silent refresh queue (`failedQueue`), dan error normalization (`NormalizedApiError`).

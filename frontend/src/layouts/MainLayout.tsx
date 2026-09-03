@@ -16,6 +16,7 @@ import Breadcrumbs from '../components/layout/Breadcrumbs';
 import GlobalSearchBar from '../components/layout/GlobalSearchBar';
 import { loadMenuItems, convertMenuItemToNavItem } from '../config/menu-loader';
 import { MenusAPI } from '../lib/api/endpoints';
+import { checkRouteAccess } from '../config/route-manifest';
 import { NavItem } from '../types/navigation';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
@@ -159,74 +160,12 @@ const MainLayout: React.FC = () => {
 
     const isSuperuser = user?.is_superuser || (user as any)?.isSuperuser;
 
-    // --- 🔥 Access Guard Logic ---
-    // Prevent direct URL access to inactive, hidden, or unauthorized menu items/modules
-    const checkMenuAccess = (items: NavItem[], path: string, parentChain: NavItem[] = []): { blocked: boolean; found: boolean } => {
-      // 1. Whitelist basic routes that don't need to be in the menu
-      const whitelist = ['/', '/dashboard', '/dashboard/', '/dashboard/overview', '/login', '/register', '/access-inactive'];
-      if (whitelist.includes(path)) {
-        return { blocked: false, found: true };
-      }
-
-      // 2. Superuser bypass
-      if (isSuperuser) {
-        return { blocked: false, found: true };
-      }
-
-      for (const item of items) {
-        const normalizedItemUrl = item.url?.replace(/\/$/, '') || '';
-        const normalizedTargetUrl = path.replace(/\/$/, '') || '';
-        
-        // Exact match or prefix match for parents
-        const isExactMatch = normalizedItemUrl && normalizedItemUrl === normalizedTargetUrl;
-        const isParentMatch = normalizedItemUrl && normalizedTargetUrl.startsWith(normalizedItemUrl + '/');
-        
-        if (isExactMatch || isParentMatch) {
-          // Check if any part of the hierarchy is inactive or invisible
-          const hasInactiveParent = parentChain.some(p => p.visible === false || p.disabled === true);
-          const isThisInactive = item.visible === false || item.disabled === true;
-          
-          if (hasInactiveParent || isThisInactive) {
-            return { blocked: true, found: true };
-          }
-          
-          // If it's a parent match, we MUST check if a more specific child is blocked
-          if (isParentMatch && item.children) {
-            const childCheck = checkMenuAccess(item.children, path, [...parentChain, item]);
-            if (childCheck.found) return childCheck;
-          }
-          
-          return { blocked: false, found: true };
-        }
-
-        if (item.children) {
-          const result = checkMenuAccess(item.children, path, [...parentChain, item]);
-          if (result.found) return result;
-        }
-      }
-      return { blocked: false, found: false };
-    };
-
-    const { blocked, found } = checkMenuAccess(menuItems, currentPath);
-    
-    // 🔥 ENHANCED: If not found in menu, but belongs to a managed module, it's effectively inactive
-    const managedModules = [
-      'analytics', 'risk', 'inspection', 'maintenance', 'compliance', 
-      'assets', 'asset', 'content', 'admin', 'manage', 'reporting', 'system-configuration',
-      'dashboard'
-    ];
-    const pathSegments = currentPath.split('/').filter(Boolean);
-    const isManagedModule = pathSegments.length > 0 && managedModules.includes(pathSegments[0]);
-
-    // Skip block if superuser
-    if (!isSuperuser && ((found && blocked) || (!found && isManagedModule))) {
-      // Double check whitelist again for managed modules (like /dashboard)
-      const whitelist = ['/', '/dashboard', '/dashboard/', '/dashboard/overview', '/dashboard/asset', '/dashboard/inspection', '/dashboard/maintenance', '/dashboard/compliance', '/access-inactive'];
-      if (!whitelist.includes(currentPath)) {
-        console.warn(`🚫 Access blocked to inactive or unauthorized path: ${currentPath}`);
-        navigate('/access-inactive', { replace: true });
-        return;
-      }
+    // --- Access Guard Logic (Delegated to route-manifest.ts) ---
+    const accessCheck = checkRouteAccess(menuItems, currentPath, isSuperuser);
+    if (accessCheck.blocked) {
+      console.warn(`🚫 Access blocked to inactive or unauthorized path: ${currentPath} (reason: ${accessCheck.reason})`);
+      navigate('/access-inactive', { replace: true });
+      return;
     }
     // --- End Access Guard ---
 

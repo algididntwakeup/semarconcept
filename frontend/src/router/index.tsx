@@ -137,7 +137,7 @@ const RouteLogger: React.FC = () => {
 };
 
 // Protected Route Component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
   const location = useLocation();
   
@@ -168,7 +168,7 @@ const LoadingFallback: React.FC = () => (
 );
 
 // Router Routes Component
-const AppRoutes: React.FC = () => {
+export const AppRoutes: React.FC = () => {
   return (
     <>
       <RouteLogger />

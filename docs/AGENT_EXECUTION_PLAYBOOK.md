@@ -143,17 +143,27 @@ Semua command lulus pada 3 September 2026.
 
 ### FE-03 — Permission-aware navigation contract
 
-Status: **next**
+Status: **complete** (lanjut ke BE-00 atau FE-04)
 
-1. Buat satu route manifest typed.
-2. Derive landing destinations dan fallback menu dari manifest atau validasi keduanya terhadap manifest.
-3. Filter landing cards dari user menu tree/permissions.
-4. Tambahkan contract test: tidak ada orphan route, duplicate slug, missing icon, atau menu URL invalid.
-5. Uji deep link, unauthorized, inactive tenant, dan refresh.
+- [x] Buat satu route manifest typed (`src/config/route-manifest.ts`).
+- [x] Derive landing destinations dan fallback menu dari manifest atau validasi keduanya terhadap manifest (`module-destinations.ts` diturunkan langsung dari `ROUTE_MANIFEST`).
+- [x] Filter landing cards dari user menu tree/permissions (`ModuleLandingPage.tsx`).
+- [x] Tambahkan contract test: tidak ada orphan route, duplicate slug, missing icon, atau menu URL invalid (`route-manifest.test.ts` - 8 contract test lulus).
+- [x] Uji deep link, unauthorized, inactive tenant, dan refresh (`navigation-guard.test.tsx` - 10 test lulus).
+
+Gate wajib:
+
+```powershell
+docker exec semar-frontend pnpm typecheck
+docker exec semar-frontend pnpm test:run
+docker exec semar-frontend pnpm build
+```
+
+Semua command lulus pada 3 September 2026.
 
 ### BE-00 — Pulihkan backend tests
 
-Status: **dapat dikerjakan paralel setelah frontend baseline scope disepakati**
+Status: **next** (dapat dikerjakan paralel setelah frontend baseline scope disepakati)
 
 1. Update mock/constructor `AuthService` pada test.
 2. Selaraskan RoleRepository interface dan test implementation.
@@ -213,12 +223,12 @@ Agent tidak boleh hanya menulis “done”. Tuliskan command dan hasil ringkas a
 ## 8. Handoff terbaru
 
 ```text
-Task ID: FE-02
-Outcome: API client dikonsolidasi ke shared/api/client dengan request interceptors (auth bearer, tenant ID, request ID, CSRF), silent token refresh queue, dan error normalization (NormalizedApiError). Services/apiClient dijadikan backward-compatibility bridge. TanStack Query v5 (@tanstack/react-query@5.102.8) diadopsi resmi dan dipasang di App.tsx. Query-key factory dibuat untuk domain asset. Asset Registry (/assets/registry) dimigrasikan sebagai vertical slice acuan dengan hook useAssets dan useDeleteAsset, invalidasi otomatis saat mutasi, serta UI loading spinner & error retry. Redux asset server-state (assetSlice.ts) dihapus bersih setelah seluruh parity test lulus.
-Files changed: frontend/package.json; frontend/src/shared/api/types.ts; frontend/src/shared/api/client.ts; frontend/src/shared/api/client.test.ts; frontend/src/shared/api/queryClient.ts; frontend/src/shared/api/queryKeys.ts; frontend/src/shared/api/index.ts; frontend/src/services/apiClient.ts; frontend/src/features/assets/types/index.ts; frontend/src/features/assets/api/assetQueries.ts; frontend/src/features/assets/api/assetQueries.test.tsx; frontend/src/pages/assets/AssetRegistryPage.tsx; frontend/src/pages/assets/AssetRegistryPage.test.tsx; frontend/src/App.tsx; frontend/src/store/index.ts; frontend/src/store/slices/assetSlice.ts (deleted); docs/AGENT_EXECUTION_PLAYBOOK.md; docs/changelogs.md.
-Validation passed: `pnpm typecheck` exit 0 (0 error); `pnpm test:run` 7 file/42 test lulus (0 failed); `pnpm build` sukses (2m 28s); dev server HTTP 200 pada /assets/registry; backend /health database up.
-Validation still failing: backend `go test ./...` tetap menjadi BE-00 dan tidak termasuk scope FE-02; browser automation lokal menunggu konfigurasi playwright offline driver.
-Known risks: Service domain selain Asset Registry masih mengimpor services/apiClient (jembatan backward-compatibility aktif dan stabil, migrasikan bertahap saat vertical slice masing-masing dikerjakan).
-Exact next task: FE-03 — Permission-aware navigation contract (typed route manifest, contract test route/menu/landing, dynamic permission filtering), atau BE-00 untuk backend unit test recovery.
-Do not redo: FE-00 navigation/landing, FE-01 quality baseline recovery, FE-02 API client consolidation, TanStack Query setup, Asset Registry query migration, atau Redux assetSlice removal.
+Task ID: FE-03
+Outcome: Kontrak navigasi dan permission awareness disatukan menggunakan master Typed Route Manifest (src/config/route-manifest.ts) yang mendefinisikan 60+ rute SEMAR dengan semantic ID, canonical path, modul, permissions, dan metadata. MODULE_DESTINATIONS diturunkan langsung dari ROUTE_MANIFEST untuk menjamin nol desinkronisasi. Router dan MainLayout diperkuat dengan delegasi pengecekan akses ke checkRouteAccess (whitelist, superuser bypass, pemblokiran menu tersembunyi/tidak aktif, dan pengalihan ke /access-inactive). ProtectedRoute meng-export fungsi guard dengan pelestarian target deep link di state.from. 8 contract tests ditambahkan di route-manifest.test.ts (menjamin tidak ada duplikasi slug, duplikasi path, orphan destination, invalid menu URL, dan missing icon). 10 navigation tests ditambahkan di navigation-guard.test.tsx.
+Files changed: frontend/src/config/route-manifest.ts; frontend/src/config/route-manifest.test.ts; frontend/src/config/module-destinations.ts; frontend/src/router/index.tsx; frontend/src/router/navigation-guard.test.tsx; frontend/src/layouts/MainLayout.tsx; docs/AGENT_EXECUTION_PLAYBOOK.md; docs/changelogs.md.
+Validation passed: `pnpm typecheck` exit 0 (0 error); `pnpm test:run` 9 file/60 test lulus (0 failed); `pnpm build` sukses (3m 48s, 14.385 modul); runtime dev server responsif 200 OK pada /assets/registry; backend /health database up.
+Validation still failing: backend `go test ./...` tetap menjadi BE-00 dan tidak termasuk scope FE-03; browser automation lokal menunggu konfigurasi playwright offline driver.
+Known risks: Tidak ada. Struktur URL, aliases, dan permission contract sepenuhnya backward compatible.
+Exact next task: BE-00 — Pulihkan backend unit & repository test suite (update constructor AuthService, selaraskan RoleRepository, perbaiki NewGormUserRepository), atau FE-04 jika melanjutkan frontend vertical slice berikutnya (Inspection).
+Do not redo: FE-00 navigation/landing, FE-01 quality baseline recovery, FE-02 API client consolidation, FE-03 route manifest & navigation contract tests.
 ```
