@@ -4,6 +4,20 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 28 September 2026
 
+### Equipment Master actions, maintenance, and XLSX integration
+
+- Menghubungkan edit/delete dan perubahan lifecycle ke endpoint Asset `PUT /assets/Asset/:id`, `DELETE /assets/Asset/:id`, dan `PUT /assets/:id/lifecycle`; sukses/error dikirim lewat Snackbar global.
+- Menghubungkan Diagnose duplicates (`GET /assets/diagnose-duplicates`), Fix component links (`POST /assets/fix-links`), dan Sync components to FLOC (`POST /assets/sync-floc`), termasuk state loading, ringkasan hasil, notifikasi, dan invalidasi query setelah mutasi.
+- Menambahkan unggah XLSX multipart ke `POST /assets/import` serta unduh file Excel dari `GET /assets/export`, dengan indikator loading, validasi ekstensi, nama file dari response header, dan notifikasi hasil.
+- Validasi terbaru: `pnpm typecheck`, ESLint untuk file integrasi baru/terkait (tanpa AssetFormModal dan assetServices yang memiliki temuan lint lama), 19 tes terpilih, dan production build lulus; build menampilkan peringatan chunk >500 kB.
+
+### Equipment Master API integration
+
+- Menghubungkan query statistics ke `GET /api/v1/assets/stats` dan mendistribusikan agregat lifecycle ke metric cards.
+- Menghubungkan grid dan detail modal ke `GET /api/v1/assets` dengan parameter `page`, `limit`, `search`, serta `lifecycle_status`; filter grid mengubah query server dan modal menerapkan status kartu yang dipilih.
+- Menambahkan typing/normalisasi response envelope sesuai kontrak backend serta tes service, query hooks, filter grid, dan alur klik kartu hingga modal.
+- Validasi: `pnpm typecheck`, ESLint file terkait, 15 tes terpilih, dan `pnpm build` lulus. Build mencatat warning chunk >500 kB; percobaan build pertama mencapai timeout 5 menit, build ulang berhasil.
+
 ### Equipment Master UI interactions
 
 - Menambahkan `/risk/equipment-master` dengan metric cards dan modal detail yang membaca daftar aset secara paginated, menyediakan pencarian tag, filter lifecycle, dan sorting.

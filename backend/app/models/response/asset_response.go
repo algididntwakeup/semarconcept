@@ -31,7 +31,7 @@ type SiteResponse struct {
 	UpdatedBy            *int                   `json:"updated_by,omitempty"`
 
 	// Statistics (optional, populated when requested)
-	UnitsCount     *int `json:"units_count,omitempty"`
+	UnitsCount *int `json:"units_count,omitempty"`
 	AssetCount *int `json:"asset_count,omitempty"`
 
 	// Relationships (optional, populated when requested)
@@ -73,11 +73,11 @@ type UnitResponse struct {
 	UpdatedBy          *int                   `json:"updated_by,omitempty"`
 
 	// Statistics (optional, populated when requested)
-	AssetCount  *int `json:"asset_count,omitempty"`
+	AssetCount      *int `json:"asset_count,omitempty"`
 	ComponentsCount *int `json:"components_count,omitempty"`
 
 	// Relationships (optional, populated when requested)
-	Site      *SiteResponse       `json:"site,omitempty"`
+	Site  *SiteResponse   `json:"site,omitempty"`
 	Asset []AssetResponse `json:"assets,omitempty"`
 }
 
@@ -96,10 +96,14 @@ type AssetResponse struct {
 	ID                      int                    `json:"id"`
 	TenantID                int                    `json:"tenant_id"`
 	UnitID                  *int                   `json:"unit_id,omitempty"`
+	ParentID                *int                   `json:"parent_id,omitempty"`
+	FunctionalLocationID    *int                   `json:"functional_location_id,omitempty"`
 	Name                    string                 `json:"name"`
+	Description             string                 `json:"description,omitempty"`
 	TagNumber               string                 `json:"tag_number"`
-	AssetType           string                 `json:"asset_type"`
-	AssetClass          string                 `json:"asset_class"`
+	AssetType               string                 `json:"asset_type"`
+	AssetClass              string                 `json:"asset_class"`
+	LifecycleStatus         string                 `json:"lifecycle_status"`
 	Manufacturer            string                 `json:"manufacturer"`
 	Model                   string                 `json:"model"`
 	SerialNumber            string                 `json:"serial_number"`
@@ -141,9 +145,9 @@ type AssetResponse struct {
 // AssetListResponse represents a paginated list of Asset
 type AssetListResponse struct {
 	Asset []AssetResponse `json:"assets"`
-	Total     int64               `json:"total"`
-	Page      int                 `json:"page"`
-	Limit     int                 `json:"limit"`
+	Total int64           `json:"total"`
+	Page  int             `json:"page"`
+	Limit int             `json:"limit"`
 }
 
 // ===== COMPONENT RESPONSES =====
@@ -152,7 +156,7 @@ type AssetListResponse struct {
 type ComponentResponse struct {
 	ID                        int                    `json:"id"`
 	TenantID                  int                    `json:"tenant_id"`
-	AssetID               int                    `json:"asset_id"`
+	AssetID                   int                    `json:"asset_id"`
 	Name                      string                 `json:"name"`
 	ComponentCode             string                 `json:"component_code"`
 	ComponentType             string                 `json:"component_type"`
@@ -205,7 +209,7 @@ type ComponentResponse struct {
 	DegradationMechanismsCount *int `json:"degradation_mechanisms_count,omitempty"`
 
 	// Relationships (optional, populated when requested)
-	Asset             *AssetResponse             `json:"asset,omitempty"`
+	Asset                 *AssetResponse                 `json:"asset,omitempty"`
 	InspectionPoints      []InspectionPointResponse      `json:"inspection_points,omitempty"`
 	DegradationMechanisms []DegradationMechanismResponse `json:"degradation_mechanisms,omitempty"`
 }
@@ -311,7 +315,7 @@ type DegradationMechanismListResponse struct {
 type AssetHierarchyResponse struct {
 	Site       SiteResponse        `json:"site"`
 	Units      []UnitResponse      `json:"units"`
-	Asset  []AssetResponse `json:"assets"`
+	Asset      []AssetResponse     `json:"assets"`
 	Components []ComponentResponse `json:"components"`
 }
 
@@ -339,21 +343,21 @@ type AssetHierarchyNodeResponse struct {
 type AssetSummaryResponse struct {
 	TotalSites      int `json:"total_sites"`
 	TotalUnits      int `json:"total_units"`
-	TotalAsset  int `json:"total_assets"`
+	TotalAsset      int `json:"total_assets"`
 	TotalComponents int `json:"total_components"`
 
 	ActiveSites      int `json:"active_sites"`
 	ActiveUnits      int `json:"active_units"`
-	ActiveAsset  int `json:"active_assets"`
+	ActiveAsset      int `json:"active_assets"`
 	ActiveComponents int `json:"active_components"`
 
-	CriticalAsset  int `json:"critical_assets"`
+	CriticalAsset      int `json:"critical_assets"`
 	CriticalComponents int `json:"critical_components"`
 
-	SafetyCriticalAsset  int `json:"safety_critical_assets"`
+	SafetyCriticalAsset      int `json:"safety_critical_assets"`
 	SafetyCriticalComponents int `json:"safety_critical_components"`
 
-	EnvironmentallyCriticalAsset  int `json:"environmentally_critical_assets"`
+	EnvironmentallyCriticalAsset      int `json:"environmentally_critical_assets"`
 	EnvironmentallyCriticalComponents int `json:"environmentally_critical_components"`
 }
 
@@ -364,7 +368,7 @@ type AssetStatisticsResponse struct {
 	// Asset counts by type
 	SiteStatistics      AssetTypeStatistics `json:"site_statistics"`
 	UnitStatistics      AssetTypeStatistics `json:"unit_statistics"`
-	AssetStatistics AssetTypeStatistics `json:"asset_statistics"`
+	AssetStatistics     AssetTypeStatistics `json:"asset_statistics"`
 	ComponentStatistics AssetTypeStatistics `json:"component_statistics"`
 
 	// Health indicators
@@ -393,7 +397,7 @@ type AssetTypeStatistics struct {
 // HealthIndicators represents overall asset health indicators
 type HealthIndicators struct {
 	OverallScore      float64 `json:"overall_score"`
-	AssetHealth   float64 `json:"asset_health"`
+	AssetHealth       float64 `json:"asset_health"`
 	ComponentHealth   float64 `json:"component_health"`
 	MaintenanceHealth float64 `json:"maintenance_health"`
 	InspectionHealth  float64 `json:"inspection_health"`

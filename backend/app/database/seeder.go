@@ -414,6 +414,14 @@ func (s *Seeder) SeedPermissions() error {
 		{Name: "Read Menu Items", Resource: "menu", Action: "view", Scope: "tenant", Description: "Read menu items"},
 		{Name: "Update Menu Items", Resource: "menu", Action: "update", Scope: "tenant", Description: "Update menu items"},
 		{Name: "Delete Menu Items", Resource: "menu", Action: "delete", Scope: "tenant", Description: "Delete menu items"},
+
+		// Asset Management
+		{Name: "Create Assets", Resource: "asset", Action: "create", Scope: "tenant", Description: "Create assets, sites, units, and components"},
+		{Name: "Read Assets", Resource: "asset", Action: "view", Scope: "tenant", Description: "View asset registry, hierarchy, and statistics"},
+		{Name: "Update Assets", Resource: "asset", Action: "update", Scope: "tenant", Description: "Update asset, site, unit, and component details"},
+		{Name: "Delete Assets", Resource: "asset", Action: "delete", Scope: "tenant", Description: "Delete assets, sites, units, and components"},
+		{Name: "Import Assets", Resource: "asset", Action: "import", Scope: "tenant", Description: "Import asset datasets in bulk"},
+		{Name: "Export Assets", Resource: "asset", Action: "export", Scope: "tenant", Description: "Export asset registry and reports"},
 	}
 
 	for _, permission := range permissions {

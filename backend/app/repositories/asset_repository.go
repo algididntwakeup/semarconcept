@@ -27,20 +27,20 @@ func NewAssetRepository(db *sqlx.DB) AssetRepository {
 func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error {
 	query := `
 		INSERT INTO assets (
-			tenant_id, unit_id, taxonomy_category_id, parent_id, name, tag_number,
+			tenant_id, unit_id, taxonomy_category_id, parent_id, functional_location_id, name, description, tag_number,
 			asset_type, asset_class, manufacturer, model, serial_number,
 			manufacture_date, installation_date, commissioning_date, warranty_expiry,
 			design_life_years, remaining_life_years, specifications,
 			operating_parameters, design_conditions, materials, drawings_references,
-			maintenance_strategy, inspection_strategy, status, criticality,
+			maintenance_strategy, inspection_strategy, status, lifecycle_status, criticality,
 			safety_critical, environmentally_critical, metadata, created_by, updated_by
 		) VALUES (
-			:tenant_id, :unit_id, :taxonomy_category_id, :parent_id, :name, :tag_number,
+			:tenant_id, :unit_id, :taxonomy_category_id, :parent_id, :functional_location_id, :name, :description, :tag_number,
 			:asset_type, :asset_class, :manufacturer, :model, :serial_number,
 			:manufacture_date, :installation_date, :commissioning_date, :warranty_expiry,
 			:design_life_years, :remaining_life_years, :specifications,
 			:operating_parameters, :design_conditions, :materials, :drawings_references,
-			:maintenance_strategy, :inspection_strategy, :status, :criticality,
+			:maintenance_strategy, :inspection_strategy, :status, :lifecycle_status, :criticality,
 			:safety_critical, :environmentally_critical, :metadata, :created_by, :updated_by
 		) RETURNING id, created_at, updated_at
 	`
@@ -94,7 +94,9 @@ func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error
 			unit_id = :unit_id,
 			taxonomy_category_id = :taxonomy_category_id,
 			parent_id = :parent_id,
+			functional_location_id = :functional_location_id,
 			name = :name,
+			description = :description,
 			tag_number = :tag_number,
 			asset_type = :asset_type,
 			asset_class = :asset_class,
@@ -115,6 +117,7 @@ func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error
 			maintenance_strategy = :maintenance_strategy,
 			inspection_strategy = :inspection_strategy,
 			status = :status,
+			lifecycle_status = :lifecycle_status,
 			criticality = :criticality,
 			safety_critical = :safety_critical,
 			environmentally_critical = :environmentally_critical,
@@ -123,21 +126,21 @@ func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = :id AND tenant_id = :tenant_id
 	`
-	
+
 	result, err := r.db.NamedExecContext(ctx, query, asset)
 	if err != nil {
 		return fmt.Errorf("named exec: %w", err)
 	}
-	
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("rows affected: %w", err)
 	}
-	
+
 	if rows == 0 {
 		return utils.ErrAssetNotFound
 	}
-	
+
 	return nil
 }
 
@@ -189,43 +192,224 @@ func (r *assetRepository) FindByID(ctx context.Context, tenantID int, id int) (*
 func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.AssetListQuery) ([]models.Asset, int64, error) {
 	query := `SELECT * FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 	countQuery := `SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
-	
+
 	args := []interface{}{tenantID}
 	argIdx := 2
-	
+
 	if req.UnitID != nil {
 		query += fmt.Sprintf(` AND unit_id = $%d`, argIdx)
 		countQuery += fmt.Sprintf(` AND unit_id = $%d`, argIdx)
 		args = append(args, *req.UnitID)
 		argIdx++
 	}
-	
+
 	if req.Search != "" {
-		query += fmt.Sprintf(` AND (name ILIKE $%d OR tag_number ILIKE $%d)`, argIdx, argIdx)
-		countQuery += fmt.Sprintf(` AND (name ILIKE $%d OR tag_number ILIKE $%d)`, argIdx, argIdx)
+		query += fmt.Sprintf(` AND tag_number ILIKE $%d`, argIdx)
+		countQuery += fmt.Sprintf(` AND tag_number ILIKE $%d`, argIdx)
 		searchPattern := "%" + req.Search + "%"
 		args = append(args, searchPattern)
 		argIdx++
 	}
-	
+
+	assetType := req.AssetType
+	if assetType == "" {
+		assetType = req.Type
+	}
+	if assetType != "" {
+		query += fmt.Sprintf(` AND COALESCE(NULLIF(asset_type, ''), asset_class) = $%d`, argIdx)
+		countQuery += fmt.Sprintf(` AND COALESCE(NULLIF(asset_type, ''), asset_class) = $%d`, argIdx)
+		args = append(args, assetType)
+		argIdx++
+	}
+
+	lifecycleStatus := req.LifecycleStatus
+	if lifecycleStatus == "" {
+		lifecycleStatus = req.Status
+	}
+	if lifecycleStatus != "" {
+		query += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, argIdx)
+		countQuery += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, argIdx)
+		args = append(args, lifecycleStatus)
+		argIdx++
+	}
+
 	var total int64
 	if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
 		return nil, 0, fmt.Errorf("count query: %w", err)
 	}
-	
+
 	query += ` ORDER BY created_at DESC`
-	
+
 	if req.Limit > 0 {
 		query += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argIdx, argIdx+1)
 		args = append(args, req.Limit, (req.Page-1)*req.Limit)
 	}
-	
+
 	var assets []models.Asset
 	if err := r.db.SelectContext(ctx, &assets, query, args...); err != nil {
 		return nil, 0, fmt.Errorf("select context: %w", err)
 	}
-	
+
 	return assets, total, nil
+}
+
+// GetAssetStats aggregates non-deleted assets by type/class and lifecycle status.
+func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) ([]AssetTypeStatusCount, error) {
+	const query = `
+		SELECT
+			COALESCE(NULLIF(asset_type, ''), NULLIF(asset_class, ''), 'Uncategorized') AS asset_type,
+			COALESCE(NULLIF(lifecycle_status, ''), NULLIF(status, ''), 'Unknown') AS lifecycle_status,
+			COUNT(*) AS count
+		FROM assets
+		WHERE tenant_id = $1 AND COALESCE(status, '') <> 'deleted'
+		GROUP BY 1, 2
+		ORDER BY 1, 2`
+
+	stats := make([]AssetTypeStatusCount, 0)
+	if err := r.db.SelectContext(ctx, &stats, query, tenantID); err != nil {
+		return nil, fmt.Errorf("aggregate asset statistics: %w", err)
+	}
+	return stats, nil
+}
+
+func (r *assetRepository) UpdateLifecycle(ctx context.Context, tenantID, assetID int, status string, userID int) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE assets SET lifecycle_status = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 AND tenant_id = $4 AND COALESCE(status, '') <> 'deleted'`, status, userID, assetID, tenantID)
+	if err != nil {
+		return fmt.Errorf("update asset lifecycle: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get lifecycle rows affected: %w", err)
+	}
+	if rows == 0 {
+		return utils.ErrAssetNotFound
+	}
+	return nil
+}
+
+func (r *assetRepository) DiagnoseDuplicateTags(ctx context.Context, tenantID int) ([]DuplicateAssetTag, error) {
+	const query = `
+		SELECT MIN(BTRIM(tag_number)) AS tag_number, COUNT(*) AS count
+		FROM assets
+		WHERE tenant_id = $1 AND NULLIF(BTRIM(tag_number), '') IS NOT NULL AND COALESCE(status, '') <> 'deleted'
+		GROUP BY LOWER(BTRIM(tag_number)) HAVING COUNT(*) > 1 ORDER BY LOWER(MIN(BTRIM(tag_number)))`
+	duplicates := make([]DuplicateAssetTag, 0)
+	if err := r.db.SelectContext(ctx, &duplicates, query, tenantID); err != nil {
+		return nil, fmt.Errorf("diagnose duplicate asset tags: %w", err)
+	}
+	for i := range duplicates {
+		if err := r.db.SelectContext(ctx, &duplicates[i].AssetIDs, `SELECT id FROM assets WHERE tenant_id = $1 AND LOWER(BTRIM(tag_number)) = LOWER(BTRIM($2)) AND COALESCE(status, '') <> 'deleted' ORDER BY id`, tenantID, duplicates[i].TagNumber); err != nil {
+			return nil, fmt.Errorf("load duplicate asset IDs for tag %q: %w", duplicates[i].TagNumber, err)
+		}
+	}
+	return duplicates, nil
+}
+
+func (r *assetRepository) FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error) {
+	if dryRun {
+		const countQuery = `
+			SELECT COUNT(*) FROM assets AS child
+			WHERE child.tenant_id = $1 AND child.parent_id IS NOT NULL
+			  AND COALESCE(child.status, '') <> 'deleted'
+			  AND NOT EXISTS (SELECT 1 FROM assets AS parent WHERE parent.id = child.parent_id
+			    AND parent.tenant_id = child.tenant_id AND COALESCE(parent.status, '') <> 'deleted')`
+		var count int64
+		if err := r.db.GetContext(ctx, &count, countQuery, tenantID); err != nil {
+			return 0, fmt.Errorf("count broken asset parent links: %w", err)
+		}
+		return count, nil
+	}
+	const query = `
+		UPDATE assets AS child
+		SET parent_id = NULL, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE child.tenant_id = $1 AND child.parent_id IS NOT NULL
+		  AND COALESCE(child.status, '') <> 'deleted'
+		  AND NOT EXISTS (
+			SELECT 1 FROM assets AS parent
+			WHERE parent.id = child.parent_id AND parent.tenant_id = child.tenant_id
+			  AND COALESCE(parent.status, '') <> 'deleted'
+		  )`
+	result, err := r.db.ExecContext(ctx, query, tenantID, userID)
+	if err != nil {
+		return 0, fmt.Errorf("fix broken asset parent links: %w", err)
+	}
+	return result.RowsAffected()
+}
+
+func (r *assetRepository) ValidateFLOCLinks(ctx context.Context, tenantID, userID int, dryRun bool) (*FLOCSyncResult, error) {
+	result := &FLOCSyncResult{}
+	const assetCountQuery = `SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND COALESCE(status, '') <> 'deleted'`
+	if err := r.db.GetContext(ctx, &result.CheckedAssets, assetCountQuery, tenantID); err != nil {
+		return nil, fmt.Errorf("count assets for FLOC validation: %w", err)
+	}
+	const componentCountsQuery = `
+		SELECT
+			COUNT(*) FILTER (WHERE parent.id IS NOT NULL) AS valid_components,
+			COUNT(*) FILTER (WHERE parent.id IS NULL) AS orphaned_components
+		FROM components AS component
+		LEFT JOIN assets AS parent ON parent.id = component.equipment_id
+			AND parent.tenant_id = component.tenant_id AND COALESCE(parent.status, '') <> 'deleted'
+		WHERE component.tenant_id = $1 AND COALESCE(component.status, '') <> 'deleted'`
+	if err := r.db.QueryRowContext(ctx, componentCountsQuery, tenantID).Scan(&result.ValidComponents, &result.OrphanedComponents); err != nil {
+		return nil, fmt.Errorf("validate component FLOC membership: %w", err)
+	}
+	const brokenFLOCQuery = `
+		SELECT COUNT(*) FROM assets AS asset
+		WHERE asset.tenant_id = $1 AND asset.functional_location_id IS NOT NULL
+		  AND COALESCE(asset.status, '') <> 'deleted'
+		  AND NOT EXISTS (SELECT 1 FROM assets AS floc WHERE floc.id = asset.functional_location_id
+		    AND floc.tenant_id = asset.tenant_id AND COALESCE(floc.status, '') <> 'deleted')`
+	if err := r.db.GetContext(ctx, &result.BrokenFLOCLinks, brokenFLOCQuery, tenantID); err != nil {
+		return nil, fmt.Errorf("validate functional location links: %w", err)
+	}
+	if result.BrokenFLOCLinks > 0 && !dryRun {
+		const clearBrokenLinksQuery = `
+			UPDATE assets AS asset SET functional_location_id = NULL, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+			WHERE asset.tenant_id = $1 AND asset.functional_location_id IS NOT NULL
+			  AND COALESCE(asset.status, '') <> 'deleted'
+			  AND NOT EXISTS (SELECT 1 FROM assets AS floc WHERE floc.id = asset.functional_location_id
+			    AND floc.tenant_id = asset.tenant_id AND COALESCE(floc.status, '') <> 'deleted')`
+		updateResult, err := r.db.ExecContext(ctx, clearBrokenLinksQuery, tenantID, userID)
+		if err != nil {
+			return nil, fmt.Errorf("clear invalid functional location links: %w", err)
+		}
+		result.ClearedFLOCLinks, err = updateResult.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("get cleared functional location rows: %w", err)
+		}
+	}
+	return result, nil
+}
+
+func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error) {
+	query := `SELECT * FROM assets WHERE tenant_id = $1 AND COALESCE(status, '') <> 'deleted'`
+	args := []interface{}{tenantID}
+	if assetType != "" {
+		args = append(args, assetType)
+		query += fmt.Sprintf(` AND COALESCE(NULLIF(asset_type, ''), asset_class) = $%d`, len(args))
+	}
+	if status != "" {
+		args = append(args, status)
+		query += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, len(args))
+	}
+	query += ` ORDER BY id`
+	assets := make([]models.Asset, 0)
+	if err := r.db.SelectContext(ctx, &assets, query, args...); err != nil {
+		return nil, fmt.Errorf("list assets for export: %w", err)
+	}
+	return assets, nil
+}
+
+func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
+	var asset models.Asset
+	err := r.db.GetContext(ctx, &asset, `SELECT * FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1`, tenantID, tagNumber)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find asset by tag number: %w", err)
+	}
+	return &asset, nil
 }
 
 // GetSiteByID retrieves a site by ID with tenant isolation

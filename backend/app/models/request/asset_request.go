@@ -84,8 +84,10 @@ type UpdateUnitRequest struct {
 type CreateAssetRequest struct {
 	UnitID                  *int                   `json:"unit_id,omitempty" validate:"omitempty"`
 	ParentID                *int                   `json:"parent_id,omitempty" validate:"omitempty"`
+	FunctionalLocationID    *int                   `json:"functional_location_id,omitempty" validate:"omitempty"`
 	TaxonomyCategoryID      *int                   `json:"taxonomy_category_id,omitempty" validate:"omitempty"`
 	Name                    string                 `json:"name" validate:"required,min=2,max=255"`
+	Description             *string                `json:"description,omitempty"`
 	TagNumber               *string                `json:"tag_number,omitempty" validate:"omitempty,max=100"`
 	AssetType               *string                `json:"asset_type" validate:"required"`
 	AssetClass              *string                `json:"asset_class,omitempty" validate:"omitempty,max=100"`
@@ -105,6 +107,7 @@ type CreateAssetRequest struct {
 	MaintenanceStrategy     *string                `json:"maintenance_strategy,omitempty" validate:"omitempty,oneof=preventive predictive corrective condition_based run_to_failure"`
 	InspectionStrategy      *string                `json:"inspection_strategy,omitempty" validate:"omitempty,oneof=RBI RCM time_based condition_based risk_based"`
 	Status                  *string                `json:"status,omitempty" validate:"omitempty,oneof=active inactive maintenance out_of_service decommissioned planned"`
+	LifecycleStatus         *string                `json:"lifecycle_status,omitempty" validate:"omitempty"`
 	Criticality             *int                   `json:"criticality,omitempty" validate:"omitempty,min=1,max=5"`
 	SafetyCritical          *bool                  `json:"safety_critical,omitempty"`
 	EnvironmentallyCritical *bool                  `json:"environmentally_critical,omitempty"`
@@ -114,8 +117,10 @@ type CreateAssetRequest struct {
 type UpdateAssetRequest struct {
 	UnitID                  *int                   `json:"unit_id,omitempty" validate:"omitempty"`
 	ParentID                *int                   `json:"parent_id,omitempty" validate:"omitempty"`
+	FunctionalLocationID    *int                   `json:"functional_location_id,omitempty" validate:"omitempty"`
 	TaxonomyCategoryID      *int                   `json:"taxonomy_category_id,omitempty" validate:"omitempty"`
 	Name                    *string                `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
+	Description             *string                `json:"description,omitempty"`
 	TagNumber               *string                `json:"tag_number,omitempty" validate:"omitempty,max=100"`
 	AssetType               *string                `json:"asset_type,omitempty" validate:"omitempty"`
 	AssetClass              *string                `json:"asset_class,omitempty" validate:"omitempty,max=100"`
@@ -135,6 +140,7 @@ type UpdateAssetRequest struct {
 	MaintenanceStrategy     *string                `json:"maintenance_strategy,omitempty" validate:"omitempty,oneof=preventive predictive corrective condition_based run_to_failure"`
 	InspectionStrategy      *string                `json:"inspection_strategy,omitempty" validate:"omitempty,oneof=RBI RCM time_based condition_based risk_based"`
 	Status                  *string                `json:"status,omitempty" validate:"omitempty,oneof=active inactive maintenance out_of_service decommissioned planned"`
+	LifecycleStatus         *string                `json:"lifecycle_status,omitempty" validate:"omitempty"`
 	Criticality             *int                   `json:"criticality,omitempty" validate:"omitempty,min=1,max=5"`
 	SafetyCritical          *bool                  `json:"safety_critical,omitempty"`
 	EnvironmentallyCritical *bool                  `json:"environmentally_critical,omitempty"`
@@ -144,7 +150,7 @@ type UpdateAssetRequest struct {
 // ===== COMPONENT REQUESTS =====
 
 type CreateComponentRequest struct {
-	AssetID               int                    `json:"asset_id" validate:"required"`
+	AssetID                   int                    `json:"asset_id" validate:"required"`
 	Name                      string                 `json:"name" validate:"required,min=2,max=255"`
 	ComponentCode             *string                `json:"component_code,omitempty" validate:"omitempty,max=100"`
 	ComponentType             *string                `json:"component_type" validate:"required"`
@@ -182,7 +188,7 @@ type CreateComponentRequest struct {
 }
 
 type UpdateComponentRequest struct {
-	AssetID               *int                   `json:"asset_id,omitempty" validate:"omitempty"`
+	AssetID                   *int                   `json:"asset_id,omitempty" validate:"omitempty"`
 	Name                      *string                `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
 	ComponentCode             *string                `json:"component_code,omitempty" validate:"omitempty,max=100"`
 	ComponentType             *string                `json:"component_type,omitempty" validate:"omitempty"`
@@ -258,14 +264,16 @@ type AssetListQuery struct {
 	UnitID             *int   `json:"unit_id" form:"unit_id"`
 	TaxonomyCategoryID *int   `json:"taxonomy_category_id" form:"taxonomy_category_id"`
 	AssetType          string `json:"asset_type" form:"asset_type"`
+	Type               string `json:"type" form:"type"`
+	LifecycleStatus    string `json:"lifecycle_status" form:"lifecycle_status"`
 	Status             string `json:"status" form:"status"`
 	Criticality        *int   `json:"criticality" form:"criticality" validate:"omitempty,min=1,max=5"`
-	SafetyCritical *bool  `json:"safety_critical" form:"safety_critical"`
-	SortBy         string `json:"sort_by" form:"sort_by" validate:"omitempty,oneof=name tag_number created_at updated_at criticality"`
-	SortOrder      string `json:"sort_order" form:"sort_order" validate:"omitempty,oneof=asc desc"`
-	Manufacturer   string `json:"manufacturer" form:"manufacturer"`
-	SortDirection  string `json:"sort_direction" form:"sort_direction"`
-	Offset         int    `json:"offset" form:"offset"`
+	SafetyCritical     *bool  `json:"safety_critical" form:"safety_critical"`
+	SortBy             string `json:"sort_by" form:"sort_by" validate:"omitempty,oneof=name tag_number created_at updated_at criticality"`
+	SortOrder          string `json:"sort_order" form:"sort_order" validate:"omitempty,oneof=asc desc"`
+	Manufacturer       string `json:"manufacturer" form:"manufacturer"`
+	SortDirection      string `json:"sort_direction" form:"sort_direction"`
+	Offset             int    `json:"offset" form:"offset"`
 }
 
 type ComponentListQuery struct {
@@ -322,31 +330,31 @@ type BulkStatusUpdateRequest struct {
 // ===== IMPORT/EXPORT REQUESTS =====
 
 type AssetImportRequest struct {
-	AssetType      string                 `json:"asset_type" validate:"required,oneof=site unit Asset component inspection_point degradation_mechanism"`
-	ImportType     string                 `json:"import_type" validate:"required,oneof=create update upsert replace"`
-	FileFormat     string                 `json:"file_format" validate:"required,oneof=csv xlsx json"`
-	FileName       string                 `json:"file_name" validate:"required"`
-	BatchSize      int                    `json:"batch_size,omitempty" validate:"omitempty,min=1,max=1000"`
-	ValidateOnly   bool                   `json:"validate_only"`
-	SkipErrors     bool                   `json:"skip_errors"`
-	UpdateExisting bool                   `json:"update_existing"`
-	CreateMissing  bool                   `json:"create_missing"`
-	DryRun         bool                   `json:"dry_run"`
+	AssetType      string                 `json:"asset_type" form:"asset_type"`
+	ImportType     string                 `json:"import_type" form:"import_type"`
+	FileFormat     string                 `json:"file_format" form:"file_format"`
+	FileName       string                 `json:"file_name" form:"file_name"`
+	BatchSize      int                    `json:"batch_size,omitempty" form:"batch_size" validate:"omitempty,min=1,max=1000"`
+	ValidateOnly   bool                   `json:"validate_only" form:"validate_only"`
+	SkipErrors     bool                   `json:"skip_errors" form:"skip_errors"`
+	UpdateExisting bool                   `json:"update_existing" form:"update_existing"`
+	CreateMissing  bool                   `json:"create_missing" form:"create_missing"`
+	DryRun         bool                   `json:"dry_run" form:"dry_run"`
 	Mapping        map[string]interface{} `json:"mapping,omitempty"`
 	DefaultValues  map[string]interface{} `json:"default_values,omitempty"`
 	ImportOptions  map[string]interface{} `json:"import_options,omitempty"`
 }
 
 type AssetExportRequest struct {
-	AssetType        string                 `json:"asset_type" validate:"required,oneof=site unit Asset component inspection_point degradation_mechanism"`
-	ExportType       string                 `json:"export_type" validate:"required,oneof=full incremental filtered custom"`
+	AssetType        string                 `json:"asset_type" form:"asset_type"`
+	ExportType       string                 `json:"export_type" form:"export_type"`
 	AssetIDs         []int                  `json:"asset_ids,omitempty"`
 	AssetTypes       []string               `json:"asset_types,omitempty"`
 	SiteIDs          []int                  `json:"site_ids,omitempty"`
 	UnitIDs          []int                  `json:"unit_ids,omitempty"`
 	ComponentTypes   []string               `json:"component_types,omitempty"`
-	Status           string                 `json:"status,omitempty"`
-	Statuses         []string               `json:"statuses,omitempty"`
+	Status           string                 `json:"status,omitempty" form:"status"`
+	Statuses         []string               `json:"statuses,omitempty" form:"statuses"`
 	CreatedFrom      *time.Time             `json:"created_from,omitempty"`
 	CreatedTo        *time.Time             `json:"created_to,omitempty"`
 	DateFrom         *time.Time             `json:"date_from,omitempty"`
@@ -354,10 +362,24 @@ type AssetExportRequest struct {
 	IncludeRelations bool                   `json:"include_relations"`
 	IncludeChildren  bool                   `json:"include_children"`
 	IncludeFields    []string               `json:"include_fields,omitempty"`
-	FileFormat       string                 `json:"file_format" validate:"required,oneof=csv xlsx json pdf"`
-	Format           string                 `json:"format" validate:"required,oneof=csv xlsx json pdf xml"`
-	FileName         *string                `json:"file_name,omitempty"`
+	FileFormat       string                 `json:"file_format" form:"file_format"`
+	Format           string                 `json:"format" form:"format"`
+	FileName         *string                `json:"file_name,omitempty" form:"file_name"`
 	Filters          map[string]interface{} `json:"filters,omitempty"`
+}
+
+type AssetLifecycleRequest struct {
+	Status          string `json:"status"`
+	LifecycleStatus string `json:"lifecycle_status"`
+	Action          string `json:"action"`
+}
+
+type AssetFixLinksRequest struct {
+	DryRun bool `json:"dry_run"`
+}
+
+type AssetFLOCSyncRequest struct {
+	DryRun bool `json:"dry_run"`
 }
 
 // ===== HIERARCHY REQUESTS =====
@@ -365,7 +387,7 @@ type AssetExportRequest struct {
 type AssetHierarchyRequest struct {
 	SiteID          *int   `json:"site_id,omitempty" form:"site_id"`
 	UnitID          *int   `json:"unit_id,omitempty" form:"unit_id"`
-	AssetID     *int   `json:"asset_id,omitempty" form:"asset_id"`
+	AssetID         *int   `json:"asset_id,omitempty" form:"asset_id"`
 	MaxDepth        *int   `json:"max_depth,omitempty" form:"max_depth" validate:"omitempty,min=1,max=10"`
 	IncludeStats    bool   `json:"include_stats" form:"include_stats"`
 	IncludeMetadata bool   `json:"include_metadata" form:"include_metadata"`
@@ -428,7 +450,7 @@ type AssetCopyRequest struct {
 type AssetStatisticsRequest struct {
 	SiteID          *int       `json:"site_id,omitempty" form:"site_id"`
 	UnitID          *int       `json:"unit_id,omitempty" form:"unit_id"`
-	AssetID     *int       `json:"asset_id,omitempty" form:"asset_id"`
+	AssetID         *int       `json:"asset_id,omitempty" form:"asset_id"`
 	AssetTypes      []string   `json:"asset_types,omitempty" form:"asset_types" validate:"omitempty,dive,oneof=site unit Asset component"`
 	DateFrom        *time.Time `json:"date_from,omitempty" form:"date_from"`
 	DateTo          *time.Time `json:"date_to,omitempty" form:"date_to"`

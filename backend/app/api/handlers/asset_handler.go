@@ -6,8 +6,12 @@ import (
 	"backend/app/models/request"
 	"backend/app/services"
 	"backend/app/utils"
+	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +29,16 @@ func NewAssetHandler(assetService services.AssetServiceInterface, analyticsServi
 		assetService:     assetService,
 		analyticsService: analyticsService,
 	}
+}
+
+// requireTenantContext extracts and validates tenant ID from context with zero-trust enforcement
+func (h *AssetHandler) requireTenantContext(c *gin.Context) (int, bool) {
+	tenantID, err := utils.RequireTenantID(c)
+	if err != nil || tenantID <= 0 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, utils.ErrorResponse("Tenant context required", "Unauthorized: valid tenant context is required"))
+		return 0, false
+	}
+	return tenantID, true
 }
 
 // ===== SITE HANDLERS =====
@@ -239,7 +253,7 @@ func (h *AssetHandler) CreateUnit(c *gin.Context) {
 	unit, err := h.assetService.CreateUnit(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create unit: %v", err)
-		if utils.IsValidationError(err) {
+		if utils.IsValidationError(err) || utils.IsNotFoundError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
@@ -367,7 +381,10 @@ func (h *AssetHandler) DeleteUnit(c *gin.Context) {
 
 // CreateAsset creates new Asset
 func (h *AssetHandler) CreateAsset(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 	userID := utils.GetUserID(c)
 
 	var req request.CreateAssetRequest
@@ -384,7 +401,7 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	Asset, err := h.assetService.CreateAsset(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create Asset: %v", err)
-		if utils.IsValidationError(err) {
+		if utils.IsValidationError(err) || utils.IsNotFoundError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
@@ -397,7 +414,10 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 
 // GetAsset retrieves specific Asset
 func (h *AssetHandler) GetAsset(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 	AssetIDParam := c.Param("id")
 	AssetID, err := strconv.Atoi(AssetIDParam)
 	if err != nil {
@@ -421,7 +441,10 @@ func (h *AssetHandler) GetAsset(c *gin.Context) {
 
 // ListAsset returns a paginated list of Asset
 func (h *AssetHandler) ListAsset(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 
 	var query request.AssetListQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -434,6 +457,8 @@ func (h *AssetHandler) ListAsset(c *gin.Context) {
 	}
 	if query.Limit <= 0 {
 		query.Limit = 20
+	} else if query.Limit > 100 {
+		query.Limit = 100
 	}
 
 	Asset, err := h.assetService.ListAsset(c.Request.Context(), tenantID, &query)
@@ -446,9 +471,127 @@ func (h *AssetHandler) ListAsset(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Asset retrieved successfully", Asset))
 }
 
+// GetAssetStats returns counts grouped by asset type and lifecycle status.
+func (h *AssetHandler) GetAssetStats(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+
+	stats, err := h.assetService.GetAssetStats(c.Request.Context(), tenantID)
+	if err != nil {
+		utils.LogErrorf("Failed to get asset statistics: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve asset statistics", ""))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Asset statistics retrieved successfully", stats))
+}
+
+func (h *AssetHandler) UpdateAssetLifecycle(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	assetID, err := strconv.Atoi(c.Param("id"))
+	if err != nil || assetID <= 0 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid asset ID", ""))
+		return
+	}
+	var req request.AssetLifecycleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid lifecycle request", err.Error()))
+		return
+	}
+	lifecycle := req.Status
+	if lifecycle == "" {
+		lifecycle = req.LifecycleStatus
+	}
+	if lifecycle == "" {
+		lifecycle = req.Action
+	}
+	if strings.TrimSpace(lifecycle) == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Lifecycle status is required", ""))
+		return
+	}
+	asset, err := h.assetService.UpdateAssetLifecycle(c.Request.Context(), tenantID, assetID, utils.GetUserID(c), lifecycle)
+	if err != nil {
+		if utils.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("Asset not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid lifecycle status", err.Error()))
+			return
+		}
+		utils.LogErrorf("Failed to update asset lifecycle: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to update asset lifecycle", ""))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Asset lifecycle updated successfully", asset))
+}
+
+func (h *AssetHandler) DiagnoseDuplicateAssets(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	duplicates, err := h.assetService.DiagnoseDuplicateAssetTags(c.Request.Context(), tenantID)
+	if err != nil {
+		utils.LogErrorf("Failed to diagnose duplicate asset tags: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to diagnose duplicate tags", ""))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Duplicate tag diagnosis completed", gin.H{"duplicate_count": len(duplicates), "duplicates": duplicates}))
+}
+
+func (h *AssetHandler) FixAssetLinks(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	var req request.AssetFixLinksRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid fix-links request", err.Error()))
+			return
+		}
+	}
+	count, err := h.assetService.FixAssetLinks(c.Request.Context(), tenantID, utils.GetUserID(c), req.DryRun)
+	if err != nil {
+		utils.LogErrorf("Failed to fix asset links: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to fix asset links", ""))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Parent link reconciliation completed", gin.H{"affected_links": count, "dry_run": req.DryRun}))
+}
+
+func (h *AssetHandler) SyncAssetFLOC(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	var req request.AssetFLOCSyncRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid FLOC sync request", err.Error()))
+			return
+		}
+	}
+	result, err := h.assetService.SyncAssetFLOC(c.Request.Context(), tenantID, utils.GetUserID(c), req.DryRun)
+	if err != nil {
+		utils.LogErrorf("Failed to sync asset FLOC links: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to synchronize FLOC links", ""))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("FLOC validation and synchronization completed", result))
+}
+
 // UpdateAsset updates existing Asset
 func (h *AssetHandler) UpdateAsset(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 	userID := utils.GetUserID(c)
 
 	AssetIDParam := c.Param("id")
@@ -480,7 +623,10 @@ func (h *AssetHandler) UpdateAsset(c *gin.Context) {
 
 // DeleteAsset deletes Asset
 func (h *AssetHandler) DeleteAsset(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 	userID := utils.GetUserID(c)
 
 	AssetIDParam := c.Param("id")
@@ -529,7 +675,7 @@ func (h *AssetHandler) CreateComponent(c *gin.Context) {
 	component, err := h.assetService.CreateComponent(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create component: %v", err)
-		if utils.IsValidationError(err) {
+		if utils.IsValidationError(err) || utils.IsNotFoundError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
@@ -866,12 +1012,12 @@ func (h *AssetHandler) GetAssetHealth(c *gin.Context) {
 
 	//  FIXED: Get asset health metrics with proper request structure
 	healthMetrics, err := h.analyticsService.GetAssetHealthMetrics(c.Request.Context(), tenantID, &request.AssetStatisticsRequest{
-		AssetTypes:  req.AssetTypes,
-		SiteID:      req.SiteID,
-		UnitID:      req.UnitID,
-		AssetID: req.AssetID,
-		DateFrom:    req.DateFrom,
-		DateTo:      req.DateTo,
+		AssetTypes: req.AssetTypes,
+		SiteID:     req.SiteID,
+		UnitID:     req.UnitID,
+		AssetID:    req.AssetID,
+		DateFrom:   req.DateFrom,
+		DateTo:     req.DateTo,
 	})
 	if err != nil {
 		utils.LogErrorf("Failed to get asset health: %v", err)
@@ -995,8 +1141,8 @@ func (h *AssetHandler) GetAssetsRequiringInspection(c *gin.Context) {
 
 	//  FIXED: Get inspection due analytics with proper request structure
 	inspectionDue, err := h.analyticsService.GetInspectionDueAnalytics(c.Request.Context(), tenantID, &request.AssetStatisticsRequest{
-		SiteID:      req.SiteID,
-		UnitID:      req.UnitID,
+		SiteID:  req.SiteID,
+		UnitID:  req.UnitID,
 		AssetID: req.AssetID,
 		DateFrom: func() *time.Time {
 			t := time.Now()
@@ -1163,36 +1309,65 @@ func (h *AssetHandler) BulkDeleteAssets(c *gin.Context) {
 
 // ImportAssets imports assets from file
 func (h *AssetHandler) ImportAssets(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 	userID := utils.GetUserID(c)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 11<<20)
+	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Expected multipart XLSX upload", err.Error()))
+		return
+	}
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file is required in multipart field 'file'", err.Error()))
+		return
+	}
+	if fileHeader.Size <= 0 || fileHeader.Size > 10<<20 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file must be between 1 byte and 10 MB", ""))
+		return
+	}
+	if strings.ToLower(filepath.Ext(fileHeader.Filename)) != ".xlsx" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only .xlsx files are supported", ""))
+		return
+	}
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read XLSX file", err.Error()))
+		return
+	}
+	defer file.Close()
+	fileData, err := io.ReadAll(io.LimitReader(file, (10<<20)+1))
+	if err != nil || len(fileData) > 10<<20 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read XLSX file or file exceeds 10 MB", ""))
+		return
+	}
 
-	// Parse request body
 	var req request.AssetImportRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", err.Error()))
 		return
 	}
-
-	// Validate import type and asset type
-	if req.ImportType == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Import type is required", ""))
-		return
-	}
-	if req.AssetType == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Asset type is required", ""))
-		return
-	}
-
-	// Set default batch size
 	if req.BatchSize == 0 {
 		req.BatchSize = 100
 	}
-
-	// Import assets
-	result, err := h.assetService.ImportAssets(c.Request.Context(), tenantID, &req, userID)
+	if req.FileFormat != "" && !strings.EqualFold(req.FileFormat, "xlsx") {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only XLSX import is supported", ""))
+		return
+	}
+	req.FileFormat = "xlsx"
+	if req.FileName == "" {
+		req.FileName = filepath.Base(fileHeader.Filename)
+	}
+	result, err := h.assetService.ImportAssets(c.Request.Context(), tenantID, &req, userID, fileData)
 	if err != nil {
 		utils.LogErrorf("Failed to import assets: %v", err)
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to import assets", ""))
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid XLSX import", err.Error()))
+			return
+		}
+		c.JSON(http.StatusUnprocessableEntity, utils.ErrorResponse("Failed to import assets", err.Error()))
 		return
 	}
 
@@ -1201,35 +1376,43 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 
 // ExportAssets exports assets to file
 func (h *AssetHandler) ExportAssets(c *gin.Context) {
-	tenantID := utils.GetTenantID(c)
-
-	// Parse request body
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
 	var req request.AssetExportRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", err.Error()))
+	var bindErr error
+	if c.Request.Method == http.MethodGet {
+		bindErr = c.ShouldBindQuery(&req)
+	} else {
+		bindErr = c.ShouldBindJSON(&req)
+	}
+	if bindErr != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", bindErr.Error()))
 		return
 	}
-
-	// Validate export type
+	if req.AssetType == "" {
+		req.AssetType = "Asset"
+	}
 	if req.ExportType == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Export type is required", ""))
+		req.ExportType = "full"
+	}
+	format := strings.ToLower(req.FileFormat)
+	if format == "" {
+		format = strings.ToLower(req.Format)
+	}
+	if format != "" && format != "xlsx" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only XLSX export is supported", ""))
 		return
 	}
-
-	//  FIXED: Set default format options properly (Format is string, not struct)
-	if req.Format == "" && req.ExportType == "csv" {
-		req.Format = "csv"
-	}
-
-	// Export assets
-	result, err := h.assetService.ExportAssets(c.Request.Context(), tenantID, &req)
+	fileData, filename, err := h.assetService.ExportAssets(c.Request.Context(), tenantID, &req)
 	if err != nil {
 		utils.LogErrorf("Failed to export assets: %v", err)
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to export assets", ""))
 		return
 	}
-
-	c.JSON(http.StatusOK, utils.SuccessResponse("Asset export completed successfully", result))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(filename)))
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileData)
 }
 
 // ===== REGISTER ROUTES =====
@@ -1267,6 +1450,17 @@ func (h *AssetHandler) RegisterRoutes(router *gin.RouterGroup) {
 		Asset.GET("/:id", h.GetAsset)
 		Asset.PUT("/:id", h.UpdateAsset)
 		Asset.DELETE("/:id", h.DeleteAsset)
+	}
+	assets := router.Group("/assets")
+	{
+		assets.GET("", h.ListAsset)
+		assets.GET("/stats", h.GetAssetStats)
+		assets.PUT("/:id/lifecycle", h.UpdateAssetLifecycle)
+		assets.GET("/diagnose-duplicates", h.DiagnoseDuplicateAssets)
+		assets.POST("/fix-links", h.FixAssetLinks)
+		assets.POST("/sync-floc", h.SyncAssetFLOC)
+		assets.GET("/export", h.ExportAssets)
+		assets.POST("/import", h.ImportAssets)
 	}
 
 	// Component routes

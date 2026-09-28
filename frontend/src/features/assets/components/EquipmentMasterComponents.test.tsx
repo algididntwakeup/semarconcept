@@ -42,6 +42,23 @@ describe('Equipment Master reusable components', () => {
     expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
   });
 
+  it('dispatches lifecycle filter changes to the list owner', () => {
+    const onLifecycleFilterChange = vi.fn();
+    render(
+      <AssetDataGrid
+        assets={[]}
+        onSearchChange={vi.fn()}
+        lifecycleFilter=""
+        onLifecycleFilterChange={onLifecycleFilterChange}
+      />
+    );
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Filter equipment by lifecycle' }), {
+      target: { value: 'Installed' },
+    });
+    expect(onLifecycleFilterChange).toHaveBeenCalledWith('Installed');
+  });
+
   it('shows the five row action menu choices and dispatches the selected action', () => {
     const onAction = vi.fn();
     const asset = { id: 21, tag_number: 'E-210' };

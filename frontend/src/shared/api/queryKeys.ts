@@ -4,6 +4,13 @@ export const assetKeys = {
   all: ['assets'] as const,
   lists: () => [...assetKeys.all, 'list'] as const,
   list: (params?: Record<string, any>) => [...assetKeys.lists(), params ?? {}] as const,
+  equipmentMaster: {
+    all: () => [...assetKeys.all, 'equipment-master'] as const,
+    lists: () => [...assetKeys.equipmentMaster.all(), 'list'] as const,
+    list: (params?: Record<string, any>) =>
+      [...assetKeys.equipmentMaster.lists(), params ?? {}] as const,
+    stats: () => [...assetKeys.equipmentMaster.all(), 'stats'] as const,
+  },
   details: () => [...assetKeys.all, 'detail'] as const,
   detail: (id: string | number) => [...assetKeys.details(), String(id)] as const,
   statistics: (filters?: Record<string, any>) => [...assetKeys.all, 'statistics', filters ?? {}] as const,

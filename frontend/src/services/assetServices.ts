@@ -18,7 +18,24 @@ export interface EquipmentAssetStat {
   asset_type: string;
   lifecycle_status: string;
   count: number;
-  status?: string;
+}
+
+export interface EquipmentAsset {
+  id: string | number;
+  tag_number?: string | null;
+  tagNumber?: string | null;
+  name?: string | null;
+  description?: string | null;
+  asset_class?: string | null;
+  assetClass?: string | null;
+  asset_type?: string | null;
+  assetType?: string | null;
+  type?: string | null;
+  lifecycle_status?: string | null;
+  lifecycleStatus?: string | null;
+  parentId?: string | number | null;
+  parent_id?: string | number | null;
+  status?: string | null;
 }
 
 export interface EquipmentAssetListParams {
@@ -27,6 +44,38 @@ export interface EquipmentAssetListParams {
   search?: string;
   lifecycle_status?: string;
 }
+
+export interface EquipmentAssetListResponse {
+  assets: EquipmentAsset[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface EquipmentDuplicateDiagnosis {
+  duplicate_count: number;
+  duplicates: { tag_number: string; count: number; asset_ids: number[] }[];
+}
+
+export interface EquipmentLinkFixResult {
+  affected_links: number;
+  dry_run: boolean;
+}
+
+export interface EquipmentFLOCSyncResult {
+  checked_assets: number;
+  valid_components: number;
+  orphaned_components: number;
+  broken_floc_links: number;
+  cleared_floc_links: number;
+}
+
+const unwrapApiData = <T,>(value: unknown): T => {
+  if (value && typeof value === 'object' && 'data' in value) {
+    return (value as { data: T }).data;
+  }
+  return value as T;
+};
 
 /**
  * Asset Service
@@ -117,18 +166,70 @@ class AssetService {
 
   async getEquipmentAssetStats(): Promise<EquipmentAssetStat[]> {
     const response = await apiClient.get(`${this.baseUrl}/stats`);
-    const payload = response.data?.data ?? response.data;
-    return Array.isArray(payload) ? payload : [];
+    const payload = unwrapApiData<unknown>(response.data);
+    return Array.isArray(payload) ? (payload as EquipmentAssetStat[]) : [];
   }
 
-  async getEquipmentAssets(params: EquipmentAssetListParams = {}): Promise<unknown> {
+  async getEquipmentAssets(
+    params: EquipmentAssetListParams = {}
+  ): Promise<EquipmentAssetListResponse> {
     const response = await apiClient.get(this.baseUrl, { params });
-    return response.data;
+    const payload = unwrapApiData<Partial<EquipmentAssetListResponse>>(response.data);
+    return {
+      assets: Array.isArray(payload?.assets) ? payload.assets : [],
+      total: Number(payload?.total ?? 0),
+      page: Number(payload?.page ?? params.page ?? 1),
+      limit: Number(payload?.limit ?? params.limit ?? 20),
+    };
   }
 
   async updateEquipmentLifecycle(assetId: string | number, action: string): Promise<unknown> {
     const response = await apiClient.put(`${this.baseUrl}/${assetId}/lifecycle`, { action });
-    return response.data;
+    return unwrapApiData(response.data);
+  }
+
+  async deleteEquipmentAsset(assetId: string | number): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/Asset/${assetId}`);
+  }
+
+  async diagnoseEquipmentDuplicates(): Promise<EquipmentDuplicateDiagnosis> {
+    const response = await apiClient.get(`${this.baseUrl}/diagnose-duplicates`);
+    return unwrapApiData(response.data) as EquipmentDuplicateDiagnosis;
+  }
+
+  async fixEquipmentComponentLinks(dryRun = false): Promise<EquipmentLinkFixResult> {
+    const response = await apiClient.post(`${this.baseUrl}/fix-links`, { dry_run: dryRun });
+    return unwrapApiData(response.data) as EquipmentLinkFixResult;
+  }
+
+  async syncEquipmentComponentsToFLOC(dryRun = false): Promise<EquipmentFLOCSyncResult> {
+    const response = await apiClient.post(`${this.baseUrl}/sync-floc`, { dry_run: dryRun });
+    return unwrapApiData(response.data) as EquipmentFLOCSyncResult;
+  }
+
+  async importEquipmentAssets(file: File): Promise<unknown> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('asset_type', 'Asset');
+    formData.append('import_type', 'full');
+    formData.append('file_format', 'xlsx');
+    formData.append('file_name', file.name);
+    formData.append('batch_size', '100');
+    const response = await apiClient.post(`${this.baseUrl}/import`, formData);
+    return unwrapApiData(response.data);
+  }
+
+  async exportEquipmentAssets(): Promise<{ blob: Blob; filename: string }> {
+    const response = await apiClient.get(`${this.baseUrl}/export`, {
+      params: { asset_type: 'Asset', export_type: 'full', file_format: 'xlsx', format: 'xlsx' },
+      responseType: 'blob',
+    });
+    const disposition = response.headers?.['content-disposition'] as string | undefined;
+    const filename = disposition?.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+    return {
+      blob: response.data as Blob,
+      filename: decodeURIComponent(filename?.[1] ?? filename?.[2] ?? 'assets.xlsx'),
+    };
   }
 
   /**

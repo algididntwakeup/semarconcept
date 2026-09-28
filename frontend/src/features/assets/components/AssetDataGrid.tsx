@@ -1,25 +1,10 @@
 import { Eye, Search } from 'lucide-react';
 import type { ReactNode } from 'react';
+import type { EquipmentAsset } from '../../../services/assetServices';
 import LifecycleDropdown, { type LifecycleAction } from './LifecycleDropdown';
 import RowActions, { type AssetRowAction } from './RowActions';
 
-export interface EquipmentAssetRow {
-  id: string | number;
-  tag_number?: string | null;
-  tagNumber?: string | null;
-  name?: string | null;
-  description?: string | null;
-  asset_class?: string | null;
-  assetClass?: string | null;
-  asset_type?: string | null;
-  assetType?: string | null;
-  type?: string | null;
-  lifecycle_status?: string | null;
-  lifecycleStatus?: string | null;
-  parentId?: string | number | null;
-  parent_id?: string | number | null;
-  status?: string | null;
-}
+export type EquipmentAssetRow = EquipmentAsset;
 
 export interface AssetDataGridProps {
   assets: EquipmentAssetRow[];
@@ -30,6 +15,8 @@ export interface AssetDataGridProps {
   onView?: (asset: EquipmentAssetRow) => void;
   onAction?: (action: AssetRowAction, asset: EquipmentAssetRow) => void;
   onLifecycleChange?: (asset: EquipmentAssetRow, action: LifecycleAction) => Promise<void> | void;
+  lifecycleFilter?: string;
+  onLifecycleFilterChange?: (status: string) => void;
   paginationSlot?: ReactNode;
   emptyMessage?: string;
 }
@@ -48,6 +35,8 @@ const AssetDataGrid = ({
   onView,
   onAction,
   onLifecycleChange,
+  lifecycleFilter = '',
+  onLifecycleFilterChange,
   paginationSlot,
   emptyMessage = 'No equipment found.',
 }: AssetDataGridProps) => (
@@ -55,22 +44,41 @@ const AssetDataGrid = ({
     className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
     aria-label="Equipment register"
   >
-    {onSearchChange && (
-      <div className="border-b border-slate-100 p-4">
-        <label className="relative block max-w-md">
-          <span className="sr-only">Search equipment by tag number</span>
-          <Search
-            aria-hidden="true"
-            size={17}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            value={searchValue}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search tag number..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-          />
-        </label>
+    {(onSearchChange || onLifecycleFilterChange) && (
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row">
+        {onSearchChange && (
+          <label className="relative block max-w-md flex-1">
+            <span className="sr-only">Search equipment by tag number</span>
+            <Search
+              aria-hidden="true"
+              size={17}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              value={searchValue}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search tag number..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+            />
+          </label>
+        )}
+        {onLifecycleFilterChange && (
+          <label>
+            <span className="sr-only">Filter equipment by lifecycle</span>
+            <select
+              aria-label="Filter equipment by lifecycle"
+              value={lifecycleFilter}
+              onChange={(event) => onLifecycleFilterChange(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500 sm:w-52"
+            >
+              <option value="">All lifecycle statuses</option>
+              <option value="Installed">Installed</option>
+              <option value="Sent to repair">Sent to repair</option>
+              <option value="Retired">Retired</option>
+              <option value="Condemned">Condemned</option>
+            </select>
+          </label>
+        )}
       </div>
     )}
     <div className="overflow-x-auto">

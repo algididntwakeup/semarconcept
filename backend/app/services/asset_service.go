@@ -6,16 +6,21 @@ import (
 	"backend/app/models/response"
 	"backend/app/repositories"
 	"backend/app/utils"
+	"bytes"
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
+
+	"github.com/xuri/excelize/v2"
 )
 
 // AssetService implements AssetServiceInterface
 type AssetService struct {
 	siteRepo      repositories.SiteRepository
 	unitRepo      repositories.UnitRepository
-	AssetRepo repositories.AssetRepository
+	AssetRepo     repositories.AssetRepository
 	componentRepo repositories.ComponentRepository
 	logger        utils.Logger
 }
@@ -30,7 +35,7 @@ func NewAssetService(
 	return &AssetService{
 		siteRepo:      siteRepo,
 		unitRepo:      unitRepo,
-		AssetRepo: AssetRepo,
+		AssetRepo:     AssetRepo,
 		componentRepo: componentRepo,
 		logger:        utils.NewLogger(),
 	}
@@ -153,7 +158,7 @@ func (s *AssetService) ListSites(ctx context.Context, tenantID int, query *reque
 	}, nil
 }
 
-//  FIXED: SearchSites method to return AssetSearchResponse
+// FIXED: SearchSites method to return AssetSearchResponse
 func (s *AssetService) SearchSites(ctx context.Context, tenantID int, query *request.AssetSearchRequest) (*response.AssetSearchResponse, error) {
 	sites, total, err := s.siteRepo.Search(ctx, tenantID, query)
 	if err != nil {
@@ -188,12 +193,18 @@ func (s *AssetService) SearchSites(ctx context.Context, tenantID int, query *req
 	}, nil
 }
 
-
 // ===== EXISTING UNIT OPERATIONS =====
 
 func (s *AssetService) CreateUnit(ctx context.Context, tenantID int, req *request.CreateUnitRequest, userID int) (*response.UnitResponse, error) {
 	if err := s.validateCreateUnitRequest(req); err != nil {
 		return nil, err
+	}
+
+	// Enforce tenant boundary: site must belong to the same tenant
+	if req.SiteID > 0 {
+		if _, err := s.siteRepo.FindByID(ctx, tenantID, req.SiteID); err != nil {
+			return nil, utils.ErrSiteNotFound
+		}
 	}
 
 	unit := &models.Unit{
@@ -213,8 +224,8 @@ func (s *AssetService) CreateUnit(ctx context.Context, tenantID int, req *reques
 		Status:             req.Status,
 		Criticality:        req.Criticality,
 		Metadata:           models.JSONBMap(req.Metadata),
-		CreatedBy: &userID,
-		UpdatedBy: &userID,
+		CreatedBy:          &userID,
+		UpdatedBy:          &userID,
 	}
 
 	if err := s.unitRepo.Create(ctx, unit); err != nil {
@@ -236,6 +247,13 @@ func (s *AssetService) UpdateUnit(ctx context.Context, tenantID, unitID int, req
 	existingUnit, err := s.unitRepo.FindByID(ctx, tenantID, unitID)
 	if err != nil {
 		return nil, err
+	}
+
+	if req.SiteID != nil && *req.SiteID > 0 {
+		if _, err := s.siteRepo.FindByID(ctx, tenantID, *req.SiteID); err != nil {
+			return nil, utils.ErrSiteNotFound
+		}
+		existingUnit.SiteID = *req.SiteID
 	}
 
 	if req.Name != nil {
@@ -299,7 +317,6 @@ func (s *AssetService) ListUnits(ctx context.Context, tenantID int, query *reque
 	}, nil
 }
 
-
 // ===== EXISTING Asset OPERATIONS =====
 
 func (s *AssetService) CreateAsset(ctx context.Context, tenantID int, req *request.CreateAssetRequest, userID int) (*response.AssetResponse, error) {
@@ -309,26 +326,39 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID int, req *reque
 
 	var unitIDPtr *int
 	if req.UnitID != nil && *req.UnitID > 0 {
+		// Enforce tenant boundary: unit must belong to the same tenant
+		if _, err := s.unitRepo.FindByID(ctx, tenantID, *req.UnitID); err != nil {
+			return nil, utils.ErrUnitNotFound
+		}
 		unitIDPtr = req.UnitID
 	}
 
+	if req.ParentID != nil && *req.ParentID > 0 {
+		// Enforce tenant boundary: parent asset must belong to the same tenant
+		if _, err := s.AssetRepo.FindByID(ctx, tenantID, *req.ParentID); err != nil {
+			return nil, utils.ErrAssetNotFound
+		}
+	}
+
 	asset := &models.Asset{
-		TenantID:           tenantID,
-		UnitID:             unitIDPtr,
-		ParentID:           req.ParentID,
-		TaxonomyCategoryID: req.TaxonomyCategoryID,
-		Name:               req.Name,
-		TagNumber:          req.TagNumber,
-		AssetType:          req.AssetType,
-		AssetClass:         req.AssetClass,
-		Manufacturer:       req.Manufacturer,
-		Model:              req.Model,
-		SerialNumber:       req.SerialNumber,
-		ManufactureDate:   req.ManufactureDate,
-		InstallationDate:  req.InstallationDate,
-		CommissioningDate: req.CommissioningDate,
-		WarrantyExpiry:    req.WarrantyExpiry,
-		DesignLifeYears: req.DesignLifeYears,
+		TenantID:             tenantID,
+		UnitID:               unitIDPtr,
+		ParentID:             req.ParentID,
+		FunctionalLocationID: req.FunctionalLocationID,
+		TaxonomyCategoryID:   req.TaxonomyCategoryID,
+		Name:                 req.Name,
+		Description:          req.Description,
+		TagNumber:            req.TagNumber,
+		AssetType:            req.AssetType,
+		AssetClass:           req.AssetClass,
+		Manufacturer:         req.Manufacturer,
+		Model:                req.Model,
+		SerialNumber:         req.SerialNumber,
+		ManufactureDate:      req.ManufactureDate,
+		InstallationDate:     req.InstallationDate,
+		CommissioningDate:    req.CommissioningDate,
+		WarrantyExpiry:       req.WarrantyExpiry,
+		DesignLifeYears:      req.DesignLifeYears,
 		RemainingLifeYears: func() *float64 {
 			var rem float64
 			if req.DesignLifeYears != nil {
@@ -352,12 +382,13 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID int, req *reque
 			active := "active"
 			return &active
 		}(),
+		LifecycleStatus:         req.LifecycleStatus,
 		Criticality:             req.Criticality,
 		SafetyCritical:          req.SafetyCritical,
 		EnvironmentallyCritical: req.EnvironmentallyCritical,
-		Metadata:  models.JSONBMap(req.Metadata),
-		CreatedBy: &userID,
-		UpdatedBy: &userID,
+		Metadata:                models.JSONBMap(req.Metadata),
+		CreatedBy:               &userID,
+		UpdatedBy:               &userID,
 	}
 
 	if err := s.AssetRepo.Create(ctx, asset); err != nil {
@@ -389,8 +420,31 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 		return nil, err
 	}
 
+	if req.UnitID != nil && *req.UnitID > 0 {
+		if _, err := s.unitRepo.FindByID(ctx, tenantID, *req.UnitID); err != nil {
+			return nil, utils.ErrUnitNotFound
+		}
+		existingAsset.UnitID = req.UnitID
+	}
+
+	if req.ParentID != nil && *req.ParentID > 0 {
+		if *req.ParentID == assetID {
+			return nil, fmt.Errorf("asset cannot be its own parent: %w", utils.ErrValidation)
+		}
+		if _, err := s.AssetRepo.FindByID(ctx, tenantID, *req.ParentID); err != nil {
+			return nil, utils.ErrAssetNotFound
+		}
+		existingAsset.ParentID = req.ParentID
+	}
+	if req.FunctionalLocationID != nil {
+		existingAsset.FunctionalLocationID = req.FunctionalLocationID
+	}
+
 	if req.Name != nil {
 		existingAsset.Name = *req.Name
+	}
+	if req.Description != nil {
+		existingAsset.Description = req.Description
 	}
 	if req.TagNumber != nil {
 		existingAsset.TagNumber = req.TagNumber
@@ -430,6 +484,9 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 	}
 	if req.Status != nil {
 		existingAsset.Status = req.Status
+	}
+	if req.LifecycleStatus != nil {
+		existingAsset.LifecycleStatus = req.LifecycleStatus
 	}
 	if req.Criticality != nil {
 		existingAsset.Criticality = req.Criticality
@@ -488,13 +545,16 @@ func (s *AssetService) DeleteAsset(ctx context.Context, tenantID, assetID, userI
 
 func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *request.AssetListQuery) (*response.AssetListResponse, error) {
 	assetQuery := &request.AssetListQuery{
-		Page:      query.Page,
-		Limit:     query.Limit,
-		Search:    query.Search,
-		UnitID:    query.UnitID,
-		Status:    query.Status,
-		SortBy:    query.SortBy,
-		SortOrder: query.SortOrder,
+		Page:            query.Page,
+		Limit:           query.Limit,
+		Search:          query.Search,
+		UnitID:          query.UnitID,
+		AssetType:       query.AssetType,
+		Type:            query.Type,
+		LifecycleStatus: query.LifecycleStatus,
+		Status:          query.Status,
+		SortBy:          query.SortBy,
+		SortOrder:       query.SortOrder,
 	}
 
 	assets, total, err := s.AssetRepo.List(ctx, tenantID, assetQuery)
@@ -504,10 +564,49 @@ func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *reque
 
 	return &response.AssetListResponse{
 		Asset: s.AssetListToResponse(assets),
-		Total:     total,
-		Page:      query.Page,
-		Limit:     query.Limit,
+		Total: total,
+		Page:  query.Page,
+		Limit: query.Limit,
 	}, nil
+}
+
+// GetAssetStats returns asset counts grouped by type/class and lifecycle status.
+func (s *AssetService) GetAssetStats(ctx context.Context, tenantID int) ([]repositories.AssetTypeStatusCount, error) {
+	return s.AssetRepo.GetAssetStats(ctx, tenantID)
+}
+
+var lifecycleStatuses = map[string]string{
+	"install": "Installed", "installed": "Installed",
+	"send to repair": "Sent to repair", "send_to_repair": "Sent to repair", "sent to repair": "Sent to repair",
+	"retire": "Retired", "retired": "Retired",
+	"condemn": "Condemned", "condemned": "Condemned",
+}
+
+func (s *AssetService) UpdateAssetLifecycle(ctx context.Context, tenantID, assetID, userID int, lifecycle string) (*response.AssetResponse, error) {
+	canonical, ok := lifecycleStatuses[strings.ToLower(strings.TrimSpace(lifecycle))]
+	if !ok {
+		return nil, fmt.Errorf("unsupported lifecycle status %q: %w", lifecycle, utils.ErrValidation)
+	}
+	if err := s.AssetRepo.UpdateLifecycle(ctx, tenantID, assetID, canonical, userID); err != nil {
+		return nil, err
+	}
+	asset, err := s.AssetRepo.FindByID(ctx, tenantID, assetID)
+	if err != nil {
+		return nil, err
+	}
+	return s.AssetToResponse(asset), nil
+}
+
+func (s *AssetService) DiagnoseDuplicateAssetTags(ctx context.Context, tenantID int) ([]repositories.DuplicateAssetTag, error) {
+	return s.AssetRepo.DiagnoseDuplicateTags(ctx, tenantID)
+}
+
+func (s *AssetService) FixAssetLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error) {
+	return s.AssetRepo.FixBrokenParentLinks(ctx, tenantID, userID, dryRun)
+}
+
+func (s *AssetService) SyncAssetFLOC(ctx context.Context, tenantID, userID int, dryRun bool) (*repositories.FLOCSyncResult, error) {
+	return s.AssetRepo.ValidateFLOCLinks(ctx, tenantID, userID, dryRun)
 }
 
 // ===== EXISTING COMPONENT OPERATIONS =====
@@ -517,10 +616,15 @@ func (s *AssetService) CreateComponent(ctx context.Context, tenantID int, req *r
 		return nil, err
 	}
 
+	// Enforce tenant boundary: asset must belong to the same tenant
+	if _, err := s.AssetRepo.FindByID(ctx, tenantID, req.AssetID); err != nil {
+		return nil, utils.ErrAssetNotFound
+	}
+
 	component := &models.Component{
-		TenantID:    tenantID,
-		AssetID: req.AssetID,
-		Name:        req.Name,
+		TenantID:              tenantID,
+		AssetID:               req.AssetID,
+		Name:                  req.Name,
 		ComponentCode:         req.ComponentCode,
 		ComponentType:         req.ComponentType,
 		ComponentClass:        req.ComponentClass,
@@ -538,14 +642,14 @@ func (s *AssetService) CreateComponent(ctx context.Context, tenantID int, req *r
 		Specifications:        models.JSONBMap(req.Specifications),
 		Dimensions:            models.JSONBMap(req.Dimensions),
 		LocationDescription:   req.LocationDescription,
-		Accessibility:             req.Accessibility,
-		InsulationType:            req.InsulationType,
-		CoatingType:               req.CoatingType,
-		CathodicProtection:        req.CathodicProtection,
-		InspectionAccess: req.InspectionAccess,
+		Accessibility:         req.Accessibility,
+		InsulationType:        req.InsulationType,
+		CoatingType:           req.CoatingType,
+		CathodicProtection:    req.CathodicProtection,
+		InspectionAccess:      req.InspectionAccess,
 		// Fixed: InspectionFrequencyMonths is int, not *int
 		InspectionFrequencyMonths: req.InspectionFrequencyMonths,
-		LastInspectionDate: req.LastInspectionDate,
+		LastInspectionDate:        req.LastInspectionDate,
 		NextInspectionDate: func() *time.Time {
 			if req.LastInspectionDate != nil && req.InspectionFrequencyMonths != nil {
 				next := req.LastInspectionDate.AddDate(0, *req.InspectionFrequencyMonths, 0)
@@ -553,7 +657,7 @@ func (s *AssetService) CreateComponent(ctx context.Context, tenantID int, req *r
 			}
 			return nil
 		}(),
-		IntegrityStatus: req.IntegrityStatus,
+		IntegrityStatus:   req.IntegrityStatus,
 		FitnessForService: req.FitnessForService,
 		// Fixed: RemainingLifeYears is float64, not *float64
 		RemainingLifeYears: func() *float64 {
@@ -568,13 +672,13 @@ func (s *AssetService) CreateComponent(ctx context.Context, tenantID int, req *r
 			active := "active"
 			return &active
 		}(),
-		Criticality:          req.Criticality,
-		ConsequenceOfFailure: nil, // nullable
+		Criticality:             req.Criticality,
+		ConsequenceOfFailure:    nil, // nullable
 		SafetyCritical:          req.SafetyCritical,
 		EnvironmentallyCritical: req.EnvironmentallyCritical,
 		Metadata:                models.JSONBMap(req.Metadata),
-		CreatedBy: &userID,
-		UpdatedBy: &userID,
+		CreatedBy:               &userID,
+		UpdatedBy:               &userID,
 	}
 
 	if err := s.componentRepo.Create(ctx, component); err != nil {
@@ -668,10 +772,10 @@ func (s *AssetService) GetAssetHierarchy(ctx context.Context, tenantID int, req 
 
 	for _, site := range sites {
 		siteData := map[string]interface{}{
-			"id":   fmt.Sprintf("site-%d", site.ID),
-			"name": site.Name,
-			"code": site.Code,
-			"type": "site",
+			"id":             fmt.Sprintf("site-%d", site.ID),
+			"name":           site.Name,
+			"code":           site.Code,
+			"type":           "site",
 			"hierarchyLevel": "site",
 		}
 
@@ -684,12 +788,12 @@ func (s *AssetService) GetAssetHierarchy(ctx context.Context, tenantID int, req 
 			unitList := make([]map[string]interface{}, 0)
 			for _, unit := range units {
 				unitData := map[string]interface{}{
-					"id":   fmt.Sprintf("unit-%d", unit.ID),
-					"name": unit.Name,
-					"code": unit.Code,
-					"type": "unit",
+					"id":             fmt.Sprintf("unit-%d", unit.ID),
+					"name":           unit.Name,
+					"code":           unit.Code,
+					"type":           "unit",
 					"hierarchyLevel": "unit",
-					"parentId": fmt.Sprintf("site-%d", site.ID),
+					"parentId":       fmt.Sprintf("site-%d", site.ID),
 				}
 				unitList = append(unitList, unitData)
 			}
@@ -741,7 +845,7 @@ func (s *AssetService) GetAssetPath(ctx context.Context, tenantID int, req *requ
 						"name": unit.Name,
 						"type": "unit",
 					}}, path...)
-	
+
 					// Get site
 					site, err := s.siteRepo.FindByID(ctx, tenantID, unit.SiteID)
 					if err == nil {
@@ -777,7 +881,7 @@ func (s *AssetService) GetAssetPath(ctx context.Context, tenantID int, req *requ
 					"name": unit.Name,
 					"type": "unit",
 				}}, path...)
-	
+
 				site, err := s.siteRepo.FindByID(ctx, tenantID, unit.SiteID)
 				if err == nil {
 					path = append([]map[string]interface{}{{
@@ -1014,28 +1118,258 @@ func (s *AssetService) BulkDeleteAssets(ctx context.Context, tenantID int, req *
 }
 
 // ImportAssets imports assets from file
-func (s *AssetService) ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int) (interface{}, error) {
-	s.logger.Info(fmt.Sprintf("Importing assets for tenant %d", tenantID))
-
-	// Simplified implementation
-	return map[string]interface{}{
-		"imported_count": 0,
-		"total_count":    0,
-		"errors":         []string{},
-		"message":        "Import functionality not yet implemented",
-	}, nil
+func (s *AssetService) ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error) {
+	return s.ImportAssetsFromXLSX(ctx, tenantID, req, userID, fileData)
 }
 
-// ExportAssets exports assets to file
-func (s *AssetService) ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) (interface{}, error) {
-	s.logger.Info(fmt.Sprintf("Exporting assets for tenant %d", tenantID))
+// ImportAssetsFromXLSX validates and imports rows from an uploaded XLSX workbook.
+func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error) {
+	if len(fileData) == 0 {
+		return nil, fmt.Errorf("empty import workbook: %w", utils.ErrValidation)
+	}
+	if req.ImportType == "" {
+		req.ImportType = "create"
+	}
+	if req.ImportType != "create" && req.ImportType != "upsert" {
+		return nil, fmt.Errorf("import_type %q is not supported; use create or upsert: %w", req.ImportType, utils.ErrValidation)
+	}
+	book, err := excelize.OpenReader(bytes.NewReader(fileData))
+	if err != nil {
+		return nil, fmt.Errorf("open XLSX workbook: %w", err)
+	}
+	defer func() { _ = book.Close() }()
+	sheets := book.GetSheetList()
+	if len(sheets) == 0 {
+		return nil, fmt.Errorf("workbook has no worksheets: %w", utils.ErrValidation)
+	}
+	rows, err := book.GetRows(sheets[0])
+	if err != nil {
+		return nil, fmt.Errorf("read XLSX rows: %w", err)
+	}
+	if len(rows) < 2 {
+		return map[string]interface{}{"imported_count": 0, "total_count": 0, "errors": []string{}}, nil
+	}
+	headers := make(map[string]int, len(rows[0]))
+	for i, header := range rows[0] {
+		headers[strings.ToLower(strings.TrimSpace(header))] = i
+	}
+	get := func(row []string, field string) string {
+		idx, exists := headers[field]
+		if !exists || idx >= len(row) {
+			return ""
+		}
+		return strings.TrimSpace(row[idx])
+	}
+	if _, ok := headers["name"]; !ok {
+		return nil, fmt.Errorf("XLSX must include a name column: %w", utils.ErrValidation)
+	}
+	if _, ok := headers["asset_type"]; !ok {
+		if _, classOK := headers["asset_class"]; !classOK {
+			return nil, fmt.Errorf("XLSX must include asset_type or asset_class column: %w", utils.ErrValidation)
+		}
+	}
 
-	// Simplified implementation
-	return map[string]interface{}{
-		"export_url":     "",
-		"exported_count": 0,
-		"message":        "Export functionality not yet implemented",
-	}, nil
+	batchSize := req.BatchSize
+	if batchSize <= 0 || batchSize > 1000 {
+		batchSize = 100
+	}
+	resultErrors := make([]string, 0)
+	imported := 0
+	total := len(rows) - 1
+	for rowIndex, row := range rows[1:] {
+		if rowIndex >= batchSize {
+			resultErrors = append(resultErrors, fmt.Sprintf("row %d: batch size limit (%d) exceeded", rowIndex+2, batchSize))
+			break
+		}
+		name := get(row, "name")
+		assetType := get(row, "asset_type")
+		assetClass := get(row, "asset_class")
+		if assetType == "" {
+			assetType = strings.TrimSpace(req.AssetType)
+		}
+		if name == "" || (assetType == "" && assetClass == "") {
+			resultErrors = append(resultErrors, fmt.Sprintf("row %d: name and asset_type or asset_class are required", rowIndex+2))
+			if !req.SkipErrors {
+				break
+			}
+			continue
+		}
+		asset := &models.Asset{TenantID: tenantID, Name: name}
+		if assetType != "" {
+			asset.AssetType = &assetType
+		}
+		if assetClass != "" {
+			asset.AssetClass = &assetClass
+		}
+		if value := get(row, "tag_number"); value != "" {
+			asset.TagNumber = &value
+		}
+		if value := get(row, "description"); value != "" {
+			asset.Description = &value
+		}
+		if value := get(row, "lifecycle_status"); value != "" {
+			asset.LifecycleStatus = &value
+		}
+		if value := get(row, "status"); value != "" {
+			asset.Status = &value
+		}
+		if value := get(row, "parent_id"); value != "" {
+			id, parseErr := strconv.Atoi(value)
+			if parseErr != nil || id <= 0 {
+				resultErrors = append(resultErrors, fmt.Sprintf("row %d: invalid parent_id", rowIndex+2))
+				if !req.SkipErrors {
+					break
+				}
+				continue
+			}
+			if _, findErr := s.AssetRepo.FindByID(ctx, tenantID, id); findErr != nil {
+				resultErrors = append(resultErrors, fmt.Sprintf("row %d: parent_id %d not found in tenant", rowIndex+2, id))
+				if !req.SkipErrors {
+					break
+				}
+				continue
+			}
+			asset.ParentID = &id
+		}
+		if value := get(row, "functional_location_id"); value != "" {
+			id, parseErr := strconv.Atoi(value)
+			if parseErr != nil || id <= 0 {
+				resultErrors = append(resultErrors, fmt.Sprintf("row %d: invalid functional_location_id", rowIndex+2))
+				if !req.SkipErrors {
+					break
+				}
+				continue
+			}
+			floc, findErr := s.AssetRepo.FindByID(ctx, tenantID, id)
+			if findErr != nil || floc == nil {
+				resultErrors = append(resultErrors, fmt.Sprintf("row %d: functional_location_id %d not found in tenant", rowIndex+2, id))
+				if !req.SkipErrors {
+					break
+				}
+				continue
+			}
+			asset.FunctionalLocationID = &id
+		}
+		if req.ValidateOnly || req.DryRun {
+			imported++
+			continue
+		}
+		asset.CreatedBy, asset.UpdatedBy = &userID, &userID
+		if req.ImportType == "upsert" && asset.TagNumber != nil {
+			existing, findErr := s.AssetRepo.FindByTagNumber(ctx, tenantID, *asset.TagNumber)
+			if findErr != nil {
+				resultErrors = append(resultErrors, fmt.Sprintf("row %d: %v", rowIndex+2, findErr))
+				if !req.SkipErrors {
+					break
+				}
+				continue
+			}
+			if existing != nil {
+				existing.Name = asset.Name
+				if asset.AssetType != nil {
+					existing.AssetType = asset.AssetType
+				}
+				if asset.AssetClass != nil {
+					existing.AssetClass = asset.AssetClass
+				}
+				if asset.Description != nil {
+					existing.Description = asset.Description
+				}
+				if asset.ParentID != nil {
+					existing.ParentID = asset.ParentID
+				}
+				if asset.FunctionalLocationID != nil {
+					existing.FunctionalLocationID = asset.FunctionalLocationID
+				}
+				if asset.LifecycleStatus != nil {
+					existing.LifecycleStatus = asset.LifecycleStatus
+				}
+				if asset.Status != nil {
+					existing.Status = asset.Status
+				}
+				existing.UpdatedBy = &userID
+				if err := s.AssetRepo.Update(ctx, existing); err != nil {
+					resultErrors = append(resultErrors, fmt.Sprintf("row %d: %v", rowIndex+2, err))
+					if !req.SkipErrors {
+						break
+					}
+					continue
+				}
+				imported++
+				continue
+			}
+		}
+		if err := s.AssetRepo.Create(ctx, asset); err != nil {
+			resultErrors = append(resultErrors, fmt.Sprintf("row %d: %v", rowIndex+2, err))
+			if !req.SkipErrors {
+				break
+			}
+			continue
+		}
+		imported++
+	}
+	return map[string]interface{}{"imported_count": imported, "total_count": total, "errors": resultErrors, "validate_only": req.ValidateOnly || req.DryRun}, nil
+}
+
+// ExportAssets serializes tenant-scoped assets into an XLSX workbook.
+func (s *AssetService) ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error) {
+	assetType := req.AssetType
+	if assetType == "Asset" {
+		assetType = ""
+	}
+	status := req.Status
+	if status == "" && len(req.Statuses) == 1 {
+		status = req.Statuses[0]
+	}
+	assets, err := s.AssetRepo.ListAssetsForExport(ctx, tenantID, assetType, status)
+	if err != nil {
+		return nil, "", err
+	}
+	book := excelize.NewFile()
+	defer func() { _ = book.Close() }()
+	sheet := "Assets"
+	if err := book.SetSheetName("Sheet1", sheet); err != nil {
+		return nil, "", err
+	}
+	headers := []string{"id", "tag_number", "name", "description", "asset_type", "asset_class", "parent_id", "functional_location_id", "lifecycle_status", "status"}
+	for col, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(col+1, 1)
+		if err := book.SetCellValue(sheet, cell, header); err != nil {
+			return nil, "", err
+		}
+	}
+	for rowIndex, asset := range assets {
+		values := []interface{}{asset.ID, valueOrEmpty(asset.TagNumber), asset.Name, valueOrEmpty(asset.Description), valueOrEmpty(asset.AssetType), valueOrEmpty(asset.AssetClass), valueOrEmptyInt(asset.ParentID), valueOrEmptyInt(asset.FunctionalLocationID), valueOrEmpty(asset.LifecycleStatus), valueOrEmpty(asset.Status)}
+		for col, value := range values {
+			cell, _ := excelize.CoordinatesToCellName(col+1, rowIndex+2)
+			if err := book.SetCellValue(sheet, cell, value); err != nil {
+				return nil, "", err
+			}
+		}
+	}
+	var buffer bytes.Buffer
+	if err := book.Write(&buffer); err != nil {
+		return nil, "", fmt.Errorf("write XLSX workbook: %w", err)
+	}
+	filename := "assets.xlsx"
+	if req.FileName != nil && strings.TrimSpace(*req.FileName) != "" {
+		filename = strings.TrimSpace(*req.FileName)
+	}
+	filename = strings.TrimSuffix(filename, ".xlsx") + ".xlsx"
+	return buffer.Bytes(), filename, nil
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+func valueOrEmptyInt(value *int) interface{} {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 // ===== VALIDATION METHODS =====
@@ -1146,20 +1480,24 @@ func (s *AssetService) unitsToResponse(units []models.Unit) []response.UnitRespo
 
 func (s *AssetService) AssetToResponse(asset *models.Asset) *response.AssetResponse {
 	return &response.AssetResponse{
-		ID:                asset.ID,
-		TenantID:          asset.TenantID,
-		UnitID:            asset.UnitID, // Pointers are the same
-		Name:              asset.Name,
-		TagNumber:               s.derefToString(asset.TagNumber),
-		AssetType:               s.derefToString(asset.AssetType),
-		AssetClass:              s.derefToString(asset.AssetClass),
-		Manufacturer:            s.derefToString(asset.Manufacturer),
-		Model:                   s.derefToString(asset.Model),
-		SerialNumber:            s.derefToString(asset.SerialNumber),
-		ManufactureDate:         asset.ManufactureDate,
-		InstallationDate:        asset.InstallationDate,
-		CommissioningDate:       asset.CommissioningDate,
-		WarrantyExpiry:          asset.WarrantyExpiry,
+		ID:                   asset.ID,
+		TenantID:             asset.TenantID,
+		UnitID:               asset.UnitID, // Pointers are the same
+		ParentID:             asset.ParentID,
+		FunctionalLocationID: asset.FunctionalLocationID,
+		Name:                 asset.Name,
+		Description:          s.derefToString(asset.Description),
+		TagNumber:            s.derefToString(asset.TagNumber),
+		AssetType:            s.derefToString(asset.AssetType),
+		AssetClass:           s.derefToString(asset.AssetClass),
+		LifecycleStatus:      s.derefToString(asset.LifecycleStatus),
+		Manufacturer:         s.derefToString(asset.Manufacturer),
+		Model:                s.derefToString(asset.Model),
+		SerialNumber:         s.derefToString(asset.SerialNumber),
+		ManufactureDate:      asset.ManufactureDate,
+		InstallationDate:     asset.InstallationDate,
+		CommissioningDate:    asset.CommissioningDate,
+		WarrantyExpiry:       asset.WarrantyExpiry,
 		// Fixed: Asset fields are int and float64, not pointers
 		DesignLifeYears:         s.derefToInt(asset.DesignLifeYears),
 		RemainingLifeYears:      s.derefToFloat(asset.RemainingLifeYears),
@@ -1194,7 +1532,7 @@ func (s *AssetService) componentToResponse(component *models.Component) *respons
 	return &response.ComponentResponse{
 		ID:                        component.ID,
 		TenantID:                  component.TenantID,
-		AssetID:               component.AssetID,
+		AssetID:                   component.AssetID,
 		Name:                      component.Name,
 		ComponentCode:             s.derefToString(component.ComponentCode),
 		ComponentType:             s.derefToString(component.ComponentType),

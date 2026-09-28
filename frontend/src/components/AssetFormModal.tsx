@@ -86,10 +86,11 @@ export interface AssetFormModalProps {
   allAssets: Record<string, { id: string; name: string; type: string }>;
   onClose: () => void;
   onSaved: () => void;
+  onError?: (message: string) => void;
 }
 
 const AssetFormModal: React.FC<AssetFormModalProps> = ({
-  isOpen, mode, editingAsset, defaultParentId, allAssets, onClose, onSaved
+  isOpen, mode, editingAsset, defaultParentId, allAssets, onClose, onSaved, onError
 }) => {
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState('installation');
@@ -209,7 +210,9 @@ const AssetFormModal: React.FC<AssetFormModalProps> = ({
       onClose();
     } catch (err) {
       console.error('Failed to save asset', err);
-      alert('Failed to save asset. Check console for details.');
+      const message = err instanceof Error ? err.message : 'Failed to save asset.';
+      if (onError) onError(message);
+      else alert(message);
     } finally {
       setIsSaving(false);
     }

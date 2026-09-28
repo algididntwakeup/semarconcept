@@ -3,7 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useAssets, useAsset, useDeleteAsset } from './assetQueries';
+import {
+  useAssets,
+  useAsset,
+  useDeleteAsset,
+  useEquipmentAssetStats,
+  useEquipmentAssets,
+} from './assetQueries';
 import { assetService } from '../../../services/assetServices';
 import { assetKeys } from '../../../shared/api/queryKeys';
 
@@ -16,6 +22,8 @@ vi.mock('../../../services/assetServices', () => ({
     updateAsset: vi.fn(),
     deleteAsset: vi.fn(),
     getAssetStatistics: vi.fn(),
+    getEquipmentAssetStats: vi.fn(),
+    getEquipmentAssets: vi.fn(),
   },
 }));
 
@@ -51,7 +59,7 @@ describe('Asset Query Hooks', () => {
         totalPages: 1,
       };
 
-      vi.mocked(assetService.getAssets).mockResolvedValue(mockData as any);
+      vi.mocked(assetService.getAssets).mockResolvedValue(mockData as never);
 
       const { result } = renderHook(() => useAssets({ page: 1, limit: 10 }), {
         wrapper: createWrapper(),
@@ -80,7 +88,7 @@ describe('Asset Query Hooks', () => {
   describe('useAsset', () => {
     it('fetches single asset by id', async () => {
       const mockAsset = { id: 'ast-1', name: 'Pump A', type: 'pump' };
-      vi.mocked(assetService.getAssetById).mockResolvedValue(mockAsset as any);
+      vi.mocked(assetService.getAssetById).mockResolvedValue(mockAsset as never);
 
       const { result } = renderHook(() => useAsset('ast-1'), {
         wrapper: createWrapper(),
@@ -98,6 +106,43 @@ describe('Asset Query Hooks', () => {
 
       expect(result.current.fetchStatus).toBe('idle');
       expect(assetService.getAssetById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Equipment Master queries', () => {
+    it('loads grouped lifecycle statistics', async () => {
+      const stats = [
+        { asset_type: 'pump', lifecycle_status: 'Installed', count: 4 },
+        { asset_type: 'vessel', lifecycle_status: 'Retired', count: 2 },
+      ];
+      vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue(stats);
+
+      const { result } = renderHook(() => useEquipmentAssetStats(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual(stats);
+      expect(assetService.getEquipmentAssetStats).toHaveBeenCalledOnce();
+    });
+
+    it('passes pagination, search, and lifecycle filters to the asset list service', async () => {
+      const params = {
+        page: 2,
+        limit: 10,
+        search: 'P-10',
+        lifecycle_status: 'Installed',
+      };
+      const response = { assets: [{ id: 10, tag_number: 'P-10' }], total: 11, page: 2, limit: 10 };
+      vi.mocked(assetService.getEquipmentAssets).mockResolvedValue(response);
+
+      const { result } = renderHook(() => useEquipmentAssets(params), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual(response);
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(params);
     });
   });
 

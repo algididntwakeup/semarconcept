@@ -2,6 +2,7 @@
 package utils
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -54,27 +55,97 @@ func ValidationErrorResponse(err error) APIResponse {
 	}
 }
 
-// Context helper functions
+// Context helper functions with zero-trust tenant enforcement (no fallback to default tenant)
 func GetTenantID(c *gin.Context) int {
-	// TODO: Update this to match your actual middleware implementation
-	// Example patterns:
-	// if tenantID, exists := c.Get("tenant_id"); exists {
-	//     return tenantID.(int)
-	// }
+	if c == nil {
+		return 0
+	}
 
-	// Fallback for now - update this!
-	return 1
+	// 1. Primary: check canonical "tenant_id" key (set by AuthMiddleware)
+	if val, exists := c.Get("tenant_id"); exists && val != nil {
+		if id := coerceToInt(val); id > 0 {
+			return id
+		}
+	}
+
+	// 2. Secondary: check alternative "tenantID" key (set by TenantResolver)
+	if val, exists := c.Get("tenantID"); exists && val != nil {
+		if id := coerceToInt(val); id > 0 {
+			return id
+		}
+	}
+
+	// 3. Tertiary: check "isolation_tenant_id" key
+	if val, exists := c.Get("isolation_tenant_id"); exists && val != nil {
+		if id := coerceToInt(val); id > 0 {
+			return id
+		}
+	}
+
+	return 0
 }
 
 func GetUserID(c *gin.Context) int {
-	// TODO: Update this to match your actual auth middleware implementation
-	// Example patterns:
-	// if userID, exists := c.Get("user_id"); exists {
-	//     return userID.(int)
-	// }
+	if c == nil {
+		return 0
+	}
 
-	// Fallback for now - update this!
-	return 1
+	// Check canonical "user_id" key
+	if val, exists := c.Get("user_id"); exists && val != nil {
+		if id := coerceToInt(val); id > 0 {
+			return id
+		}
+	}
+
+	return 0
+}
+
+// RequireTenantID extracts the verified tenant ID or returns an error.
+func RequireTenantID(c *gin.Context) (int, error) {
+	id := GetTenantID(c)
+	if id <= 0 {
+		return 0, errors.New("tenant identity not found in authenticated context")
+	}
+	return id, nil
+}
+
+// RequireUserID extracts the verified user ID or returns an error.
+func RequireUserID(c *gin.Context) (int, error) {
+	id := GetUserID(c)
+	if id <= 0 {
+		return 0, errors.New("user identity not found in authenticated context")
+	}
+	return id, nil
+}
+
+func coerceToInt(val interface{}) int {
+	switch v := val.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case int32:
+		return int(v)
+	case uint:
+		return int(v)
+	case uint64:
+		return int(v)
+	case uint32:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	case string:
+		if parsed, err := strconv.Atoi(v); err == nil {
+			return parsed
+		}
+	case *int:
+		if v != nil {
+			return *v
+		}
+	}
+	return 0
 }
 
 // ValidateStruct validates a struct using go-playground/validator
@@ -110,6 +181,9 @@ func GetQueryParam(c *gin.Context, key string) string {
 
 // Error checking functions
 func IsValidationError(err error) bool {
+	if errors.Is(err, ErrValidation) {
+		return true
+	}
 	// Check against your asset-specific validation errors from asset_errors.go
 	return err == ErrSiteNameRequired ||
 		err == ErrUnitNameRequired ||
@@ -129,6 +203,9 @@ func IsValidationError(err error) bool {
 }
 
 func IsNotFoundError(err error) bool {
+	if errors.Is(err, ErrAssetNotFound) || errors.Is(err, ErrSiteNotFound) || errors.Is(err, ErrUnitNotFound) || errors.Is(err, ErrComponentNotFound) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrResourceNotFound) {
+		return true
+	}
 	// Check against your asset-specific not found errors from asset_errors.go
 	return err == ErrSiteNotFound ||
 		err == ErrUnitNotFound ||

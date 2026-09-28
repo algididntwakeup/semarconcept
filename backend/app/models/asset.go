@@ -3,8 +3,8 @@ package models
 
 import (
 	"fmt"
-	"time"
 	"gorm.io/gorm"
+	"time"
 )
 
 // Asset represents major assets within units or sites (locations, vessels, pumps, heat exchangers)
@@ -13,7 +13,9 @@ type Asset struct {
 	TenantID                int        `gorm:"index;not null" db:"tenant_id" json:"tenant_id"`
 	ParentID                *int       `gorm:"index" db:"parent_id" json:"parent_id,omitempty"`
 	UnitID                  *int       `gorm:"index" db:"unit_id" json:"unit_id,omitempty"`
+	FunctionalLocationID    *int       `gorm:"index" db:"functional_location_id" json:"functional_location_id,omitempty"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
+	Description             *string    `gorm:"type:text" db:"description" json:"description,omitempty"`
 	TagNumber               *string    `gorm:"size:100" db:"tag_number" json:"tag_number"`
 	AssetType               *string    `gorm:"size:100" db:"asset_type" json:"asset_type"`
 	AssetClass              *string    `gorm:"size:100" db:"asset_class" json:"asset_class"`
@@ -34,6 +36,7 @@ type Asset struct {
 	MaintenanceStrategy     *string    `gorm:"size:100" db:"maintenance_strategy" json:"maintenance_strategy"`
 	InspectionStrategy      *string    `gorm:"size:100" db:"inspection_strategy" json:"inspection_strategy"`
 	Status                  *string    `gorm:"size:50;default:active" db:"status" json:"status"`
+	LifecycleStatus         *string    `gorm:"size:50;index" db:"lifecycle_status" json:"lifecycle_status,omitempty"`
 	Criticality             *int       `gorm:"default:3" db:"criticality" json:"criticality"`
 	SafetyCritical          *bool      `gorm:"default:false" db:"safety_critical" json:"safety_critical"`
 	EnvironmentallyCritical *bool      `gorm:"default:false" db:"environmentally_critical" json:"environmentally_critical"`
@@ -105,7 +108,9 @@ func (e *Asset) ToMap() map[string]interface{} {
 		"tenant_id":                e.TenantID,
 		"parent_id":                e.ParentID,
 		"unit_id":                  e.UnitID,
+		"functional_location_id":   e.FunctionalLocationID,
 		"name":                     e.Name,
+		"description":              e.Description,
 		"tag_number":               e.TagNumber,
 		"asset_type":               e.AssetType,
 		"asset_class":              e.AssetClass,
@@ -126,6 +131,7 @@ func (e *Asset) ToMap() map[string]interface{} {
 		"maintenance_strategy":     e.MaintenanceStrategy,
 		"inspection_strategy":      e.InspectionStrategy,
 		"status":                   e.Status,
+		"lifecycle_status":         e.LifecycleStatus,
 		"criticality":              e.Criticality,
 		"safety_critical":          e.SafetyCritical,
 		"environmentally_critical": e.EnvironmentallyCritical,
@@ -254,5 +260,3 @@ func (e *Asset) BeforeUpdate(tx *gorm.DB) error {
 	}
 	return e.Validate()
 }
-
-

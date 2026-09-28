@@ -262,3 +262,21 @@ func LogAuthContext(c *gin.Context) {
 	utils.Infof("🔍 AUTH CONTEXT: UserID=%d (%t), Username=%s (%t), TenantID=%d (%t), Auth=%t, Superuser=%t",
 		userID, hasUser, username, hasUsername, tenantID, hasTenant, isAuth, isSuperuser)
 }
+
+// RequireTenantContext enforces that a valid tenant_id exists in the context.
+// Rejects requests without valid tenant context with 401 Unauthorized.
+func RequireTenantContext() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantID := utils.GetTenantID(c)
+		if tenantID <= 0 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"error":   "Unauthorized: valid tenant context is required",
+				"message": "Tenant identity not found in authenticated context",
+				"code":    "TENANT_CONTEXT_REQUIRED",
+			})
+			return
+		}
+		c.Next()
+	}
+}

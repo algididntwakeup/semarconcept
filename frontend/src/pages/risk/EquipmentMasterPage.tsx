@@ -1,8 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, ClipboardList, X } from 'lucide-react';
 import {
-  useAssets,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  FileDown,
+  FileUp,
+  Link2,
+  RefreshCw,
+  ScanSearch,
+  X,
+} from 'lucide-react';
+import {
+  useDeleteEquipmentAsset,
+  useEquipmentMaintenanceActions,
+  useEquipmentAssets,
   useEquipmentAssetStats,
   useUpdateEquipmentLifecycle,
 } from '../../features/assets/api/assetQueries';
@@ -16,25 +28,9 @@ import AssetFormModal from '../../components/AssetFormModal';
 import { assetService } from '../../services/assetServices';
 import { assetKeys } from '../../shared/api/queryKeys';
 import type { Asset } from '../../types/asset';
+import { useNotification } from '../../hooks/useNotification';
 
 const PAGE_SIZE = 10;
-
-const unwrapList = (value: unknown): { assets: EquipmentAssetRow[]; total: number } => {
-  const outer = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const payload =
-    outer.data && typeof outer.data === 'object' ? (outer.data as Record<string, unknown>) : outer;
-  const items = Array.isArray(payload.assets)
-    ? payload.assets
-    : Array.isArray(payload.data)
-      ? payload.data
-      : Array.isArray(payload.items)
-        ? payload.items
-        : [];
-  return {
-    assets: items as EquipmentAssetRow[],
-    total: typeof payload.total === 'number' ? payload.total : items.length,
-  };
-};
 
 const statusKey = (status: string) => status.trim().toLowerCase().replace(/_/g, ' ');
 
@@ -42,6 +38,7 @@ const EquipmentMasterPage = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
@@ -52,22 +49,35 @@ const EquipmentMasterPage = () => {
   const [timeline, setTimeline] = useState<
     { title: string; date: string; description: string }[] | null
   >(null);
+  const [duplicateDiagnosis, setDuplicateDiagnosis] = useState<{
+    duplicate_count: number;
+    duplicates: { tag_number: string; count: number; asset_ids: number[] }[];
+  } | null>(null);
   const [actionError, setActionError] = useState('');
-  const assetsQuery = useAssets({ page, limit: PAGE_SIZE, search });
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const { showNotification } = useNotification();
+  const assetsQuery = useEquipmentAssets({
+    page,
+    limit: PAGE_SIZE,
+    search,
+    lifecycle_status: lifecycleFilter || undefined,
+  });
   const statsQuery = useEquipmentAssetStats();
   const updateLifecycle = useUpdateEquipmentLifecycle();
+  const deleteAsset = useDeleteEquipmentAsset();
+  const maintenance = useEquipmentMaintenanceActions();
 
-  const list = useMemo(() => unwrapList(assetsQuery.data), [assetsQuery.data]);
+  const list = assetsQuery.data ?? { assets: [], total: 0, page, limit: PAGE_SIZE };
   const cards = useMemo(() => {
     const byStatus = new Map<string, number>();
     const stats = statsQuery.data ?? [];
     stats.forEach((item) => {
-      const key = statusKey(item.lifecycle_status || item.status || 'Unknown');
+      const key = statusKey(item.lifecycle_status || 'Unknown');
       byStatus.set(key, (byStatus.get(key) ?? 0) + item.count);
     });
     const total = stats.reduce((sum, item) => sum + item.count, 0);
     return [
-      { title: 'Total Assets', count: total },
+      { title: 'Total Assets', count: total, status: undefined },
       { title: 'Installed Assets', count: byStatus.get('installed') ?? 0, status: 'Installed' },
       {
         title: 'Sent to Repair',
@@ -112,14 +122,87 @@ const EquipmentMasterPage = () => {
         if (!window.confirm(`Delete asset ${asset.tag_number ?? asset.tagNumber ?? asset.id}?`))
           return;
         try {
-          await assetService.deleteAsset(String(asset.id));
-          await queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
-          await queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
-          await queryClient.invalidateQueries({ queryKey: [...assetKeys.all, 'equipment-stats'] });
+          await deleteAsset.mutateAsync(asset.id);
+          showNotification('Asset deleted successfully.', 'success');
         } catch (error) {
-          setActionError(error instanceof Error ? error.message : 'Unable to delete asset');
+          showNotification(
+            error instanceof Error ? error.message : 'Unable to delete asset',
+            'error'
+          );
         }
         break;
+    }
+  };
+
+  const runUtility = async <T,>(
+    operation: () => Promise<T>,
+    successMessage: (result: T) => string
+  ) => {
+    try {
+      const result = await operation();
+      showNotification(successMessage(result), 'success');
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Equipment utility failed.',
+        'error'
+      );
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const { blob, filename } = await maintenance.exportAssets.mutateAsync();
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(downloadUrl);
+      showNotification('Asset Excel export downloaded.', 'success');
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Unable to export assets.',
+        'error'
+      );
+    }
+  };
+
+  const handleDiagnoseDuplicates = async () => {
+    try {
+      const result = await maintenance.diagnoseDuplicates.mutateAsync();
+      setDuplicateDiagnosis(result);
+      showNotification(
+        result.duplicate_count === 0
+          ? 'Duplicate tag diagnosis complete: no duplicates found.'
+          : `Duplicate tag diagnosis found ${result.duplicate_count} duplicate tag(s).`,
+        result.duplicate_count === 0 ? 'success' : 'warning'
+      );
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Unable to diagnose duplicate assets.',
+        'error'
+      );
+    }
+  };
+
+  const handleImportFile = async (file?: File) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      showNotification('Choose an .xlsx file to import.', 'error');
+      return;
+    }
+    try {
+      await maintenance.importAssets.mutateAsync(file);
+      showNotification(`${file.name} imported successfully.`, 'success');
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Unable to import assets.',
+        'error'
+      );
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
   const pagination = (
@@ -175,6 +258,96 @@ const EquipmentMasterPage = () => {
         </div>
       </header>
 
+      <section aria-label="Equipment maintenance utilities" className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-700">Maintenance utilities</h2>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={maintenance.diagnoseDuplicates.isPending}
+            onClick={() => void handleDiagnoseDuplicates()}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <ScanSearch size={16} />
+            {maintenance.diagnoseDuplicates.isPending ? 'Diagnosing…' : 'Diagnose duplicates'}
+          </button>
+          <button
+            type="button"
+            disabled={maintenance.fixComponentLinks.isPending}
+            onClick={() =>
+              void runUtility(
+                () => maintenance.fixComponentLinks.mutateAsync(false),
+                (result) => `Component links fixed: ${result.affected_links} link(s) updated.`
+              )
+            }
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <Link2 size={16} />
+            {maintenance.fixComponentLinks.isPending ? 'Fixing links…' : 'Fix component links'}
+          </button>
+          <button
+            type="button"
+            disabled={maintenance.syncComponentsToFLOC.isPending}
+            onClick={() =>
+              void runUtility(
+                () => maintenance.syncComponentsToFLOC.mutateAsync(false),
+                (result) =>
+                  `FLOC sync complete: ${result.valid_components} valid, ${result.orphaned_components} orphaned components.`
+              )
+            }
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw size={16} />
+            {maintenance.syncComponentsToFLOC.isPending ? 'Syncing…' : 'Sync components to FLOC'}
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="sr-only"
+            aria-label="Select XLSX asset import file"
+            onChange={(event) => void handleImportFile(event.target.files?.[0])}
+          />
+          <button
+            type="button"
+            disabled={maintenance.importAssets.isPending}
+            onClick={() => importInputRef.current?.click()}
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+          >
+            <FileUp size={16} />
+            {maintenance.importAssets.isPending ? 'Importing…' : 'Import XLSX'}
+          </button>
+          <button
+            type="button"
+            disabled={maintenance.exportAssets.isPending}
+            onClick={() => void handleExport()}
+            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+          >
+            <FileDown size={16} />
+            {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export Excel'}
+          </button>
+        </div>
+        {duplicateDiagnosis && duplicateDiagnosis.duplicate_count > 0 && (
+          <div
+            role="region"
+            aria-label="Duplicate asset diagnosis results"
+            className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+          >
+            <p className="text-sm font-semibold text-amber-900">
+              {duplicateDiagnosis.duplicate_count} duplicate tag(s) detected
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-amber-800">
+              {duplicateDiagnosis.duplicates.map((duplicate) => (
+                <li key={duplicate.tag_number}>
+                  <span className="font-medium">{duplicate.tag_number}</span> · {duplicate.count}{' '}
+                  records
+                  {duplicate.asset_ids.length > 0 && ` · IDs: ${duplicate.asset_ids.join(', ')}`}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
       {statsQuery.isError && (
         <p
           role="alert"
@@ -217,11 +390,25 @@ const EquipmentMasterPage = () => {
             setSearch(value);
             setPage(1);
           }}
+          lifecycleFilter={lifecycleFilter}
+          onLifecycleFilterChange={(status) => {
+            setLifecycleFilter(status);
+            setPage(1);
+          }}
           onView={setSelectedAsset}
           onAction={handleRowAction}
-          onLifecycleChange={(asset, action) =>
-            updateLifecycle.mutateAsync({ assetId: asset.id, action }).then(() => undefined)
-          }
+          onLifecycleChange={async (asset, action) => {
+            try {
+              await updateLifecycle.mutateAsync({ assetId: asset.id, action });
+              showNotification(`Lifecycle updated: ${action}.`, 'success');
+            } catch (error) {
+              showNotification(
+                error instanceof Error ? error.message : 'Unable to update lifecycle.',
+                'error'
+              );
+              throw error;
+            }
+          }}
           paginationSlot={pagination}
         />
       </section>
@@ -368,11 +555,13 @@ const EquipmentMasterPage = () => {
           ])
         )}
         onClose={() => setEditingAsset(null)}
+        onError={(message) => showNotification(message, 'error')}
         onSaved={() => {
           setEditingAsset(null);
+          showNotification('Asset updated successfully.', 'success');
           queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
           queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
-          queryClient.invalidateQueries({ queryKey: [...assetKeys.all, 'equipment-stats'] });
+          queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
         }}
       />
     </main>

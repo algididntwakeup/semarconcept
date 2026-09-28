@@ -234,6 +234,13 @@ type AssetRepository interface {
 	Update(ctx context.Context, asset *models.Asset) error
 	Delete(ctx context.Context, tenantID int, id int) error
 	List(ctx context.Context, tenantID int, query *request.AssetListQuery) ([]models.Asset, int64, error)
+	GetAssetStats(ctx context.Context, tenantID int) ([]AssetTypeStatusCount, error)
+	UpdateLifecycle(ctx context.Context, tenantID, assetID int, status string, userID int) error
+	DiagnoseDuplicateTags(ctx context.Context, tenantID int) ([]DuplicateAssetTag, error)
+	FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
+	ValidateFLOCLinks(ctx context.Context, tenantID, userID int, dryRun bool) (*FLOCSyncResult, error)
+	ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error)
+	FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error)
 	HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error)
 
 	GetSiteByID(ctx context.Context, id int, tenantID int) (*models.Site, error)
@@ -251,6 +258,27 @@ type AssetRepository interface {
 	CalculateAssetHealthScore(ctx context.Context, tenantID int, assetType string) (float64, error)
 	GetCriticalAssets(ctx context.Context, tenantID int) ([]interface{}, error)
 	GetAssetsRequiringAttention(ctx context.Context, tenantID int) ([]interface{}, error)
+}
+
+// AssetTypeStatusCount is one grouped asset-type/lifecycle-status aggregate.
+type AssetTypeStatusCount struct {
+	AssetType       string `db:"asset_type" json:"asset_type"`
+	LifecycleStatus string `db:"lifecycle_status" json:"lifecycle_status"`
+	Count           int64  `db:"count" json:"count"`
+}
+
+type DuplicateAssetTag struct {
+	TagNumber string `db:"tag_number" json:"tag_number"`
+	Count     int64  `db:"count" json:"count"`
+	AssetIDs  []int  `db:"-" json:"asset_ids"`
+}
+
+type FLOCSyncResult struct {
+	CheckedAssets      int64 `json:"checked_assets"`
+	ValidComponents    int64 `json:"valid_components"`
+	OrphanedComponents int64 `json:"orphaned_components"`
+	BrokenFLOCLinks    int64 `json:"broken_floc_links"`
+	ClearedFLOCLinks   int64 `json:"cleared_floc_links"`
 }
 
 // DashboardRepository interface for widget data

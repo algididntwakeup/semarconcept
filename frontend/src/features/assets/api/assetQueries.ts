@@ -9,7 +9,11 @@ import {
   AssetFormData,
   AssetStatistics,
 } from '../types';
-import type { EquipmentAssetListParams, EquipmentAssetStat } from '../../../services/assetServices';
+import type {
+  EquipmentAssetListParams,
+  EquipmentAssetListResponse,
+  EquipmentAssetStat,
+} from '../../../services/assetServices';
 
 /**
  * Hook to query assets with pagination, search, and filtering
@@ -53,15 +57,15 @@ export const useAssetStatistics = (filters?: AssetSearchParams) => {
 
 export const useEquipmentAssetStats = () => {
   return useQuery({
-    queryKey: [...assetKeys.all, 'equipment-stats'],
+    queryKey: assetKeys.equipmentMaster.stats(),
     queryFn: (): Promise<EquipmentAssetStat[]> => assetService.getEquipmentAssetStats(),
   });
 };
 
 export const useEquipmentAssets = (params: EquipmentAssetListParams, enabled = true) => {
   return useQuery({
-    queryKey: [...assetKeys.lists(), 'equipment-master', params],
-    queryFn: () => assetService.getEquipmentAssets(params),
+    queryKey: assetKeys.equipmentMaster.list(params),
+    queryFn: (): Promise<EquipmentAssetListResponse> => assetService.getEquipmentAssets(params),
     enabled,
   });
 };
@@ -75,9 +79,57 @@ export const useUpdateEquipmentLifecycle = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
-      queryClient.invalidateQueries({ queryKey: [...assetKeys.all, 'equipment-stats'] });
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
     },
   });
+};
+
+export const useDeleteEquipmentAsset = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (assetId: string | number) => assetService.deleteEquipmentAsset(assetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
+    },
+  });
+};
+
+export const useEquipmentMaintenanceActions = () => {
+  const queryClient = useQueryClient();
+  const invalidateAssetData = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() }),
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() }),
+      queryClient.invalidateQueries({ queryKey: assetKeys.statistics() }),
+    ]);
+  };
+
+  const diagnoseDuplicates = useMutation({
+    mutationFn: () => assetService.diagnoseEquipmentDuplicates(),
+  });
+  const fixComponentLinks = useMutation({
+    mutationFn: (dryRun: boolean) => assetService.fixEquipmentComponentLinks(dryRun),
+    onSuccess: invalidateAssetData,
+  });
+  const syncComponentsToFLOC = useMutation({
+    mutationFn: (dryRun: boolean) => assetService.syncEquipmentComponentsToFLOC(dryRun),
+    onSuccess: invalidateAssetData,
+  });
+  const importAssets = useMutation({
+    mutationFn: (file: File) => assetService.importEquipmentAssets(file),
+    onSuccess: invalidateAssetData,
+  });
+  const exportAssets = useMutation({ mutationFn: () => assetService.exportEquipmentAssets() });
+
+  return {
+    diagnoseDuplicates,
+    fixComponentLinks,
+    syncComponentsToFLOC,
+    importAssets,
+    exportAssets,
+  };
 };
 
 /**

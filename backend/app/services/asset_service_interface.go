@@ -5,6 +5,7 @@ package services
 import (
 	"backend/app/models/request"
 	"backend/app/models/response"
+	"backend/app/repositories"
 	"context"
 )
 
@@ -38,6 +39,11 @@ type AssetServiceInterface interface {
 	UpdateAsset(ctx context.Context, tenantID int, AssetID int, req *request.UpdateAssetRequest, userID int) (*response.AssetResponse, error)
 	DeleteAsset(ctx context.Context, tenantID int, AssetID int, userID int) error
 	ListAsset(ctx context.Context, tenantID int, query *request.AssetListQuery) (*response.AssetListResponse, error)
+	GetAssetStats(ctx context.Context, tenantID int) ([]repositories.AssetTypeStatusCount, error)
+	UpdateAssetLifecycle(ctx context.Context, tenantID, assetID, userID int, lifecycle string) (*response.AssetResponse, error)
+	DiagnoseDuplicateAssetTags(ctx context.Context, tenantID int) ([]repositories.DuplicateAssetTag, error)
+	FixAssetLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
+	SyncAssetFLOC(ctx context.Context, tenantID, userID int, dryRun bool) (*repositories.FLOCSyncResult, error)
 
 	// Hierarchy operations - these might not exist in your service, add only if needed
 	GetAssetHierarchy(ctx context.Context, tenantID int, req *request.AssetHierarchyRequest) (interface{}, error)
@@ -47,6 +53,6 @@ type AssetServiceInterface interface {
 	UpdateAssetCriticality(ctx context.Context, tenantID int, req *request.AssetCriticalityUpdateRequest, userID int) (interface{}, error)
 	BulkUpdateAssets(ctx context.Context, tenantID int, req *request.BulkAssetOperationRequest, userID int) (interface{}, error)
 	BulkDeleteAssets(ctx context.Context, tenantID int, req *request.BulkAssetOperationRequest, userID int) (interface{}, error)
-	ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int) (interface{}, error)
-	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) (interface{}, error)
+	ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error)
+	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 }
