@@ -13,7 +13,7 @@ import usePageLogger from '../hooks/usePageLogger';
 // Navigation Logger Component
 const NavigationLogger: React.FC = () => {
   const location = useLocation();
-  
+
   useEffect(() => {
     logger.info('Page navigation', {
       path: location.pathname,
@@ -23,7 +23,7 @@ const NavigationLogger: React.FC = () => {
       userAgent: navigator.userAgent,
     });
   }, [location]);
-  
+
   return null;
 };
 
@@ -67,6 +67,7 @@ const InspectionReportsPage = React.lazy(() => import('../pages/inspection/Inspe
 const RiskMatrixPage = React.lazy(() => import('../pages/risk/RiskMatrixPage'));
 const RiskDegradationPage = React.lazy(() => import('../pages/risk/RiskDegradationPage'));
 const RiskIntegrityPage = React.lazy(() => import('../pages/risk/RiskIntegrityPage'));
+const EquipmentMasterPage = React.lazy(() => import('../pages/risk/EquipmentMasterPage'));
 const RiskReportsPage = React.lazy(() => import('../pages/risk/RiskReportsPage'));
 const RiskAssessmentsPage = React.lazy(() => import('../pages/risk/RiskAssessmentsPage'));
 const RiskMitigationPage = React.lazy(() => import('../pages/risk/RiskMitigationPage'));
@@ -140,9 +141,9 @@ const RouteLogger: React.FC = () => {
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
   const location = useLocation();
-  
+
   const isAuth = isAuthenticated || (token && token !== null);
-  
+
   if (!isAuth) {
     logger.info('Unauthorized access attempt, redirecting to login', {
       path: location.pathname,
@@ -179,7 +180,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-        
+
         {/* Protected SEMAR Main Application */}
         <Route
           path="/"
@@ -204,7 +205,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="maintenance" element={<DashboardMaintenancePage />} />
             <Route path="compliance" element={<DashboardCompliancePage />} />
           </Route>
-          
+
           {/* 2. Asset Management Module (supports both /assets and /asset) */}
           <Route path="assets">
             <Route index element={<ModuleLandingPage module="assets" />} />
@@ -224,7 +225,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="documents" element={<AssetDocumentsPage />} />
             <Route path="import-export" element={<AssetImportExportPage />} />
           </Route>
-          
+
           {/* 3. Inspection Management Module */}
           <Route path="inspection">
             <Route index element={<ModuleLandingPage module="inspection" />} />
@@ -235,10 +236,11 @@ export const AppRoutes: React.FC = () => {
             <Route path="calendar" element={<InspectionCalendarPage />} />
             <Route path="reports" element={<InspectionReportsPage />} />
           </Route>
-          
+
           {/* 4. Risk Management Module (RBI / API 580 / 581) */}
           <Route path="risk">
             <Route index element={<ModuleLandingPage module="risk" />} />
+            <Route path="equipment-master" element={<EquipmentMasterPage />} />
             <Route path="matrix" element={<RiskMatrixPage />} />
             <Route path="degradation" element={<RiskDegradationPage />} />
             <Route path="integrity" element={<RiskIntegrityPage />} />
@@ -246,7 +248,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="assessments" element={<RiskAssessmentsPage />} />
             <Route path="mitigation" element={<RiskMitigationPage />} />
           </Route>
-          
+
           {/* 5. Analytics & Reliability Intelligence Module */}
           <Route path="analytics">
             <Route index element={<ModuleLandingPage module="analytics" />} />
@@ -270,7 +272,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="history" element={<MaintenanceHistoryPage />} />
             <Route path="schedules" element={<MaintenanceSchedulesPage />} />
           </Route>
-          
+
           {/* 7. Compliance Management Module */}
           <Route path="compliance">
             <Route index element={<ModuleLandingPage module="compliance" />} />
@@ -280,7 +282,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="audits" element={<ComplianceAuditsPage />} />
             <Route path="certifications" element={<ComplianceCertificationsPage />} />
           </Route>
-          
+
           {/* 8. Administration Module */}
           <Route path="admin">
             <Route index element={<ModuleLandingPage module="admin" />} />
@@ -316,7 +318,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="categories" element={<CategoryManagementPage />} />
           </Route>
         </Route>
-        
+
         {/* Error pages */}
         <Route element={<ProtectedRoute><ErrorLayout /></ProtectedRoute>}>
           <Route path="/access-inactive" element={<AccessInactivePage />} />
@@ -336,7 +338,7 @@ export const AppRoutes: React.FC = () => {
 // --- App Router ---
 const AppRouter: React.FC = () => {
   logger.debug('AppRouter rendering');
-  
+
   return (
     <Suspense fallback={<LoadingFallback />}>
       <AppRoutes />

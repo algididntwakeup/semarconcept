@@ -9,6 +9,7 @@ import {
   AssetFormData,
   AssetStatistics,
 } from '../types';
+import type { EquipmentAssetListParams, EquipmentAssetStat } from '../../../services/assetServices';
 
 /**
  * Hook to query assets with pagination, search, and filtering
@@ -50,6 +51,35 @@ export const useAssetStatistics = (filters?: AssetSearchParams) => {
   });
 };
 
+export const useEquipmentAssetStats = () => {
+  return useQuery({
+    queryKey: [...assetKeys.all, 'equipment-stats'],
+    queryFn: (): Promise<EquipmentAssetStat[]> => assetService.getEquipmentAssetStats(),
+  });
+};
+
+export const useEquipmentAssets = (params: EquipmentAssetListParams, enabled = true) => {
+  return useQuery({
+    queryKey: [...assetKeys.lists(), 'equipment-master', params],
+    queryFn: () => assetService.getEquipmentAssets(params),
+    enabled,
+  });
+};
+
+export const useUpdateEquipmentLifecycle = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ assetId, action }: { assetId: string | number; action: string }) =>
+      assetService.updateEquipmentLifecycle(assetId, action),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
+      queryClient.invalidateQueries({ queryKey: [...assetKeys.all, 'equipment-stats'] });
+    },
+  });
+};
+
 /**
  * Mutation hook to create a new asset
  */
@@ -74,7 +104,13 @@ export const useUpdateAsset = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<AssetFormData> }): Promise<Asset> => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<AssetFormData>;
+    }): Promise<Asset> => {
       return assetService.updateAsset(id, data);
     },
     onSuccess: (_, variables) => {

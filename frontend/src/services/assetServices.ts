@@ -1,18 +1,32 @@
 // platform/frontend-mui/src/services/assetService.ts
-import { 
-  Asset, 
-  AssetSearchParams, 
-  AssetListResponse, 
+import {
+  Asset,
+  AssetSearchParams,
+  AssetListResponse,
   AssetFormData,
   AssetStatistics,
   AssetMetrics,
   AssetTimelineEvent,
   AssetAuditLog,
   AssetExportOptions,
-  AssetHierarchyNode
+  AssetHierarchyNode,
 } from '../types/asset';
 // ✅ FIXED: Changed from named import to default import
 import apiClient from './apiClient';
+
+export interface EquipmentAssetStat {
+  asset_type: string;
+  lifecycle_status: string;
+  count: number;
+  status?: string;
+}
+
+export interface EquipmentAssetListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  lifecycle_status?: string;
+}
 
 /**
  * Asset Service
@@ -25,7 +39,7 @@ class AssetService {
    * Get assets with search and filter parameters
    */
   async getAssets(params: AssetSearchParams = {}): Promise<AssetListResponse> {
-    const response = await apiClient.get(`${this.baseUrl}/Asset`, { params });
+    const response = await apiClient.get(this.baseUrl, { params });
     return response.data;
   }
 
@@ -101,11 +115,27 @@ class AssetService {
     return response.data;
   }
 
+  async getEquipmentAssetStats(): Promise<EquipmentAssetStat[]> {
+    const response = await apiClient.get(`${this.baseUrl}/stats`);
+    const payload = response.data?.data ?? response.data;
+    return Array.isArray(payload) ? payload : [];
+  }
+
+  async getEquipmentAssets(params: EquipmentAssetListParams = {}): Promise<unknown> {
+    const response = await apiClient.get(this.baseUrl, { params });
+    return response.data;
+  }
+
+  async updateEquipmentLifecycle(assetId: string | number, action: string): Promise<unknown> {
+    const response = await apiClient.put(`${this.baseUrl}/${assetId}/lifecycle`, { action });
+    return response.data;
+  }
+
   /**
    * Get asset performance metrics
    */
   async getAssetMetrics(
-    assetId: string, 
+    assetId: string,
     period?: { start: string; end: string }
   ): Promise<AssetMetrics> {
     const response = await apiClient.get(`${this.baseUrl}/${assetId}/metrics`, { params: period });
@@ -123,7 +153,10 @@ class AssetService {
   /**
    * Add timeline event
    */
-  async addTimelineEvent(assetId: string, event: Omit<AssetTimelineEvent, 'id'>): Promise<AssetTimelineEvent> {
+  async addTimelineEvent(
+    assetId: string,
+    event: Omit<AssetTimelineEvent, 'id'>
+  ): Promise<AssetTimelineEvent> {
     const response = await apiClient.post(`${this.baseUrl}/${assetId}/timeline`, event);
     return response.data;
   }
@@ -165,7 +198,7 @@ class AssetService {
    */
   async getAssetSuggestions(query: string, limit: number = 10): Promise<Asset[]> {
     const response = await apiClient.get(`${this.baseUrl}/suggestions`, {
-      params: { query, limit }
+      params: { query, limit },
     });
     return response.data;
   }
@@ -183,7 +216,7 @@ class AssetService {
    */
   async checkTagNumberAvailability(tagNumber: string, excludeAssetId?: string): Promise<boolean> {
     const response = await apiClient.get(`${this.baseUrl}/check-tag`, {
-      params: { tagNumber, excludeAssetId }
+      params: { tagNumber, excludeAssetId },
     });
     return response.data.available;
   }
@@ -198,7 +231,7 @@ class AssetService {
     createdAssets: Asset[];
   }> {
     const response = await apiClient.post(`${this.baseUrl}/import`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
   }
@@ -208,7 +241,7 @@ class AssetService {
    */
   async exportAssets(options: AssetExportOptions): Promise<Blob> {
     const response = await apiClient.post(`${this.baseUrl}/export`, options, {
-      responseType: 'blob'
+      responseType: 'blob',
     });
     return response.data;
   }
@@ -219,7 +252,7 @@ class AssetService {
   async getExportTemplate(format: 'csv' | 'excel'): Promise<Blob> {
     const response = await apiClient.get(`${this.baseUrl}/export-template`, {
       params: { format },
-      responseType: 'blob'
+      responseType: 'blob',
     });
     return response.data;
   }
@@ -331,11 +364,15 @@ class AssetService {
   /**
    * Upload asset document
    */
-  async uploadAssetDocument(assetId: string, file: File, metadata?: {
-    type: string;
-    description?: string;
-    tags?: string[];
-  }): Promise<{ id: string; url: string; name: string }> {
+  async uploadAssetDocument(
+    assetId: string,
+    file: File,
+    metadata?: {
+      type: string;
+      description?: string;
+      tags?: string[];
+    }
+  ): Promise<{ id: string; url: string; name: string }> {
     const formData = new FormData();
     formData.append('file', file);
     if (metadata) {
@@ -343,7 +380,7 @@ class AssetService {
     }
 
     const response = await apiClient.post(`${this.baseUrl}/${assetId}/documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
   }
@@ -366,21 +403,34 @@ class AssetService {
   /**
    * Update asset criticality
    */
-  async updateAssetCriticality(assetId: string, criticality: number, reason?: string): Promise<Asset> {
-    const response = await apiClient.patch(`${this.baseUrl}/${assetId}/criticality`, { criticality, reason });
+  async updateAssetCriticality(
+    assetId: string,
+    criticality: number,
+    reason?: string
+  ): Promise<Asset> {
+    const response = await apiClient.patch(`${this.baseUrl}/${assetId}/criticality`, {
+      criticality,
+      reason,
+    });
     return response.data;
   }
 
   /**
    * Schedule inspection for asset
    */
-  async scheduleInspection(assetId: string, inspectionData: {
-    type: string;
-    scheduledDate: string;
-    inspector?: string;
-    notes?: string;
-  }): Promise<{ id: string; scheduledDate: string }> {
-    const response = await apiClient.post(`${this.baseUrl}/${assetId}/schedule-inspection`, inspectionData);
+  async scheduleInspection(
+    assetId: string,
+    inspectionData: {
+      type: string;
+      scheduledDate: string;
+      inspector?: string;
+      notes?: string;
+    }
+  ): Promise<{ id: string; scheduledDate: string }> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/${assetId}/schedule-inspection`,
+      inspectionData
+    );
     return response.data;
   }
 
@@ -404,7 +454,7 @@ class AssetService {
    */
   async getAssetsDueForInspection(daysAhead: number = 30): Promise<Asset[]> {
     const response = await apiClient.get(`${this.baseUrl}/due-inspection`, {
-      params: { daysAhead }
+      params: { daysAhead },
     });
     return response.data;
   }
@@ -414,7 +464,7 @@ class AssetService {
    */
   async getAssetsDueForMaintenance(daysAhead: number = 30): Promise<Asset[]> {
     const response = await apiClient.get(`${this.baseUrl}/due-maintenance`, {
-      params: { daysAhead }
+      params: { daysAhead },
     });
     return response.data;
   }
@@ -430,14 +480,17 @@ class AssetService {
   /**
    * Update asset location
    */
-  async updateAssetLocation(assetId: string, location: {
-    latitude?: number;
-    longitude?: number;
-    address?: string;
-    building?: string;
-    floor?: string;
-    room?: string;
-  }): Promise<Asset> {
+  async updateAssetLocation(
+    assetId: string,
+    location: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+      building?: string;
+      floor?: string;
+      room?: string;
+    }
+  ): Promise<Asset> {
     const response = await apiClient.patch(`${this.baseUrl}/${assetId}/location`, location);
     return response.data;
   }
@@ -445,9 +498,13 @@ class AssetService {
   /**
    * Get assets near location
    */
-  async getAssetsNearLocation(latitude: number, longitude: number, radius: number): Promise<Asset[]> {
+  async getAssetsNearLocation(
+    latitude: number,
+    longitude: number,
+    radius: number
+  ): Promise<Asset[]> {
     const response = await apiClient.get(`${this.baseUrl}/near-location`, {
-      params: { latitude, longitude, radius }
+      params: { latitude, longitude, radius },
     });
     return response.data;
   }
@@ -479,14 +536,17 @@ class AssetService {
   /**
    * Generate asset QR code
    */
-  async generateQRCode(assetId: string, options?: {
-    size?: number;
-    format?: 'png' | 'svg';
-    includeUrl?: boolean;
-  }): Promise<Blob> {
+  async generateQRCode(
+    assetId: string,
+    options?: {
+      size?: number;
+      format?: 'png' | 'svg';
+      includeUrl?: boolean;
+    }
+  ): Promise<Blob> {
     const response = await apiClient.get(`${this.baseUrl}/${assetId}/qr-code`, {
       params: options,
-      responseType: 'blob'
+      responseType: 'blob',
     });
     return response.data;
   }
@@ -562,7 +622,10 @@ class AssetService {
   /**
    * Get asset cost analysis
    */
-  async getAssetCostAnalysis(assetId: string, period?: { start: string; end: string }): Promise<{
+  async getAssetCostAnalysis(
+    assetId: string,
+    period?: { start: string; end: string }
+  ): Promise<{
     totalCost: number;
     acquisitionCost: number;
     operatingCost: number;
@@ -571,7 +634,9 @@ class AssetService {
     energyCost: number;
     costTrends: { date: string; cost: number; category: string }[];
   }> {
-    const response = await apiClient.get(`${this.baseUrl}/${assetId}/cost-analysis`, { params: period });
+    const response = await apiClient.get(`${this.baseUrl}/${assetId}/cost-analysis`, {
+      params: period,
+    });
     return response.data;
   }
 

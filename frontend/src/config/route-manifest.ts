@@ -362,6 +362,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestItem[] = [
     isLandingDestination: true,
   },
   {
+    id: 'risk.equipment-master',
+    path: '/risk/equipment-master',
+    title: 'Equipment Master',
+    module: 'risk',
+    description: 'Equipment registry and lifecycle overview for Risk Based Inspection.',
+    icon: 'InventoryIcon',
+    permissions: ['risk:view', 'asset:view'],
+    isProtected: true,
+    isLandingDestination: true,
+  },
+  {
     id: 'risk.reports',
     path: '/risk/reports',
     title: 'RBI Reports',
@@ -1093,4 +1104,3 @@ export const checkRouteAccess = (
 
   return { allowed: true, blocked: false, foundInMenu: false };
 };
-

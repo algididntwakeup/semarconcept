@@ -241,6 +241,12 @@ export const moduleDefinitions: Record<ModuleKey, ModuleDefinition> = {
         icon: HeartPulse,
       },
       {
+        title: 'Equipment Master',
+        description: 'Equipment registry, lifecycle, and asset status overview.',
+        href: '/risk/equipment-master',
+        icon: ClipboardList,
+      },
+      {
         title: 'RBI Reports',
         description: 'Dokumen dan hasil risk-based inspection.',
         href: '/risk/reports',
