@@ -2,14 +2,51 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
+## Unreleased — 28 September 2026
+
+### Equipment Master UI interactions
+
+- Menambahkan `/risk/equipment-master` dengan metric cards dan modal detail yang membaca daftar aset secara paginated, menyediakan pencarian tag, filter lifecycle, dan sorting.
+- Menambahkan aksi per aset untuk manage/detail, tambah component melalui Asset Hierarchy, timeline, edit, delete terkonfirmasi, serta perubahan lifecycle melalui `PUT /api/v1/assets/:id/lifecycle`.
+- Menghubungkan query/mutation dan invalidasi cache statistik/daftar; menambahkan tes interaksi komponen dan panduan di halaman arsitektur/engineering kanonis.
+- Validasi pada task implementasi: `pnpm typecheck`, lint terpilih, 12 tes terpilih, dan `pnpm build` lulus; build memberi peringatan chunk >500 kB.
+
+### Documentation consolidation
+
+- Menggabungkan snapshot audit serta strategi rekayasa frontend/backend ke `docs/SEMAR_AIMS_ARCHITECTURE_PLAN.md` agar arah, gap, dan aturan utama tersedia di satu referensi.
+- Merampingkan `docs/AGENT_EXECUTION_PLAYBOOK.md` menjadi entry point dan checklist kerja; detail domain Asset, workflow Docker, serta histori tetap di dokumen khususnya.
+- Menghapus dokumen audit, rencana frontend/backend, dan panduan Equipment Master yang terpisah setelah konten relevan dipindahkan; memperbarui indeks dan instruksi handoff.
+
 ## Unreleased — 3 September 2026
+
+### Tenant Context & Asset Authorization Gate (SAAS-01)
+
+- Mengeliminasi total hardcoded fallback `return 1` pada context extractor backend (`backend/app/utils/asset_handler_utils.go`).
+- Mengimplementasikan helper zero-trust `GetTenantID`, `GetUserID`, `RequireTenantID`, dan `RequireUserID` dengan coercion tipe (`int`, `int64`, `float64`, `string`, `*int`) yang mengembalikan error eksplisit dan nilai `0` jika context tenant/user tidak ada atau tidak valid.
+- Membangun middleware `RequireTenantContext()` pada `backend/app/middleware/auth_middleware.go` yang menolak request ber-tenant missing/0 dengan HTTP 401 Unauthorized (`code: TENANT_CONTEXT_REQUIRED`), menjamin keamanan multi-tenant tanpa default bypass.
+- Menerapkan granular RBAC dan otorisasi tenant pada seluruh rute Asset di `backend/app/api/routes/asset_routes.go` (`asset:view` untuk query/read, `asset:create` untuk POST, `asset:update` untuk PUT/PATCH, `asset:delete` untuk DELETE, `asset:import` untuk batch import, dan `asset:export` untuk export).
+- Menambahkan pemeriksaan batas relasi multi-tenant di `backend/app/services/asset_service.go`:
+  - `CreateUnit` dan `UpdateUnit`: Memvalidasi kepemilikan `SiteID` pada tenant yang sama (`siteRepo.FindByID`).
+  - `CreateAsset` dan `UpdateAsset`: Memvalidasi kepemilikan `UnitID` (`unitRepo.FindByID`), parent asset (`AssetRepo.FindByID`), dan mencegah self-parenting (`*req.ParentID == assetID`).
+  - `CreateComponent`: Memvalidasi kepemilikan `AssetID` pada tenant yang sama (`AssetRepo.FindByID`).
+- Menambahkan permission Asset standar (`asset:view`, `asset:create`, `asset:update`, `asset:delete`, `asset:import`, `asset:export`) pada database seeder (`backend/app/database/seeder.go`).
+- Membangun automated cross-tenant test suite komprehensif di `backend/app/api/handlers/asset_tenant_isolation_test.go` (8 negative & positive test cases) dan `backend/app/services/asset_service_tenant_test.go` (5 relationship boundary unit tests).
+- Menjalankan seluruh quality gates: `go test ./...` lulus 100% pada seluruh 6 paket backend (handlers, database, middleware, repositories, services, utils), `go vet ./...` 0 warning/error, regression test frontend (`pnpm test:run`) 11/11 file passed (69/69 tests), dan runtime `/health` `healthy` (database: up).
+
+### Asset Management standards baseline & readiness assessment (AM-00)
+
+- Menambahkan `docs/ASSET_MANAGEMENT_REENGINEERING_PLAN.md` sebagai source of truth Asset-first: standards layering ISO 55000/55001, ISO 55013, IEC 81346, ISO 14224, ISO 15489, posisi API RP 580/581, benchmark capability Cenosco IMS, target domain, quality gates, dan decision log meeting.
+- Mengaudit jalur FE–BE–DB Asset dan mencatat blocker faktual: tenant/user handler hardcoded `1`, route/DTO drift, Technical Data/Documents/Import-Export placeholder, hierarchy single-aspect, migration tidak lengkap/versioned, bulk operation semu, dan perhitungan remaining life berbasis umur kalender.
+- Mengubah work queue menjadi Asset-first: `SAAS-01 -> AM-01 -> AM-02 -> AM-03 -> AM-04 -> AM-05 -> AM-06 -> ENG-01`; FE-05 Risk/RBI ditunda sampai data Asset dan SME gate terpenuhi.
+- Memperbarui README, architecture plan, codebase analysis, dan handoff playbook agar agent berikutnya tidak mengulang audit atau menganggap test mock sebagai bukti production readiness.
+- Tidak mengubah source runtime pada AM-00. Direct validation host belum dapat dijalankan: wrapper `pnpm` meminta purge/install tanpa TTY dan Go build cache host ditolak sandbox; documentation validation dicatat terpisah.
 
 ### AIMS Workflows: Inspection Vertical Slice (FE-04)
 
 - Menyelesaikan migrasi vertikal penuh modul **Inspection Management** (`/inspection/*`) dari state in-memory statis ke arsitektur **TanStack Query** terpusat.
 - **Domain Types & DTOs**: Membangun `frontend/src/features/inspection/types.ts` mendefinisikan model domain kanonikal (`Finding`, `FindingSeverity`, `FindingStatus`, `FindingPriority`, `FindingFormData`, `InspectionPlan`, `PlanStatus`, `PlanPriority`, `InspectionPlanFormData`, `InspectionTask`, `InspectionSearchParams`, `InspectionStatistics`).
 - **Query Keys**: Mendaftarkan `inspectionKeys` (`plans`, `plan`, `tasks`, `task`, `findings`, `finding`, `statistics`) pada master registry `frontend/src/shared/api/queryKeys.ts`.
-- **Service Layer**: Mengkonsolidasikan `frontend/src/services/inspectionService.ts` untuk operasi CRUD lengkap (`getPlans`, `createPlan`, `getTasks`, `getFindings`, `createFinding`, `updateFinding`, `deleteFinding`, `getStatistics`) menggunakan `apiClient` dengan fallback aman ke data realistis standar API 510/570/653.
+- **Service Layer**: Mengkonsolidasikan `frontend/src/services/inspectionService.ts` untuk typed CRUD calls melalui `apiClient`. Fallback data yang masih ada diklasifikasikan sebagai technical debt/non-production dan wajib dihapus saat backend slice dikerjakan.
 - **Custom Query Hooks**: Mengimplementasikan hooks `@tanstack/react-query` di `frontend/src/features/inspection/api/inspectionQueries.ts` (`useInspectionPlans`, `useInspectionPlan`, `useCreateInspectionPlan`, `useInspectionTasks`, `useInspectionFindings`, `useInspectionFinding`, `useCreateInspectionFinding`, `useUpdateInspectionFinding`, `useDeleteInspectionFinding`, `useInspectionStatistics`) dengan mekanisme auto-invalidation cache saat mutasi data.
 - **Halaman Termigrasi**:
   - `InspectionPlansPage.tsx`: Integrasi `useInspectionPlans`, `useInspectionStatistics`, modal pembuatan rencana inspeksi interaktif, skeleton loading, dan error banner retry.
