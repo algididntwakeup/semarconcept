@@ -201,18 +201,19 @@ export const loadMenuItems = (userPermissions?: string[]): NavItem[] => {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) // Sort by order
       .map(convertJsonToNavItem);
 
-    console.log(`✅ Converted ${menuItems.length} menu items from JSON`);
+    const activeMenuItems = restrictToActiveNavigation(menuItems);
+    console.log(`✅ Converted ${activeMenuItems.length} active menu items from JSON`);
 
     // Filter by permissions if provided
     if (userPermissions) {
       console.log(`🔒 Filtering menu items by permissions:`, userPermissions);
-      const filteredItems = filterMenuByPermissions(menuItems, userPermissions);
+      const filteredItems = filterMenuByPermissions(activeMenuItems, userPermissions);
       console.log(`✅ Filtered to ${filteredItems.length} accessible menu items`);
       return filteredItems;
     }
 
     console.log('✅ Returning all menu items (no permission filtering)');
-    return menuItems;
+    return activeMenuItems;
   } catch (error) {
     console.error('❌ Error loading menu items:', error);
     console.error('📍 Menu data structure:', menuItemsData);
@@ -230,13 +231,44 @@ export const loadDynamicMenuItems = async (apiCall: () => Promise<any>): Promise
     
     if (!Array.isArray(items)) return [];
 
-    return items
+    return restrictToActiveNavigation(items
       .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
-      .map(convertMenuItemToNavItem);
+      .map(convertMenuItemToNavItem));
   } catch (error) {
     console.error('❌ Error loading dynamic menu items:', error);
     return [];
   }
+};
+
+/** Keep the active application surface small even when older menu rows still exist in the database. */
+export const restrictToActiveNavigation = (items: NavItem[]): NavItem[] => {
+  const dashboard = items.find((item) => item.id === 'dashboard');
+  const risk = items.find((item) => item.id === 'risk');
+  const equipmentMaster = risk?.children?.find((item) => item.id === 'equipment-master');
+
+  const activeItems: NavItem[] = [];
+  if (dashboard) {
+    activeItems.push({
+      ...dashboard,
+      type: 'item',
+      url: '/dashboard',
+      children: undefined,
+      visible: true,
+      disabled: false,
+    });
+  }
+  if (risk && equipmentMaster) {
+    activeItems.push({
+      ...risk,
+      title: 'Risk Based Inspection',
+      url: '/risk',
+      type: 'collapse',
+      visible: true,
+      disabled: false,
+      children: [{ ...equipmentMaster, title: 'Equipment Master', url: '/risk/equipment-master' }],
+    });
+  }
+  return activeItems;
 };
 
 /**

@@ -260,7 +260,7 @@ docker exec semar-backend go test ./...
 docker exec semar-backend go vet ./...
 
 # runtime
-curl.exe -s http://localhost:4072/health
+curl.exe -s http://localhost:4073/health
 ```
 
 Tambahan per Asset slice:

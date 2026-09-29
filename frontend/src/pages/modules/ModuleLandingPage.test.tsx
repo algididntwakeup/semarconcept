@@ -86,25 +86,24 @@ const renderLanding = (
 };
 
 describe('ModuleLandingPage a11y & keyboard', () => {
-  it('setiap destination punya link dengan accessible name dan focus keyboard', async () => {
+  it('menampilkan Equipment Master sebagai satu-satunya destination RBI dan mendukung keyboard', async () => {
     const user = userEvent.setup();
-    renderLanding('assets');
+    renderLanding('risk');
 
-    const canonical = MODULE_DESTINATIONS.assets;
-    // Accessible name link terdiri atas judul area.
+    const canonical = MODULE_DESTINATIONS.risk;
     for (const dest of canonical) {
       const link = screen.getByRole('link', { name: new RegExp(dest.title, 'i') });
       expect(link).toHaveAttribute('href', dest.href);
     }
+    expect(screen.getAllByRole('link')).toHaveLength(1);
 
-    // Fokus keyboard: link pertama yang bisa menerima focus-visible.
     await user.tab();
     const active = document.activeElement as HTMLElement | null;
     expect(active?.tagName.toLowerCase()).toBe('a');
     expect(active?.getAttribute('href')).toBe(canonical[0].href);
   });
 
-  it('menampilkan accessible empty-state saat tidak ada destination', () => {
+  it('menampilkan accessible empty-state saat menu RBI tidak memiliki Equipment Master', () => {
     renderLanding('risk', {
       menu: [{ ...makeRoot('/risk', ['/risk/matrix']) }].filter(() => false), // empty menu
       permissions: [],
@@ -116,32 +115,29 @@ describe('ModuleLandingPage a11y & keyboard', () => {
 });
 
 describe('ModuleLandingPage permission filtering', () => {
-  it('hanya menampilkan destination yang ada di menu user', () => {
-    renderLanding('inspection', {
-      menu: [makeRoot('/inspection', ['/inspection/plans', '/inspection/tasks'])],
+  it('hanya menampilkan Equipment Master bila ada di menu user', () => {
+    renderLanding('risk', {
+      menu: [makeRoot('/risk', ['/risk/equipment-master'])],
       permissions: [],
     });
-    expect(screen.getByRole('link', { name: /Inspection Plans/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Inspection Tasks/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Findings/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Equipment Master/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Risk Matrix/i })).not.toBeInTheDocument();
   });
 
-  it('empty-state saat menu tidak memuat root module', () => {
-    renderLanding('compliance', {
-      menu: [makeRoot('/assets', ['/assets/registry'])],
+  it('empty-state saat menu tidak memuat root RBI', () => {
+    renderLanding('risk', {
+      menu: [makeRoot('/dashboard', [])],
       permissions: [],
     });
     expect(screen.getByText(/tidak ada area kerja yang dapat diakses/i)).toBeInTheDocument();
   });
 
-  it('superuser melihat seluruh destination canonical meski menu terbatas', () => {
-    renderLanding('admin', {
-      menu: [makeRoot('/admin', ['/admin/users'])],
+  it('superuser tetap melihat Equipment Master saja', () => {
+    renderLanding('risk', {
+      menu: [makeRoot('/risk', ['/risk/equipment-master'])],
       superuser: true,
     });
-    // Superuser bypass: seluruh canonical admin ditampilkan.
-    for (const dest of MODULE_DESTINATIONS.admin) {
-      expect(screen.getByRole('link', { name: new RegExp(dest.title, 'i') })).toBeInTheDocument();
-    }
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: /Equipment Master/i })).toBeInTheDocument();
   });
 });

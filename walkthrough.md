@@ -5,8 +5,8 @@ Dokumen ini adalah handoff ringkas. Detail authoritative berada di [`docs/`](./d
 ## Yang sudah berjalan
 
 - Dev stack Docker dengan hot reload untuk React/Vite dan Go/Air.
-- Frontend merespons pada `http://localhost:3000`.
-- Backend health pada `http://localhost:4072/health` melaporkan database sehat.
+- Frontend merespons pada `http://localhost:3002`.
+- Backend health pada `http://localhost:4073/health` melaporkan database sehat.
 - Dashboard canonical berada di `/dashboard` dengan redirect legacy.
 - Menu dashboard dan icon disinkronkan ke database existing saat startup.
 - Primary navbar mendukung touch scroll dan active-item centering.

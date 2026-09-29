@@ -206,49 +206,19 @@ describe('Menu & Tenant Route Access Guard (checkRouteAccess)', () => {
     expect(checkRouteAccess([], '/access-inactive', false).allowed).toBe(true);
   });
 
-  it('allows superuser to access any path even if not present in menu or marked inactive', () => {
-    // Unlisted module
-    expect(checkRouteAccess(sampleMenu, '/admin/tenants', true).allowed).toBe(true);
-    // Inactive item
-    expect(checkRouteAccess(sampleMenu, '/assets/sites', true).allowed).toBe(true);
-    // Inactive parent module
-    expect(checkRouteAccess(sampleMenu, '/inspection/plans', true).allowed).toBe(true);
+  it('allows active Equipment Master for users regardless of superuser status', () => {
+    const activeMenu: NavItem[] = [{
+      id: 'risk', title: 'Risk Based Inspection', type: 'collapse', url: '/risk', visible: true,
+      children: [{ id: 'equipment-master', title: 'Equipment Master', type: 'item', url: '/risk/equipment-master', visible: true }],
+    }];
+    expect(checkRouteAccess(activeMenu, '/risk/equipment-master', false).allowed).toBe(true);
+    expect(checkRouteAccess(activeMenu, '/risk/equipment-master', true).allowed).toBe(true);
   });
 
-  it('allows regular user to access visible and enabled menu items', () => {
-    const result = checkRouteAccess(sampleMenu, '/assets/registry', false);
-    expect(result.allowed).toBe(true);
-    expect(result.blocked).toBe(false);
-    expect(result.reason).toBe('menu_active');
-  });
-
-  it('blocks access when menu item is marked invisible (visible: false)', () => {
-    const result = checkRouteAccess(sampleMenu, '/assets/sites', false);
-    expect(result.allowed).toBe(false);
-    expect(result.blocked).toBe(true);
-    expect(result.reason).toBe('menu_inactive');
-  });
-
-  it('blocks access when menu item is disabled (disabled: true)', () => {
-    const result = checkRouteAccess(sampleMenu, '/assets/import-export', false);
-    expect(result.allowed).toBe(false);
-    expect(result.blocked).toBe(true);
-    expect(result.reason).toBe('menu_inactive');
-  });
-
-  it('blocks access when parent module is inactive/hidden even if child is marked visible', () => {
-    const result = checkRouteAccess(sampleMenu, '/inspection/plans', false);
-    expect(result.allowed).toBe(false);
-    expect(result.blocked).toBe(true);
-    expect(result.reason).toBe('menu_inactive');
-  });
-
-  it('blocks access to managed module not present in user menu (unlicensed/ungranted)', () => {
-    // Admin module is not in sampleMenu
-    const result = checkRouteAccess(sampleMenu, '/admin/users', false);
-    expect(result.allowed).toBe(false);
-    expect(result.blocked).toBe(true);
-    expect(result.reason).toBe('not_in_menu');
+  it('blocks all backlog deep links, including for superusers', () => {
+    for (const path of ['/assets/registry', '/inspection/plans', '/risk/matrix', '/admin/users']) {
+      expect(checkRouteAccess(sampleMenu, path, false).allowed).toBe(false);
+      expect(checkRouteAccess(sampleMenu, path, true).allowed).toBe(false);
+    }
   });
 });
-

@@ -27,13 +27,13 @@ docker compose -f docker-compose.dev.yml logs -f backend frontend
 
 Endpoint:
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:4072`
-- Health: `http://localhost:4072/health`
-- PostgreSQL host port: `5433`
-- Redis host port: `6380`
+- Frontend: `http://localhost:3002`
+- Backend: `http://localhost:4073`
+- Health: `http://localhost:4073/health`
+- PostgreSQL host port: `5434`
+- Redis host port: `6381`
 
-Frontend dan backend memakai bind mount sehingga edit source terbaca container. Vite dan Air memakai polling untuk kompatibilitas bind mount Windows; Air rebuild binary Go. Named volume menjaga `node_modules`, pnpm store, Go modules, dan Go build cache agar tidak tercampur dengan host.
+Frontend dan backend memakai bind mount sehingga edit source terbaca container. Vite dan Air memakai polling untuk kompatibilitas bind mount Windows; Air rebuild binary Go. Anonymous volume `/app/node_modules` menjaga dependency dan cache Vite terisolasi dari sinkronisasi filesystem host, sementara `/app/.next` disediakan sebagai cache terisolasi bila Next.js digunakan. Named volume menjaga pnpm store, Go modules, dan Go build cache. Source `/app` tetap bind mount agar hot reload tetap aktif.
 
 Cold start pertama dapat lebih lama karena dependency install dan Go compilation. Reload berikutnya memakai cache.
 
@@ -71,4 +71,5 @@ Jangan gunakan `down -v` kecuali memang ingin menghapus database dan seluruh dep
 - Frontend proxy `ECONNREFUSED` saat startup awal: tunggu backend healthy; compose dev menahan startup frontend sampai health backend lulus.
 - Port bentrok: hentikan stack lama sebelum menjalankan compose dev karena nama container dan port sama.
 - CPU Vite tinggi: polling interval sudah 1000 ms dan direktori dependency/build diabaikan; jangan mount host `node_modules`.
+- Transisi frontend lambat di Windows: pastikan volume `/app/node_modules` dan `/app/.next` tercantum setelah bind mount `./frontend:/app`; dependency/cache tidak boleh ikut dipantulkan ke host. Proyek saat ini menggunakan Vite (cache di `node_modules/.vite`), bukan Next.js.
 - Setelah perubahan `.air.toml` atau compose: recreate service terkait.

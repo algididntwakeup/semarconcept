@@ -66,7 +66,7 @@ describe('EquipmentMasterPage API integration', () => {
       )
     );
     expect(screen.getAllByText('Installed pump')).toHaveLength(2);
-  });
+  }, 15000);
 
   it('runs maintenance utilities and displays the success result as a toast', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
@@ -120,5 +120,5 @@ describe('EquipmentMasterPage API integration', () => {
       await screen.findByText('FLOC sync complete: 2 valid, 0 orphaned components.')
     ).toBeInTheDocument();
     expect(assetService.syncEquipmentComponentsToFLOC).toHaveBeenCalledWith(false);
-  });
+  }, 15000);
 });

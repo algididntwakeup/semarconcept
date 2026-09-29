@@ -4,6 +4,19 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 28 September 2026
 
+### Docker frontend filesystem isolation
+
+- Mengisolasi `/app/node_modules` dan `/app/.next` dengan anonymous volumes pada service frontend development agar dependency/cache tidak tersinkron melalui bind mount source.
+- Memperbarui panduan troubleshooting performa; proyek frontend saat ini memakai Vite, dengan cache transform di `node_modules/.vite`.
+
+### Focus pengembangan RBI Equipment Master
+
+- Menambahkan `docs/FUTURE_FEATURES.md` sebagai backlog fitur/submenu lain yang ada di manifest, menu, seeder, dan halaman Dashboard.
+- Membatasi menu fallback dan menu API dinamis ke Dashboard serta Risk Based Inspection → Equipment Master; seeder menonaktifkan menu lama saat startup agar database yang sudah ada ikut tersinkron.
+- Menyisakan route Dashboard dan `/risk/equipment-master`; root `/risk` diarahkan ke Equipment Master, sedangkan route backlog ditutup untuk semua role dan diarahkan ke halaman 404.
+- Menyederhanakan Dashboard agar hanya menampilkan konteks utama dan tautan Equipment Master.
+- Validasi: frontend typecheck, contract/navigation/menu tests, dan `go test ./...`.
+
 ### Equipment Master performance and scalability
 
 - Menambahkan indeks GORM untuk pencarian `tag_number`, filter `asset_type`, `functional_location_id`, `status`, dan lifecycle status, termasuk indeks gabungan tenant agar query multi-tenant tetap selektif; indeks diterapkan lewat `AutoMigrate` saat startup.

@@ -55,7 +55,7 @@ docker exec semar-backend go test ./...
 docker exec semar-backend go vet ./...
 
 # runtime bila stack terkait
-curl.exe -s http://localhost:4072/health
+curl.exe -s http://localhost:4073/health
 ```
 
 Task tenant-scoped wajib menambahkan/menguji cross-tenant negative path. Task API/schema wajib menjalankan contract dan migration checks yang sesuai. Catat command yang benar-benar dijalankan dan hasilnya; jangan menyatakan gate lulus berdasarkan asumsi.

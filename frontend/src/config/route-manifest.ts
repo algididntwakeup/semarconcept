@@ -37,7 +37,7 @@ export interface RouteManifestItem {
 /**
  * Master Registry of all routes in SEMAR application
  */
-export const ROUTE_MANIFEST: readonly RouteManifestItem[] = [
+const ROUTE_CATALOG: readonly RouteManifestItem[] = [
   // --- Auth Module (Public) ---
   {
     id: 'auth.login',
@@ -910,6 +910,28 @@ export const ROUTE_MANIFEST: readonly RouteManifestItem[] = [
   },
 ] as const;
 
+// Route metadata remains catalogued above for documentation/history, while the
+// active route contract exposes only authentication, Dashboard, RBI Equipment
+// Master, and error boundaries.
+const ACTIVE_ROUTE_IDS = new Set([
+  'auth.login',
+  'auth.register',
+  'auth.forgot-password',
+  'auth.reset-password',
+  'system.root',
+  'dashboard.home',
+  'risk.landing',
+  'risk.equipment-master',
+  'error.access-inactive',
+  'error.forbidden',
+  'error.server-error',
+  'error.not-found',
+]);
+
+export const ROUTE_MANIFEST: readonly RouteManifestItem[] = ROUTE_CATALOG.filter((route) =>
+  ACTIVE_ROUTE_IDS.has(route.id)
+);
+
 // --- Helper Functions ---
 
 /**
@@ -1009,10 +1031,6 @@ export const ACCESS_WHITELIST: readonly string[] = [
   '/dashboard',
   '/dashboard/',
   '/dashboard/overview',
-  '/dashboard/asset',
-  '/dashboard/inspection',
-  '/dashboard/maintenance',
-  '/dashboard/compliance',
   '/login',
   '/register',
   '/forgot-password',
@@ -1021,6 +1039,8 @@ export const ACCESS_WHITELIST: readonly string[] = [
   '/404',
   '/500',
 ] as const;
+
+const ACTIVE_APPLICATION_PATHS = new Set(['/dashboard', '/dashboard/overview', '/risk', '/risk/equipment-master']);
 
 export interface RouteAccessCheck {
   allowed: boolean;
@@ -1043,6 +1063,12 @@ export const checkRouteAccess = (
   // 1. Whitelist basic public/error/overview routes
   if (ACCESS_WHITELIST.some((w) => (w.replace(/\/$/, '') || '/') === normalizedPath)) {
     return { allowed: true, blocked: false, foundInMenu: true, reason: 'whitelist' };
+  }
+
+  // Public and error routes remain available, but no account role can enter
+  // application modules outside the active RBI slice.
+  if (!ACTIVE_APPLICATION_PATHS.has(normalizedPath)) {
+    return { allowed: false, blocked: true, foundInMenu: false, reason: 'not_in_menu' };
   }
 
   // 2. Superuser bypass

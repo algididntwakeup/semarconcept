@@ -33,14 +33,17 @@ const LANDING_MODULES: readonly LandingModuleKey[] = [
  */
 export const MODULE_DESTINATIONS: Record<LandingModuleKey, ModuleDestinationRef[]> =
   LANDING_MODULES.reduce((acc, module) => {
-    acc[module] = getLandingDestinations(module as AppModule).map((r) => ({
+    const destinations = getLandingDestinations(module as AppModule).map((r) => ({
       title: r.title,
       href: r.path,
     }));
+    acc[module] = module === 'risk'
+      ? destinations.filter((destination) => destination.href === '/risk/equipment-master')
+      : [];
     return acc;
   }, {} as Record<LandingModuleKey, ModuleDestinationRef[]>);
 
-/** Seluruh canonical URL yang valid untuk destination landing page. */
+/** Seluruh canonical URL yang aktif sebagai destination landing page. */
 export const ALL_LANDING_DESTINATIONS: string[] = Object.values(MODULE_DESTINATIONS)
   .flat()
   .map((d) => d.href);

@@ -59,7 +59,7 @@ describe('Route Manifest Contract Tests', () => {
     });
   });
 
-  it('Contract 5: guarantees all menu items with URLs in menu-items.json map to valid routes', () => {
+  it('active fallback menu contains only accessible Dashboard and RBI Equipment Master routes', () => {
     const extractMenuUrls = (items: any[]): string[] => {
       let urls: string[] = [];
       items.forEach((item) => {
@@ -90,7 +90,9 @@ describe('Route Manifest Contract Tests', () => {
     const risk = orderedMenus[dashboardIndex + 1];
     const equipmentMaster = risk.children?.find((item) => item.id === 'equipment-master');
 
-    expect(risk).toMatchObject({ id: 'risk', title: 'Risk & Reliability', url: '/risk', order: 2 });
+    expect(risk).toMatchObject({ id: 'risk', title: 'Risk Based Inspection', url: '/risk', order: 2 });
+    expect(orderedMenus).toHaveLength(2);
+    expect(risk.children).toHaveLength(1);
     expect(equipmentMaster).toMatchObject({
       id: 'equipment-master',
       title: 'Equipment Master',
@@ -101,7 +103,7 @@ describe('Route Manifest Contract Tests', () => {
     expect(getRouteByPath(equipmentMaster!.url)?.id).toBe('risk.equipment-master');
   });
 
-  it('Contract 6: guarantees route icons resolve in icon-mapping', () => {
+  it('Contract 6: guarantees active route icons resolve in icon-mapping', () => {
     const routesWithIcons = ROUTE_MANIFEST.filter((r) => r.icon);
     routesWithIcons.forEach((r) => {
       const resolved = getIconByName(r.icon!);
@@ -110,23 +112,16 @@ describe('Route Manifest Contract Tests', () => {
   });
 
   it('Contract 7: helper functions getRouteById and getRouteByPath work with aliases', () => {
-    // Exact lookup
-    const assetRegistry = getRouteById('assets.registry');
-    expect(assetRegistry).toBeDefined();
-    expect(assetRegistry?.path).toBe('/assets/registry');
-
-    // Canonical path lookup
-    expect(getRouteByPath('/assets/registry')?.id).toBe('assets.registry');
-
-    // Alias lookup (legacy /asset/registry)
-    expect(getRouteByPath('/asset/registry')?.id).toBe('assets.registry');
+    expect(getRouteById('risk.equipment-master')?.path).toBe('/risk/equipment-master');
+    expect(getRouteByPath('/risk/equipment-master')?.id).toBe('risk.equipment-master');
 
     // Dashboard alias lookup (/dashboard/overview)
     expect(getRouteByPath('/dashboard/overview')?.id).toBe('dashboard.home');
 
     // Parameterized path matching
     expect(isPathValid('/reset-password/abc-123-xyz')).toBe(true);
-    expect(isPathValid('/content/entry/edit/42')).toBe(true);
+    expect(isPathValid('/content/entry/edit/42')).toBe(false);
+    expect(isPathValid('/risk/matrix')).toBe(false);
     expect(isPathValid('/completely/nonexistent/path')).toBe(false);
   });
 
@@ -138,11 +133,11 @@ describe('Route Manifest Contract Tests', () => {
 
     // Core app routes are protected
     expect(isPathProtected('/dashboard')).toBe(true);
-    expect(isPathProtected('/assets/registry')).toBe(true);
+    expect(isPathProtected('/risk/equipment-master')).toBe(true);
 
     // Required permissions retrieval
-    expect(getRequiredPermissions('/assets/registry')).toContain('asset:registry');
-    expect(getRequiredPermissions('/admin/users')).toContain('admin:users');
+    expect(getRequiredPermissions('/risk/equipment-master')).toContain('asset:view');
+    expect(getRequiredPermissions('/admin/users')).toEqual([]);
     expect(getRequiredPermissions('/login')).toEqual([]);
   });
 });
