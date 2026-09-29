@@ -34,6 +34,18 @@ func MigrateAll(db *gorm.DB) error {
 		return err
 	}
 
+	// The asset registry searches tag numbers with ILIKE '%query%'. A normal
+	// B-tree cannot accelerate leading-wildcard searches, so add a trigram GIN
+	// index for this PostgreSQL query shape.
+	if err := db.Exec(`CREATE EXTENSION IF NOT EXISTS pg_trgm`).Error; err != nil {
+		utils.Errorf("Failed to ensure pg_trgm extension: %v", err)
+		return err
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_assets_tag_number_trgm ON assets USING gin (tag_number gin_trgm_ops)`).Error; err != nil {
+		utils.Errorf("Failed to create asset tag search index: %v", err)
+		return err
+	}
+
 	utils.Info("Database migration completed successfully.")
 	return nil
 }

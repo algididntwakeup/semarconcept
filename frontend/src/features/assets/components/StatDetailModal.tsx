@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, type ChangeEvent, type MouseEvent } from 'react';
 import { ChevronLeft, ChevronRight, LoaderCircle, Search, X } from 'lucide-react';
 import { useEquipmentAssets } from '../api/assetQueries';
 import type { EquipmentAssetRow } from './AssetDataGrid';
@@ -32,7 +32,7 @@ const unpackAssets = (response: unknown): { assets: EquipmentAssetRow[]; total: 
   };
 };
 
-const StatDetailModal = ({
+const StatDetailModal = memo(({
   open,
   title,
   count,
@@ -78,6 +78,32 @@ const StatDetailModal = ({
     });
   }, [result.assets, sortBy, sortDirection]);
   const totalPages = Math.max(1, Math.ceil(result.total / MODAL_PAGE_SIZE));
+  const handleBackdropMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) onClose();
+  }, [onClose]);
+  const handleSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setSearch(event.target.value);
+    setPage(1);
+  }, []);
+  const handleStatusChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setStatusFilter(event.target.value);
+    setPage(1);
+  }, []);
+  const handleSortByChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setSortBy(event.target.value as typeof sortBy);
+  }, []);
+  const handleSortDirectionToggle = useCallback(() => {
+    setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+  }, []);
+  const handlePreviousPage = useCallback(() => {
+    setPage((current) => Math.max(1, current - 1));
+  }, []);
+  const handleNextPage = useCallback(() => {
+    setPage((current) => Math.min(totalPages, current + 1));
+  }, [totalPages]);
+  const handleSelectAsset = useCallback((asset: EquipmentAssetRow) => {
+    onSelectAsset?.(asset);
+  }, [onSelectAsset]);
 
   if (!open) return null;
 
@@ -85,9 +111,7 @@ const StatDetailModal = ({
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
       role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+      onMouseDown={handleBackdropMouseDown}
     >
       <section
         role="dialog"
@@ -125,10 +149,7 @@ const StatDetailModal = ({
             />
             <input
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
+              onChange={handleSearchChange}
               placeholder="Filter tag number..."
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
             />
@@ -137,10 +158,7 @@ const StatDetailModal = ({
             <span className="sr-only">Filter lifecycle status</span>
             <select
               value={statusFilter}
-              onChange={(event) => {
-                setStatusFilter(event.target.value);
-                setPage(1);
-              }}
+              onChange={handleStatusChange}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500"
             >
               <option value="">All lifecycle statuses</option>
@@ -155,7 +173,7 @@ const StatDetailModal = ({
               <span className="sr-only">Sort assets by</span>
               <select
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+                onChange={handleSortByChange}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500"
               >
                 <option value="tag">Sort: Tag</option>
@@ -165,7 +183,7 @@ const StatDetailModal = ({
             </label>
             <button
               type="button"
-              onClick={() => setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
+              onClick={handleSortDirectionToggle}
               aria-label={`Sort ${sortDirection === 'asc' ? 'descending' : 'ascending'}`}
               className="rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100"
             >
@@ -222,7 +240,7 @@ const StatDetailModal = ({
                 assets.map((asset) => (
                   <tr
                     key={asset.id}
-                    onClick={() => onSelectAsset?.(asset)}
+                    onClick={() => handleSelectAsset(asset)}
                     className={`hover:bg-slate-50 ${onSelectAsset ? 'cursor-pointer' : ''}`}
                   >
                     <td className="px-6 py-4">
@@ -268,7 +286,7 @@ const StatDetailModal = ({
               type="button"
               aria-label="Previous modal page"
               disabled={page <= 1}
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              onClick={handlePreviousPage}
               className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
             >
               <ChevronLeft size={16} />
@@ -280,7 +298,7 @@ const StatDetailModal = ({
               type="button"
               aria-label="Next modal page"
               disabled={page >= totalPages}
-              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              onClick={handleNextPage}
               className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
             >
               <ChevronRight size={16} />
@@ -290,6 +308,6 @@ const StatDetailModal = ({
       </section>
     </div>
   );
-};
+});
 
 export default StatDetailModal;

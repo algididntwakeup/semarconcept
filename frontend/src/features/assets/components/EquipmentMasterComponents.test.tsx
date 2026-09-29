@@ -16,6 +16,14 @@ describe('Equipment Master reusable components', () => {
     expect(screen.getByText('27')).toBeInTheDocument();
   });
 
+  it('shows a loading skeleton instead of stale metric values', () => {
+    render(<StatCard title="Installed Assets" count={27} onClick={vi.fn()} isLoading />);
+
+    expect(screen.getByRole('button', { name: 'Loading Installed Assets' })).toBeDisabled();
+    expect(screen.queryByText('27')).not.toBeInTheDocument();
+    expect(screen.getByRole('button').querySelector('.animate-pulse')).toBeInTheDocument();
+  });
+
   it('renders equipment fields, action callbacks, and the pagination slot', () => {
     const onView = vi.fn();
     const asset = {
@@ -57,6 +65,30 @@ describe('Equipment Master reusable components', () => {
       target: { value: 'Installed' },
     });
     expect(onLifecycleFilterChange).toHaveBeenCalledWith('Installed');
+  });
+
+  it('renders a helpful empty state for unmatched tag searches with a clear action', () => {
+    const onClearSearch = vi.fn();
+    render(
+      <AssetDataGrid
+        assets={[]}
+        searchValue="P-404"
+        onSearchChange={vi.fn()}
+        onClearSearch={onClearSearch}
+      />
+    );
+
+    expect(screen.getByText('No matching equipment found')).toBeInTheDocument();
+    expect(screen.getByText(/P-404/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(onClearSearch).toHaveBeenCalledOnce();
+  });
+
+  it('renders loading skeleton rows instead of the empty state', () => {
+    render(<AssetDataGrid assets={[]} isLoading />);
+
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(5);
+    expect(screen.queryByText('No equipment registered yet')).not.toBeInTheDocument();
   });
 
   it('shows the five row action menu choices and dispatches the selected action', () => {

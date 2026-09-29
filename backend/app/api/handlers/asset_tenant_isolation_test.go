@@ -450,8 +450,8 @@ func TestAssetTenantIsolation_CrossTenantRelationshipCreation_Rejected(t *testin
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "Validation failed")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "Related resource not found")
 }
 
 func TestAssetTenantIsolation_GranularRBAC_ViewOnlyCannotCreate(t *testing.T) {

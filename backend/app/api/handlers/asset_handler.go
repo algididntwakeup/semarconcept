@@ -65,6 +65,10 @@ func (h *AssetHandler) CreateSite(c *gin.Context) {
 	site, err := h.assetService.CreateSite(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create site: %v", err)
+		if utils.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("Related resource not found", err.Error()))
+			return
+		}
 		if utils.IsValidationError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
@@ -93,6 +97,10 @@ func (h *AssetHandler) GetSite(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Site not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to get site: %v", err)
@@ -128,6 +136,10 @@ func (h *AssetHandler) UpdateSite(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Site not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to update site: %v", err)
@@ -253,7 +265,11 @@ func (h *AssetHandler) CreateUnit(c *gin.Context) {
 	unit, err := h.assetService.CreateUnit(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create unit: %v", err)
-		if utils.IsValidationError(err) || utils.IsNotFoundError(err) {
+		if utils.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("Related resource not found", err.Error()))
+			return
+		}
+		if utils.IsValidationError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
@@ -278,6 +294,10 @@ func (h *AssetHandler) GetUnit(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Unit not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to get unit: %v", err)
@@ -337,6 +357,10 @@ func (h *AssetHandler) UpdateUnit(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Unit not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to update unit: %v", err)
@@ -401,7 +425,11 @@ func (h *AssetHandler) CreateAsset(c *gin.Context) {
 	Asset, err := h.assetService.CreateAsset(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create Asset: %v", err)
-		if utils.IsValidationError(err) || utils.IsNotFoundError(err) {
+		if utils.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("Related resource not found", err.Error()))
+			return
+		}
+		if utils.IsValidationError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
@@ -429,6 +457,10 @@ func (h *AssetHandler) GetAsset(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Asset not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to get Asset: %v", err)
@@ -613,6 +645,10 @@ func (h *AssetHandler) UpdateAsset(c *gin.Context) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Asset not found", ""))
 			return
 		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
+			return
+		}
 		utils.LogErrorf("Failed to update Asset: %v", err)
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to update Asset", ""))
 		return
@@ -675,7 +711,11 @@ func (h *AssetHandler) CreateComponent(c *gin.Context) {
 	component, err := h.assetService.CreateComponent(c.Request.Context(), tenantID, &req, userID)
 	if err != nil {
 		utils.LogErrorf("Failed to create component: %v", err)
-		if utils.IsValidationError(err) || utils.IsNotFoundError(err) {
+		if utils.IsNotFoundError(err) {
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("Related resource not found", err.Error()))
+			return
+		}
+		if utils.IsValidationError(err) {
 			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
@@ -700,6 +740,10 @@ func (h *AssetHandler) GetComponent(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Component not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to get component: %v", err)
@@ -759,6 +803,10 @@ func (h *AssetHandler) UpdateComponent(c *gin.Context) {
 	if err != nil {
 		if utils.IsNotFoundError(err) {
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("Component not found", ""))
+			return
+		}
+		if utils.IsValidationError(err) {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Validation failed", err.Error()))
 			return
 		}
 		utils.LogErrorf("Failed to update component: %v", err)

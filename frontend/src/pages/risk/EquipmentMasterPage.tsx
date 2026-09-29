@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -31,6 +31,12 @@ import type { Asset } from '../../types/asset';
 import { useNotification } from '../../hooks/useNotification';
 
 const PAGE_SIZE = 10;
+const EMPTY_ASSET_LIST: {
+  assets: EquipmentAssetRow[];
+  total: number;
+  page: number;
+  limit: number;
+} = { assets: [], total: 0, page: 1, limit: PAGE_SIZE };
 
 const statusKey = (status: string) => status.trim().toLowerCase().replace(/_/g, ' ');
 
@@ -65,9 +71,11 @@ const EquipmentMasterPage = () => {
   const statsQuery = useEquipmentAssetStats();
   const updateLifecycle = useUpdateEquipmentLifecycle();
   const deleteAsset = useDeleteEquipmentAsset();
+  const updateLifecycleAsync = updateLifecycle.mutateAsync;
+  const deleteAssetAsync = deleteAsset.mutateAsync;
   const maintenance = useEquipmentMaintenanceActions();
 
-  const list = assetsQuery.data ?? { assets: [], total: 0, page, limit: PAGE_SIZE };
+  const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
   const cards = useMemo(() => {
     const byStatus = new Map<string, number>();
     const stats = statsQuery.data ?? [];
@@ -91,7 +99,7 @@ const EquipmentMasterPage = () => {
 
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const errorMessage = assetsQuery.error instanceof Error ? assetsQuery.error.message : null;
-  const handleRowAction = async (action: AssetRowAction, asset: EquipmentAssetRow) => {
+  const handleRowAction = useCallback(async (action: AssetRowAction, asset: EquipmentAssetRow) => {
     setActionError('');
     switch (action) {
       case 'manage':
@@ -122,7 +130,7 @@ const EquipmentMasterPage = () => {
         if (!window.confirm(`Delete asset ${asset.tag_number ?? asset.tagNumber ?? asset.id}?`))
           return;
         try {
-          await deleteAsset.mutateAsync(asset.id);
+          await deleteAssetAsync(asset.id);
           showNotification('Asset deleted successfully.', 'success');
         } catch (error) {
           showNotification(
@@ -132,7 +140,31 @@ const EquipmentMasterPage = () => {
         }
         break;
     }
-  };
+  }, [deleteAssetAsync, showNotification]);
+
+  const handleGridSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPage(1);
+  }, []);
+  const handleClearSearch = useCallback(() => {
+    setSearch('');
+    setPage(1);
+  }, []);
+  const handleLifecycleFilterChange = useCallback((status: string) => {
+    setLifecycleFilter(status);
+    setPage(1);
+  }, []);
+  const handleLifecycleChange = useCallback(async (asset: EquipmentAssetRow, action: string) => {
+    try {
+      await updateLifecycleAsync({ assetId: asset.id, action });
+      showNotification(`Lifecycle updated: ${action}.`, 'success');
+    } catch (error) {
+      showNotification(error instanceof Error ? error.message : 'Unable to update lifecycle.', 'error');
+      throw error;
+    }
+  }, [showNotification, updateLifecycleAsync]);
+  const handleCloseStat = useCallback(() => setSelectedStat(null), []);
+  const handleSelectAsset = useCallback((asset: EquipmentAssetRow) => setSelectedAsset(asset), []);
 
   const runUtility = async <T,>(
     operation: () => Promise<T>,
@@ -205,7 +237,7 @@ const EquipmentMasterPage = () => {
       if (importInputRef.current) importInputRef.current.value = '';
     }
   };
-  const pagination = (
+  const pagination = useMemo(() => (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xs text-slate-500">
         Showing {list.assets.length} of {list.total} equipment assets
@@ -234,7 +266,7 @@ const EquipmentMasterPage = () => {
         </button>
       </nav>
     </div>
-  );
+  ), [list.assets.length, list.total, page, totalPages]);
 
   return (
     <main
@@ -365,9 +397,10 @@ const EquipmentMasterPage = () => {
             key={card.title}
             title={card.title}
             count={card.count}
+            isLoading={statsQuery.isLoading}
             isActive={selectedStat?.title === card.title}
             onClick={() => setSelectedStat(card)}
-            description={statsQuery.isLoading ? 'Loading metrics…' : 'Click to view metric details'}
+            description="Click to view metric details"
           />
         ))}
       </section>
@@ -386,29 +419,13 @@ const EquipmentMasterPage = () => {
           isLoading={assetsQuery.isLoading || assetsQuery.isFetching}
           error={errorMessage}
           searchValue={search}
-          onSearchChange={(value) => {
-            setSearch(value);
-            setPage(1);
-          }}
+          onSearchChange={handleGridSearchChange}
+          onClearSearch={handleClearSearch}
           lifecycleFilter={lifecycleFilter}
-          onLifecycleFilterChange={(status) => {
-            setLifecycleFilter(status);
-            setPage(1);
-          }}
-          onView={setSelectedAsset}
+          onLifecycleFilterChange={handleLifecycleFilterChange}
+          onView={handleSelectAsset}
           onAction={handleRowAction}
-          onLifecycleChange={async (asset, action) => {
-            try {
-              await updateLifecycle.mutateAsync({ assetId: asset.id, action });
-              showNotification(`Lifecycle updated: ${action}.`, 'success');
-            } catch (error) {
-              showNotification(
-                error instanceof Error ? error.message : 'Unable to update lifecycle.',
-                'error'
-              );
-              throw error;
-            }
-          }}
+          onLifecycleChange={handleLifecycleChange}
           paginationSlot={pagination}
         />
       </section>
@@ -429,8 +446,8 @@ const EquipmentMasterPage = () => {
           title={selectedStat.title}
           count={selectedStat.count}
           lifecycleStatus={selectedStat.status}
-          onClose={() => setSelectedStat(null)}
-          onSelectAsset={setSelectedAsset}
+          onClose={handleCloseStat}
+          onSelectAsset={handleSelectAsset}
         />
       )}
 

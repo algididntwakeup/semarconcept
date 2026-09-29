@@ -4,6 +4,21 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 28 September 2026
 
+### Equipment Master performance and scalability
+
+- Menambahkan indeks GORM untuk pencarian `tag_number`, filter `asset_type`, `functional_location_id`, `status`, dan lifecycle status, termasuk indeks gabungan tenant agar query multi-tenant tetap selektif; indeks diterapkan lewat `AutoMigrate` saat startup.
+- Menambahkan ekstensi PostgreSQL `pg_trgm` dan indeks GIN trigram untuk `tag_number`, sehingga pola pencarian `ILIKE '%query%'` pada tabel aset dapat memanfaatkan indeks.
+- Menambahkan unit test repository untuk akurasi agregasi tipe/lifecycle dan total statistik, serta handler test untuk payload sukses yang tepat dan JSON error 500 pada `GET /api/v1/assets/stats`.
+- Membungkus `AssetDataGrid` dan `StatDetailModal` dengan `React.memo`, menstabilkan callback pencarian, filter, lifecycle, pagination, sorting dan pilihan aset, serta memoize elemen pagination agar perubahan state lain tidak memicu render tabel/modal berulang.
+- Validasi: `pnpm typecheck`, tes komponen dan halaman Equipment Master, serta `go test ./app/api/handlers ./app/repositories ./app/utils`.
+
+### Equipment Master UX and API error handling
+
+- Menambahkan skeleton loading pada tabel aset dan metric cards serta empty state pencarian tag yang menyediakan aksi hapus pencarian.
+- Mengirim notifikasi Snackbar untuk perubahan lifecycle, penghapusan, dan utilitas Equipment Master saat operasi berhasil maupun gagal.
+- Menstandarkan payload error JSON API aset serta memperbaiki pemetaan validasi ke HTTP 400 dan resource hilang ke HTTP 404.
+- Validasi: frontend typecheck dan tes terpilih; `go test ./app/api/handlers ./app/utils`.
+
 ### Risk Management navbar navigation
 
 - Memindahkan grup Risk Management (`/risk`) ke posisi navbar tepat setelah Dashboard.

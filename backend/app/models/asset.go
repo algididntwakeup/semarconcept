@@ -10,14 +10,14 @@ import (
 // Asset represents major assets within units or sites (locations, vessels, pumps, heat exchangers)
 type Asset struct {
 	ID                      int        `gorm:"primaryKey;autoIncrement" db:"id" json:"id"`
-	TenantID                int        `gorm:"index;not null" db:"tenant_id" json:"tenant_id"`
+	TenantID                int        `gorm:"index;not null;index:idx_assets_tenant_status,priority:1;index:idx_assets_tenant_tag,priority:1;index:idx_assets_tenant_type,priority:1;index:idx_assets_tenant_lifecycle,priority:1" db:"tenant_id" json:"tenant_id"`
 	ParentID                *int       `gorm:"index" db:"parent_id" json:"parent_id,omitempty"`
 	UnitID                  *int       `gorm:"index" db:"unit_id" json:"unit_id,omitempty"`
-	FunctionalLocationID    *int       `gorm:"index" db:"functional_location_id" json:"functional_location_id,omitempty"`
+	FunctionalLocationID    *int       `gorm:"index;index:idx_assets_tenant_functional_location,priority:2" db:"functional_location_id" json:"functional_location_id,omitempty"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
 	Description             *string    `gorm:"type:text" db:"description" json:"description,omitempty"`
-	TagNumber               *string    `gorm:"size:100" db:"tag_number" json:"tag_number"`
-	AssetType               *string    `gorm:"size:100" db:"asset_type" json:"asset_type"`
+	TagNumber               *string    `gorm:"size:100;index:idx_assets_tag_number;index:idx_assets_tenant_tag,priority:2" db:"tag_number" json:"tag_number"`
+	AssetType               *string    `gorm:"size:100;index:idx_assets_asset_type;index:idx_assets_tenant_type,priority:2" db:"asset_type" json:"asset_type"`
 	AssetClass              *string    `gorm:"size:100" db:"asset_class" json:"asset_class"`
 	Manufacturer            *string    `gorm:"size:255" db:"manufacturer" json:"manufacturer"`
 	Model                   *string    `gorm:"size:255" db:"model" json:"model"`
@@ -35,8 +35,8 @@ type Asset struct {
 	DrawingsReferences      JSONBMap   `gorm:"type:jsonb" db:"drawings_references" json:"drawings_references,omitempty"`
 	MaintenanceStrategy     *string    `gorm:"size:100" db:"maintenance_strategy" json:"maintenance_strategy"`
 	InspectionStrategy      *string    `gorm:"size:100" db:"inspection_strategy" json:"inspection_strategy"`
-	Status                  *string    `gorm:"size:50;default:active" db:"status" json:"status"`
-	LifecycleStatus         *string    `gorm:"size:50;index" db:"lifecycle_status" json:"lifecycle_status,omitempty"`
+	Status                  *string    `gorm:"size:50;default:active;index:idx_assets_status;index:idx_assets_tenant_status,priority:2" db:"status" json:"status"`
+	LifecycleStatus         *string    `gorm:"size:50;index;index:idx_assets_tenant_lifecycle,priority:2" db:"lifecycle_status" json:"lifecycle_status,omitempty"`
 	Criticality             *int       `gorm:"default:3" db:"criticality" json:"criticality"`
 	SafetyCritical          *bool      `gorm:"default:false" db:"safety_critical" json:"safety_critical"`
 	EnvironmentallyCritical *bool      `gorm:"default:false" db:"environmentally_critical" json:"environmentally_critical"`

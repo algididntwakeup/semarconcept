@@ -28,10 +28,14 @@ func SuccessResponse(message string, data interface{}) APIResponse {
 }
 
 func ErrorResponse(message, error string) APIResponse {
+	if error == "" {
+		error = message
+	}
 	return APIResponse{
 		Success: false,
 		Message: message,
 		Error:   error,
+		Code:    "API_ERROR",
 	}
 }
 

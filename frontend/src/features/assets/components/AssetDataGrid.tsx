@@ -1,5 +1,5 @@
-import { Eye, Search } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Eye, Search, X } from 'lucide-react';
+import { memo, type ChangeEvent, type ReactNode } from 'react';
 import type { EquipmentAsset } from '../../../services/assetServices';
 import LifecycleDropdown, { type LifecycleAction } from './LifecycleDropdown';
 import RowActions, { type AssetRowAction } from './RowActions';
@@ -19,6 +19,7 @@ export interface AssetDataGridProps {
   onLifecycleFilterChange?: (status: string) => void;
   paginationSlot?: ReactNode;
   emptyMessage?: string;
+  onClearSearch?: () => void;
 }
 
 const field = (...values: Array<string | number | null | undefined>) =>
@@ -26,7 +27,7 @@ const field = (...values: Array<string | number | null | undefined>) =>
     .find((value) => value !== undefined && value !== null && String(value).trim() !== '')
     ?.toString() ?? '';
 
-const AssetDataGrid = ({
+const AssetDataGrid = memo(({
   assets,
   isLoading = false,
   error,
@@ -38,7 +39,8 @@ const AssetDataGrid = ({
   lifecycleFilter = '',
   onLifecycleFilterChange,
   paginationSlot,
-  emptyMessage = 'No equipment found.',
+  emptyMessage,
+  onClearSearch,
 }: AssetDataGridProps) => (
   <section
     className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
@@ -56,7 +58,7 @@ const AssetDataGrid = ({
             />
             <input
               value={searchValue}
-              onChange={(event) => onSearchChange(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => onSearchChange(event.target.value)}
               placeholder="Search tag number..."
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
             />
@@ -68,7 +70,7 @@ const AssetDataGrid = ({
             <select
               aria-label="Filter equipment by lifecycle"
               value={lifecycleFilter}
-              onChange={(event) => onLifecycleFilterChange(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLSelectElement>) => onLifecycleFilterChange(event.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500 sm:w-52"
             >
               <option value="">All lifecycle statuses</option>
@@ -100,11 +102,14 @@ const AssetDataGrid = ({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {isLoading ? (
-            Array.from({ length: 4 }, (_, index) => (
-              <tr key={index} className="animate-pulse">
-                <td colSpan={5} className="px-5 py-5">
-                  <div className="h-4 w-2/3 rounded bg-slate-100" />
-                </td>
+            Array.from({ length: 5 }, (_, index) => (
+              <tr key={index} className="animate-pulse" aria-hidden="true">
+                {[0, 1, 2, 3, 4].map((column) => (
+                  <td key={column} className="px-5 py-5">
+                    <div className={`h-4 rounded bg-slate-100 ${column === 0 ? 'w-32' : 'w-24'}`} />
+                    {column === 0 && <div className="mt-2 h-3 w-24 rounded bg-slate-50" />}
+                  </td>
+                ))}
               </tr>
             ))
           ) : error ? (
@@ -115,8 +120,30 @@ const AssetDataGrid = ({
             </tr>
           ) : assets.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500">
-                {emptyMessage}
+              <td colSpan={5} className="px-5 py-12">
+                <div className="mx-auto flex max-w-md flex-col items-center text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                    <Search size={26} aria-hidden="true" />
+                  </span>
+                  <h3 className="mt-4 text-base font-semibold text-slate-900">
+                    {emptyMessage ?? (searchValue.trim() ? 'No matching equipment found' : 'No equipment registered yet')}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {searchValue.trim()
+                      ? `We couldn't find equipment matching “${searchValue.trim()}”. Check the tag number or clear your search.`
+                      : 'Equipment matching the selected filters will appear here.'}
+                  </p>
+                  {searchValue.trim() && onClearSearch && (
+                    <button
+                      type="button"
+                      onClick={onClearSearch}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      <X size={15} aria-hidden="true" />
+                      Clear search
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ) : (
@@ -188,6 +215,6 @@ const AssetDataGrid = ({
       <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3">{paginationSlot}</div>
     )}
   </section>
-);
+));
 
 export default AssetDataGrid;
