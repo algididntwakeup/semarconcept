@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -25,12 +26,15 @@ func NewAssetRepository(db *sqlx.DB) AssetRepository {
 
 // Create inserts a new Asset into the database
 func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error {
+	if asset.RBIProperties == nil {
+		asset.RBIProperties = models.JSONBMap{}
+	}
 	query := `
 		INSERT INTO assets (
 			tenant_id, unit_id, taxonomy_category_id, parent_id, functional_location_id, name, description, tag_number,
 			asset_type, asset_class, manufacturer, model, serial_number,
 			manufacture_date, installation_date, commissioning_date, warranty_expiry,
-			design_life_years, remaining_life_years, specifications,
+			design_life_years, remaining_life_years, specifications, rbi_properties,
 			operating_parameters, design_conditions, materials, drawings_references,
 			maintenance_strategy, inspection_strategy, status, lifecycle_status, criticality,
 			safety_critical, environmentally_critical, metadata, created_by, updated_by
@@ -38,7 +42,7 @@ func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error
 			:tenant_id, :unit_id, :taxonomy_category_id, :parent_id, :functional_location_id, :name, :description, :tag_number,
 			:asset_type, :asset_class, :manufacturer, :model, :serial_number,
 			:manufacture_date, :installation_date, :commissioning_date, :warranty_expiry,
-			:design_life_years, :remaining_life_years, :specifications,
+			:design_life_years, :remaining_life_years, :specifications, :rbi_properties,
 			:operating_parameters, :design_conditions, :materials, :drawings_references,
 			:maintenance_strategy, :inspection_strategy, :status, :lifecycle_status, :criticality,
 			:safety_critical, :environmentally_critical, :metadata, :created_by, :updated_by
@@ -89,6 +93,9 @@ func (r *assetRepository) FindByName(ctx context.Context, tenantID int, unitID i
 
 // Update modifies an existing Asset
 func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error {
+	if asset.RBIProperties == nil {
+		asset.RBIProperties = models.JSONBMap{}
+	}
 	query := `
 		UPDATE assets SET
 			unit_id = :unit_id,
@@ -110,6 +117,7 @@ func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error
 			design_life_years = :design_life_years,
 			remaining_life_years = :remaining_life_years,
 			specifications = :specifications,
+			rbi_properties = :rbi_properties,
 			operating_parameters = :operating_parameters,
 			design_conditions = :design_conditions,
 			materials = :materials,
@@ -398,6 +406,112 @@ func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int,
 		return nil, fmt.Errorf("list assets for export: %w", err)
 	}
 	return assets, nil
+}
+
+// UpsertAssetsFromImport applies an entire import batch atomically for one tenant.
+// A transaction-scoped advisory lock serializes concurrent imports for the tenant,
+// including imports where incoming tag numbers do not yet exist in the database.
+func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (created, updated int, err error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("begin asset import transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1, $2)`, tenantID, 74321); err != nil {
+		return 0, 0, fmt.Errorf("lock tenant asset import: %w", err)
+	}
+
+	const findByTagQuery = `SELECT id FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1 FOR UPDATE`
+	const findByIDQuery = `SELECT id FROM assets WHERE tenant_id = $1 AND id = $2 AND COALESCE(status, '') <> 'deleted' FOR UPDATE`
+	const updateByIDQuery = `
+		UPDATE assets SET
+			name = $1,
+			tag_number = COALESCE($2, tag_number),
+			description = COALESCE($3, description),
+			asset_type = COALESCE($4, asset_type),
+			asset_class = COALESCE($5, asset_class),
+			parent_id = COALESCE($6, parent_id),
+			functional_location_id = COALESCE($7, functional_location_id),
+			lifecycle_status = COALESCE($8, lifecycle_status),
+			status = COALESCE($9, status),
+			rbi_properties = COALESCE(rbi_properties, '{}'::jsonb) || $10::jsonb,
+			updated_by = $11,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $12 AND tenant_id = $13`
+	const insertWithTagQuery = `
+		INSERT INTO assets (
+			tenant_id, name, tag_number, description, asset_type, asset_class, parent_id,
+			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'active'), $11, $12, $12)`
+	const insertWithoutTagQuery = `
+		INSERT INTO assets (
+			tenant_id, name, description, asset_type, asset_class, parent_id,
+			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'), $10, $11, $11)`
+
+	for index := range assets {
+		asset := &assets[index]
+		asset.TenantID = tenantID
+		asset.UpdatedBy = &userID
+		if asset.CreatedBy == nil {
+			asset.CreatedBy = &userID
+		}
+		if asset.RBIProperties == nil {
+			asset.RBIProperties = models.JSONBMap{}
+		}
+
+		var existingID int
+		findErr := sql.ErrNoRows
+		if asset.TagNumber != nil && strings.TrimSpace(*asset.TagNumber) != "" {
+			findErr = tx.GetContext(ctx, &existingID, findByTagQuery, tenantID, strings.TrimSpace(*asset.TagNumber))
+		}
+		if findErr == sql.ErrNoRows && asset.ID > 0 {
+			findErr = tx.GetContext(ctx, &existingID, findByIDQuery, tenantID, asset.ID)
+		}
+		if findErr != nil && findErr != sql.ErrNoRows {
+			err = findErr
+			return 0, 0, fmt.Errorf("find existing asset at import row %d: %w", index+1, err)
+		}
+		if findErr == nil {
+			_, err = tx.ExecContext(ctx, updateByIDQuery,
+				asset.Name, asset.TagNumber, asset.Description, asset.AssetType, asset.AssetClass,
+				asset.ParentID, asset.FunctionalLocationID, asset.LifecycleStatus, asset.Status,
+				asset.RBIProperties, userID, existingID, tenantID,
+			)
+			if err != nil {
+				return 0, 0, fmt.Errorf("update asset import row %d: %w", index+1, err)
+			}
+			updated++
+			continue
+		}
+		if asset.TagNumber == nil || strings.TrimSpace(*asset.TagNumber) == "" {
+			_, err = tx.ExecContext(ctx, insertWithoutTagQuery,
+				asset.TenantID, asset.Name, asset.Description, asset.AssetType, asset.AssetClass,
+				asset.ParentID, asset.FunctionalLocationID, asset.LifecycleStatus, asset.Status,
+				asset.RBIProperties, userID,
+			)
+		} else {
+			_, err = tx.ExecContext(ctx, insertWithTagQuery,
+				asset.TenantID, asset.Name, asset.TagNumber, asset.Description, asset.AssetType,
+				asset.AssetClass, asset.ParentID, asset.FunctionalLocationID, asset.LifecycleStatus,
+				asset.Status, asset.RBIProperties, userID,
+			)
+		}
+		if err != nil {
+			return 0, 0, fmt.Errorf("insert asset import row %d: %w", index+1, err)
+		}
+		created++
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, 0, fmt.Errorf("commit asset import transaction: %w", err)
+	}
+	return created, updated, nil
 }
 
 func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {

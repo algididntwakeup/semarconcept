@@ -8,6 +8,7 @@ import (
 	"backend/app/utils"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -1122,193 +1123,213 @@ func (s *AssetService) ImportAssets(ctx context.Context, tenantID int, req *requ
 	return s.ImportAssetsFromXLSX(ctx, tenantID, req, userID, fileData)
 }
 
-// ImportAssetsFromXLSX validates and imports rows from an uploaded XLSX workbook.
+// ImportAssetsFromXLSX imports the Data Source worksheet using its category row,
+// field-name row, and data rows beginning at row three. Relational fields stay on
+// Asset; all other fields are retained in the RBI JSONB property map.
 func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error) {
 	if len(fileData) == 0 {
 		return nil, fmt.Errorf("empty import workbook: %w", utils.ErrValidation)
-	}
-	if req.ImportType == "" {
-		req.ImportType = "create"
-	}
-	if req.ImportType != "create" && req.ImportType != "upsert" {
-		return nil, fmt.Errorf("import_type %q is not supported; use create or upsert: %w", req.ImportType, utils.ErrValidation)
 	}
 	book, err := excelize.OpenReader(bytes.NewReader(fileData))
 	if err != nil {
 		return nil, fmt.Errorf("open XLSX workbook: %w", err)
 	}
 	defer func() { _ = book.Close() }()
-	sheets := book.GetSheetList()
-	if len(sheets) == 0 {
-		return nil, fmt.Errorf("workbook has no worksheets: %w", utils.ErrValidation)
+
+	const sheetName = "Data Source"
+	sheetIndex, sheetErr := book.GetSheetIndex(sheetName)
+	if sheetErr != nil || sheetIndex == -1 {
+		return nil, fmt.Errorf("worksheet %q not found: %w", sheetName, utils.ErrValidation)
 	}
-	rows, err := book.GetRows(sheets[0])
+	rows, err := book.GetRows(sheetName)
 	if err != nil {
-		return nil, fmt.Errorf("read XLSX rows: %w", err)
+		return nil, fmt.Errorf("read worksheet %q: %w", sheetName, err)
 	}
 	if len(rows) < 2 {
-		return map[string]interface{}{"imported_count": 0, "total_count": 0, "errors": []string{}}, nil
+		return nil, fmt.Errorf("worksheet must contain two header rows: %w", utils.ErrValidation)
 	}
-	headers := make(map[string]int, len(rows[0]))
-	for i, header := range rows[0] {
-		headers[strings.ToLower(strings.TrimSpace(header))] = i
+	columns := equipmentImportColumns(rows[0], rows[1])
+	if !equipmentImportHasField(columns, "assetid", "equipmentid", "id", "tagnumber", "equipmenttag", "equipmenttagnumber", "tag") {
+		return nil, fmt.Errorf("row 2 must contain Asset ID or Tag Number: %w", utils.ErrValidation)
 	}
-	get := func(row []string, field string) string {
-		idx, exists := headers[field]
-		if !exists || idx >= len(row) {
-			return ""
-		}
-		return strings.TrimSpace(row[idx])
-	}
-	if _, ok := headers["name"]; !ok {
-		return nil, fmt.Errorf("XLSX must include a name column: %w", utils.ErrValidation)
-	}
-	if _, ok := headers["asset_type"]; !ok {
-		if _, classOK := headers["asset_class"]; !classOK {
-			return nil, fmt.Errorf("XLSX must include asset_type or asset_class column: %w", utils.ErrValidation)
-		}
+	if !equipmentImportHasField(columns, "assetclass", "equipmentclass", "class", "assettype", "equipmenttype", "type") {
+		return nil, fmt.Errorf("row 2 must contain Equipment Class or Equipment Type: %w", utils.ErrValidation)
 	}
 
 	batchSize := req.BatchSize
 	if batchSize <= 0 || batchSize > 1000 {
-		batchSize = 100
+		batchSize = 1000
 	}
-	resultErrors := make([]string, 0)
-	imported := 0
-	total := len(rows) - 1
-	for rowIndex, row := range rows[1:] {
+	assets := make([]models.Asset, 0, len(rows)-2)
+	issues := make([]string, 0)
+	total := len(rows) - 2
+	for rowIndex, row := range rows[2:] {
 		if rowIndex >= batchSize {
-			resultErrors = append(resultErrors, fmt.Sprintf("row %d: batch size limit (%d) exceeded", rowIndex+2, batchSize))
+			issues = append(issues, fmt.Sprintf("row %d: batch size limit (%d) exceeded", rowIndex+3, batchSize))
 			break
 		}
-		name := get(row, "name")
-		assetType := get(row, "asset_type")
-		assetClass := get(row, "asset_class")
-		if assetType == "" {
-			assetType = strings.TrimSpace(req.AssetType)
+		if equipmentImportRowIsEmpty(row) {
+			continue
 		}
-		if name == "" || (assetType == "" && assetClass == "") {
-			resultErrors = append(resultErrors, fmt.Sprintf("row %d: name and asset_type or asset_class are required", rowIndex+2))
+		asset, parseErr := parseEquipmentImportRow(columns, row, tenantID, userID, req.AssetType)
+		if parseErr != nil {
+			issues = append(issues, fmt.Sprintf("row %d: %v", rowIndex+3, parseErr))
 			if !req.SkipErrors {
-				break
+				return nil, fmt.Errorf("validate equipment import: %w", utils.ErrValidation)
 			}
 			continue
 		}
-		asset := &models.Asset{TenantID: tenantID, Name: name}
-		if assetType != "" {
-			asset.AssetType = &assetType
+		assets = append(assets, asset)
+	}
+
+	if req.ValidateOnly || req.DryRun {
+		return map[string]interface{}{
+			"created_count": 0, "updated_count": 0, "imported_count": len(assets),
+			"total_count": total, "errors": issues, "validate_only": true,
+		}, nil
+	}
+	created, updated, err := s.AssetRepo.UpsertAssetsFromImport(ctx, tenantID, assets, userID)
+	if err != nil {
+		return nil, fmt.Errorf("import equipment assets transaction: %w", err)
+	}
+	return map[string]interface{}{
+		"created_count": created, "updated_count": updated, "imported_count": created + updated,
+		"total_count": total, "errors": issues, "validate_only": false,
+	}, nil
+}
+
+type equipmentImportColumn struct {
+	key        string
+	normalized string
+}
+
+func equipmentImportColumns(categories, headers []string) []equipmentImportColumn {
+	count := len(headers)
+	if len(categories) > count {
+		count = len(categories)
+	}
+	columns := make([]equipmentImportColumn, count)
+	category := "General"
+	for index := 0; index < count; index++ {
+		if index < len(categories) && strings.TrimSpace(categories[index]) != "" {
+			category = strings.TrimSpace(categories[index])
 		}
-		if assetClass != "" {
-			asset.AssetClass = &assetClass
+		field := ""
+		if index < len(headers) {
+			field = strings.TrimSpace(headers[index])
 		}
-		if value := get(row, "tag_number"); value != "" {
-			asset.TagNumber = &value
+		columns[index] = equipmentImportColumn{
+			key:        category + "." + field,
+			normalized: normalizeImportHeader(field),
 		}
-		if value := get(row, "description"); value != "" {
-			asset.Description = &value
-		}
-		if value := get(row, "lifecycle_status"); value != "" {
-			asset.LifecycleStatus = &value
-		}
-		if value := get(row, "status"); value != "" {
-			asset.Status = &value
-		}
-		if value := get(row, "parent_id"); value != "" {
-			id, parseErr := strconv.Atoi(value)
-			if parseErr != nil || id <= 0 {
-				resultErrors = append(resultErrors, fmt.Sprintf("row %d: invalid parent_id", rowIndex+2))
-				if !req.SkipErrors {
-					break
-				}
-				continue
+	}
+	return columns
+}
+
+func equipmentImportHasField(columns []equipmentImportColumn, names ...string) bool {
+	for _, column := range columns {
+		for _, name := range names {
+			if column.normalized == name {
+				return true
 			}
-			if _, findErr := s.AssetRepo.FindByID(ctx, tenantID, id); findErr != nil {
-				resultErrors = append(resultErrors, fmt.Sprintf("row %d: parent_id %d not found in tenant", rowIndex+2, id))
-				if !req.SkipErrors {
-					break
-				}
-				continue
+		}
+	}
+	return false
+}
+
+func normalizeImportHeader(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return -1
+	}, value)
+}
+
+func equipmentImportRowIsEmpty(row []string) bool {
+	for _, value := range row {
+		if strings.TrimSpace(value) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string) (models.Asset, error) {
+	asset := models.Asset{TenantID: tenantID, RBIProperties: make(models.JSONBMap)}
+	for index, column := range columns {
+		if column.normalized == "" || index >= len(row) {
+			continue
+		}
+		value := strings.TrimSpace(row[index])
+		if value == "" {
+			continue
+		}
+		switch column.normalized {
+		case "id", "assetid", "equipmentid":
+			id, err := strconv.Atoi(value)
+			if err != nil || id <= 0 {
+				return models.Asset{}, fmt.Errorf("invalid Asset ID %q", value)
+			}
+			asset.ID = id
+		case "tag", "tagnumber", "equipmenttag", "equipmenttagnumber":
+			asset.TagNumber = &value
+		case "description", "equipmentdescription":
+			asset.Description = &value
+		case "assetclass", "equipmentclass", "class":
+			asset.AssetClass = &value
+		case "assettype", "equipmenttype", "type":
+			asset.AssetType = &value
+		case "name", "equipmentname":
+			asset.Name = value
+		case "parentid", "parentequipmentid":
+			id, err := strconv.Atoi(value)
+			if err != nil || id <= 0 {
+				return models.Asset{}, fmt.Errorf("invalid Parent Equipment ID %q", value)
 			}
 			asset.ParentID = &id
-		}
-		if value := get(row, "functional_location_id"); value != "" {
-			id, parseErr := strconv.Atoi(value)
-			if parseErr != nil || id <= 0 {
-				resultErrors = append(resultErrors, fmt.Sprintf("row %d: invalid functional_location_id", rowIndex+2))
-				if !req.SkipErrors {
-					break
-				}
-				continue
-			}
-			floc, findErr := s.AssetRepo.FindByID(ctx, tenantID, id)
-			if findErr != nil || floc == nil {
-				resultErrors = append(resultErrors, fmt.Sprintf("row %d: functional_location_id %d not found in tenant", rowIndex+2, id))
-				if !req.SkipErrors {
-					break
-				}
-				continue
+		case "functionallocationid":
+			id, err := strconv.Atoi(value)
+			if err != nil || id <= 0 {
+				return models.Asset{}, fmt.Errorf("invalid Functional Location ID %q", value)
 			}
 			asset.FunctionalLocationID = &id
+		case "lifecyclestatus":
+			asset.LifecycleStatus = &value
+		case "status":
+			asset.Status = &value
+		default:
+			asset.RBIProperties[column.key] = value
 		}
-		if req.ValidateOnly || req.DryRun {
-			imported++
-			continue
-		}
-		asset.CreatedBy, asset.UpdatedBy = &userID, &userID
-		if req.ImportType == "upsert" && asset.TagNumber != nil {
-			existing, findErr := s.AssetRepo.FindByTagNumber(ctx, tenantID, *asset.TagNumber)
-			if findErr != nil {
-				resultErrors = append(resultErrors, fmt.Sprintf("row %d: %v", rowIndex+2, findErr))
-				if !req.SkipErrors {
-					break
-				}
-				continue
-			}
-			if existing != nil {
-				existing.Name = asset.Name
-				if asset.AssetType != nil {
-					existing.AssetType = asset.AssetType
-				}
-				if asset.AssetClass != nil {
-					existing.AssetClass = asset.AssetClass
-				}
-				if asset.Description != nil {
-					existing.Description = asset.Description
-				}
-				if asset.ParentID != nil {
-					existing.ParentID = asset.ParentID
-				}
-				if asset.FunctionalLocationID != nil {
-					existing.FunctionalLocationID = asset.FunctionalLocationID
-				}
-				if asset.LifecycleStatus != nil {
-					existing.LifecycleStatus = asset.LifecycleStatus
-				}
-				if asset.Status != nil {
-					existing.Status = asset.Status
-				}
-				existing.UpdatedBy = &userID
-				if err := s.AssetRepo.Update(ctx, existing); err != nil {
-					resultErrors = append(resultErrors, fmt.Sprintf("row %d: %v", rowIndex+2, err))
-					if !req.SkipErrors {
-						break
-					}
-					continue
-				}
-				imported++
-				continue
-			}
-		}
-		if err := s.AssetRepo.Create(ctx, asset); err != nil {
-			resultErrors = append(resultErrors, fmt.Sprintf("row %d: %v", rowIndex+2, err))
-			if !req.SkipErrors {
-				break
-			}
-			continue
-		}
-		imported++
 	}
-	return map[string]interface{}{"imported_count": imported, "total_count": total, "errors": resultErrors, "validate_only": req.ValidateOnly || req.DryRun}, nil
+
+	if asset.ID <= 0 && (asset.TagNumber == nil || strings.TrimSpace(*asset.TagNumber) == "") {
+		return models.Asset{}, fmt.Errorf("Asset ID or Tag Number is required")
+	}
+	if asset.Name == "" {
+		if asset.TagNumber != nil {
+			asset.Name = *asset.TagNumber
+		} else {
+			asset.Name = fmt.Sprintf("Asset %d", asset.ID)
+		}
+	}
+	if asset.AssetType == nil && strings.TrimSpace(defaultType) != "" && !strings.EqualFold(defaultType, "Asset") {
+		asset.AssetType = &defaultType
+	}
+	if asset.AssetType == nil && asset.AssetClass != nil {
+		asset.AssetType = asset.AssetClass
+	}
+	if asset.AssetClass == nil && asset.AssetType != nil {
+		asset.AssetClass = asset.AssetType
+	}
+	if asset.AssetType == nil || strings.TrimSpace(*asset.AssetType) == "" {
+		return models.Asset{}, fmt.Errorf("Equipment Type or Equipment Class is required")
+	}
+	asset.CreatedBy, asset.UpdatedBy = &userID, &userID
+	return asset, nil
 }
 
 // ExportAssets serializes tenant-scoped assets into an XLSX workbook.
@@ -1357,6 +1378,274 @@ func (s *AssetService) ExportAssets(ctx context.Context, tenantID int, req *requ
 	}
 	filename = strings.TrimSuffix(filename, ".xlsx") + ".xlsx"
 	return buffer.Bytes(), filename, nil
+}
+
+type equipmentExportColumn struct {
+	category string
+	header   string
+	value    func(models.Asset) interface{}
+}
+
+var equipmentExportColumns = []equipmentExportColumn{
+	{category: "General", header: "Equipment ID", value: func(a models.Asset) interface{} { return a.ID }},
+	{category: "General", header: "Equipment Tag", value: func(a models.Asset) interface{} { return valueOrEmpty(a.TagNumber) }},
+	{category: "General", header: "Equipment Name", value: func(a models.Asset) interface{} { return a.Name }},
+	{category: "General", header: "Description", value: func(a models.Asset) interface{} { return valueOrEmpty(a.Description) }},
+	{category: "General", header: "Equipment Type", value: func(a models.Asset) interface{} { return valueOrEmpty(a.AssetType) }},
+	{category: "General", header: "Equipment Class", value: func(a models.Asset) interface{} { return valueOrEmpty(a.AssetClass) }},
+	{category: "General", header: "Manufacturer", value: func(a models.Asset) interface{} { return valueOrEmpty(a.Manufacturer) }},
+	{category: "General", header: "Model", value: func(a models.Asset) interface{} { return valueOrEmpty(a.Model) }},
+	{category: "General", header: "Serial Number", value: func(a models.Asset) interface{} { return valueOrEmpty(a.SerialNumber) }},
+	{category: "General", header: "Functional Location ID", value: func(a models.Asset) interface{} { return valueOrEmptyInt(a.FunctionalLocationID) }},
+	{category: "General", header: "Parent Equipment ID", value: func(a models.Asset) interface{} { return valueOrEmptyInt(a.ParentID) }},
+	{category: "General", header: "Lifecycle Status", value: func(a models.Asset) interface{} { return valueOrEmpty(a.LifecycleStatus) }},
+	{category: "General", header: "Status", value: func(a models.Asset) interface{} { return valueOrEmpty(a.Status) }},
+	{category: "General", header: "Criticality", value: func(a models.Asset) interface{} { return valueOrEmptyInt(a.Criticality) }},
+	{category: "General", header: "Safety Critical", value: func(a models.Asset) interface{} { return valueOrEmptyBool(a.SafetyCritical) }},
+	{category: "General", header: "Environmentally Critical", value: func(a models.Asset) interface{} { return valueOrEmptyBool(a.EnvironmentallyCritical) }},
+	{category: "General", header: "Manufacture Date", value: func(a models.Asset) interface{} { return valueOrEmptyDate(a.ManufactureDate) }},
+	{category: "General", header: "Installation Date", value: func(a models.Asset) interface{} { return valueOrEmptyDate(a.InstallationDate) }},
+	{category: "General", header: "Commissioning Date", value: func(a models.Asset) interface{} { return valueOrEmptyDate(a.CommissioningDate) }},
+	{category: "General", header: "Warranty Expiry", value: func(a models.Asset) interface{} { return valueOrEmptyDate(a.WarrantyExpiry) }},
+	{category: "General", header: "Design Life (Years)", value: func(a models.Asset) interface{} { return valueOrEmptyInt(a.DesignLifeYears) }},
+	{category: "General", header: "Remaining Life (Years)", value: func(a models.Asset) interface{} { return valueOrEmptyFloat(a.RemainingLifeYears) }},
+	{category: "General", header: "Maintenance Strategy", value: func(a models.Asset) interface{} { return valueOrEmpty(a.MaintenanceStrategy) }},
+	{category: "General", header: "Inspection Strategy", value: func(a models.Asset) interface{} { return valueOrEmpty(a.InspectionStrategy) }},
+	{category: "Component Design", header: "Design Pressure", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"design_pressure", "design pressure"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Component Design", header: "Design Temperature", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"design_temperature", "design temperature"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Component Design", header: "Design Code", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"design_code", "design code", "code"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Component Design", header: "Material", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"material", "material_specification", "material specification"}, a.Materials, a.Specifications)
+	}},
+	{category: "Component Design", header: "Corrosion Allowance", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"corrosion_allowance", "corrosion allowance"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Component Design", header: "Wall Thickness", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"wall_thickness", "wall thickness", "thickness"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Component Design", header: "Diameter", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"diameter", "nominal_diameter", "nominal diameter"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Component Design", header: "Length", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"length", "overall_length"}, a.DesignConditions, a.Specifications)
+	}},
+	{category: "Operating Envelope", header: "Operating Pressure", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"operating_pressure", "operating pressure", "pressure"}, a.OperatingParameters)
+	}},
+	{category: "Operating Envelope", header: "Minimum Operating Pressure", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"minimum_operating_pressure", "min_operating_pressure", "minimum pressure"}, a.OperatingParameters)
+	}},
+	{category: "Operating Envelope", header: "Maximum Operating Pressure", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"maximum_operating_pressure", "max_operating_pressure", "maximum pressure"}, a.OperatingParameters)
+	}},
+	{category: "Operating Envelope", header: "Operating Temperature", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"operating_temperature", "operating temperature", "temperature"}, a.OperatingParameters)
+	}},
+	{category: "Operating Envelope", header: "Minimum Operating Temperature", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"minimum_operating_temperature", "min_operating_temperature", "minimum temperature"}, a.OperatingParameters)
+	}},
+	{category: "Operating Envelope", header: "Maximum Operating Temperature", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"maximum_operating_temperature", "max_operating_temperature", "maximum temperature"}, a.OperatingParameters)
+	}},
+	{category: "Operating Envelope", header: "Operating Medium", value: func(a models.Asset) interface{} {
+		return assetJSONValue([]string{"operating_medium", "operating medium", "fluid", "medium"}, a.OperatingParameters)
+	}},
+}
+
+// ExportAssetsToExcel creates an Equipment Master workbook with grouped, two-tier headers.
+func (s *AssetService) ExportAssetsToExcel(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error) {
+	assetType := req.AssetType
+	if assetType == "" || assetType == "Asset" || strings.EqualFold(assetType, "equipment") {
+		assetType = ""
+	}
+	status := req.Status
+	if status == "" && len(req.Statuses) == 1 {
+		status = req.Statuses[0]
+	}
+
+	assets, err := s.AssetRepo.ListAssetsForExport(ctx, tenantID, assetType, status)
+	if err != nil {
+		return nil, "", fmt.Errorf("load equipment assets for XLSX export: %w", err)
+	}
+	workbook, err := createEquipmentExportWorkbook(assets)
+	if err != nil {
+		return nil, "", err
+	}
+	return workbook, "equipment-master.xlsx", nil
+}
+
+func createEquipmentExportWorkbook(assets []models.Asset) ([]byte, error) {
+	book := excelize.NewFile()
+	defer func() { _ = book.Close() }()
+	const sheet = "Data Source"
+	if err := book.SetSheetName("Sheet1", sheet); err != nil {
+		return nil, fmt.Errorf("name equipment export sheet: %w", err)
+	}
+
+	categoryStyle, err := book.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Color: "FFFFFF", Size: 11},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"1F4E78"}, Pattern: 1},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+		Border:    []excelize.Border{{Type: "bottom", Color: "17365D", Style: 2}},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create category header style: %w", err)
+	}
+	fieldStyle, err := book.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Color: "1F1F1F", Size: 10},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"D9EAF7"}, Pattern: 1},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true},
+		Border: []excelize.Border{
+			{Type: "bottom", Color: "9EADBA", Style: 1},
+			{Type: "right", Color: "D6DEE5", Style: 1},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create field header style: %w", err)
+	}
+
+	for index, column := range equipmentExportColumns {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 2)
+		if err := book.SetCellValue(sheet, cell, column.header); err != nil {
+			return nil, fmt.Errorf("write equipment field header: %w", err)
+		}
+	}
+	for start := 0; start < len(equipmentExportColumns); {
+		end := start + 1
+		for end < len(equipmentExportColumns) && equipmentExportColumns[end].category == equipmentExportColumns[start].category {
+			end++
+		}
+		firstCell, _ := excelize.CoordinatesToCellName(start+1, 1)
+		lastCell, _ := excelize.CoordinatesToCellName(end, 1)
+		if end-start > 1 {
+			if err := book.MergeCell(sheet, firstCell, lastCell); err != nil {
+				return nil, fmt.Errorf("merge equipment category header: %w", err)
+			}
+		}
+		if err := book.SetCellValue(sheet, firstCell, equipmentExportColumns[start].category); err != nil {
+			return nil, fmt.Errorf("write equipment category header: %w", err)
+		}
+		if err := book.SetCellStyle(sheet, firstCell, lastCell, categoryStyle); err != nil {
+			return nil, fmt.Errorf("style equipment category header: %w", err)
+		}
+		start = end
+	}
+	lastHeaderCell, _ := excelize.CoordinatesToCellName(len(equipmentExportColumns), 2)
+	if err := book.SetCellStyle(sheet, "A2", lastHeaderCell, fieldStyle); err != nil {
+		return nil, fmt.Errorf("style equipment field headers: %w", err)
+	}
+	if err := book.SetRowHeight(sheet, 1, 24); err != nil {
+		return nil, err
+	}
+	if err := book.SetRowHeight(sheet, 2, 36); err != nil {
+		return nil, err
+	}
+	if err := book.SetPanes(sheet, &excelize.Panes{Freeze: true, YSplit: 2, TopLeftCell: "A3", ActivePane: "bottomLeft"}); err != nil {
+		return nil, fmt.Errorf("freeze equipment export headers: %w", err)
+	}
+	lastDataRow := len(assets) + 2
+	if err := book.AutoFilter(sheet, fmt.Sprintf("A2:%s%d", strings.TrimRight(lastHeaderCell, "0123456789"), lastDataRow), nil); err != nil {
+		return nil, fmt.Errorf("add equipment export filters: %w", err)
+	}
+	for index, column := range equipmentExportColumns {
+		width := float64(len([]rune(column.header)) + 3)
+		if width < 14 {
+			width = 14
+		}
+		if width > 28 {
+			width = 28
+		}
+		letter, _ := excelize.ColumnNumberToName(index + 1)
+		if err := book.SetColWidth(sheet, letter, letter, width); err != nil {
+			return nil, fmt.Errorf("set equipment export column width: %w", err)
+		}
+	}
+
+	for rowIndex, asset := range assets {
+		for columnIndex, column := range equipmentExportColumns {
+			cell, _ := excelize.CoordinatesToCellName(columnIndex+1, rowIndex+3)
+			if err := book.SetCellValue(sheet, cell, column.value(asset)); err != nil {
+				return nil, fmt.Errorf("write equipment export row %d: %w", rowIndex+3, err)
+			}
+		}
+	}
+
+	var buffer bytes.Buffer
+	if err := book.Write(&buffer); err != nil {
+		return nil, fmt.Errorf("write equipment XLSX workbook: %w", err)
+	}
+	return buffer.Bytes(), nil
+}
+
+func assetJSONValue(keys []string, maps ...models.JSONBMap) interface{} {
+	for _, values := range maps {
+		if value := lookupJSONValue(values, keys...); value != nil {
+			switch value.(type) {
+			case map[string]interface{}, []interface{}:
+				encoded, err := json.Marshal(value)
+				if err == nil {
+					return string(encoded)
+				}
+			}
+			return value
+		}
+	}
+	return ""
+}
+
+func lookupJSONValue(values models.JSONBMap, keys ...string) interface{} {
+	for _, key := range keys {
+		if value, exists := values[key]; exists && value != nil {
+			return value
+		}
+	}
+	for actualKey, value := range values {
+		for _, key := range keys {
+			if normalizeExportKey(actualKey) == normalizeExportKey(key) && value != nil {
+				return value
+			}
+		}
+	}
+	return nil
+}
+
+func normalizeExportKey(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return -1
+	}, value)
+}
+
+func valueOrEmptyBool(value *bool) interface{} {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func valueOrEmptyFloat(value *float64) interface{} {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func valueOrEmptyDate(value *time.Time) interface{} {
+	if value == nil || value.IsZero() {
+		return ""
+	}
+	return value.Format("2006-01-02")
 }
 
 func valueOrEmpty(value *string) string {

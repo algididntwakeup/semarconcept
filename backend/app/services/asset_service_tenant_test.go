@@ -3,6 +3,7 @@
 package services_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/xuri/excelize/v2"
 )
 
 // MockSiteRepository for boundary testing
@@ -76,6 +78,19 @@ func (m *MockAssetRepository) FindByTag(ctx context.Context, tenantID, unitID in
 	return args.Get(0).(*models.Asset), args.Error(1)
 }
 
+func (m *MockAssetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error) {
+	args := m.Called(ctx, tenantID, assetType, status)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]models.Asset), args.Error(1)
+}
+
+func (m *MockAssetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (int, int, error) {
+	args := m.Called(ctx, tenantID, assets, userID)
+	return args.Int(0), args.Int(1), args.Error(2)
+}
+
 // MockComponentRepository for boundary testing
 type MockComponentRepository struct {
 	repositories.ComponentRepository
@@ -116,6 +131,108 @@ func TestAssetService_CreateUnit_ForeignSiteRejected(t *testing.T) {
 	assert.Nil(t, res)
 	assert.ErrorIs(t, err, utils.ErrSiteNotFound)
 	mockSiteRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ExportAssetsToExcel_WritesTwoTierEquipmentWorkbook(t *testing.T) {
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	siteRepo := new(MockSiteRepository)
+	unitRepo := new(MockUnitRepository)
+	componentRepo := new(MockComponentRepository)
+	pressure := 12.5
+	tag := "PV-101"
+	name := "Reactor"
+	assetRepo.On("ListAssetsForExport", ctx, 42, "", "").Return([]models.Asset{{
+		ID:                  101,
+		TenantID:            42,
+		TagNumber:           &tag,
+		Name:                name,
+		DesignConditions:    models.JSONBMap{"design_pressure": pressure},
+		OperatingParameters: models.JSONBMap{"operating_temperature": 185.0},
+	}}, nil).Once()
+
+	service := services.NewAssetService(siteRepo, unitRepo, assetRepo, componentRepo)
+	data, filename, err := service.ExportAssetsToExcel(ctx, 42, &request.AssetExportRequest{})
+	assert.NoError(t, err)
+	assert.Equal(t, "equipment-master.xlsx", filename)
+	assert.NotEmpty(t, data)
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(data))
+	assert.NoError(t, err)
+	defer workbook.Close()
+	assert.Equal(t, []string{"Data Source"}, workbook.GetSheetList())
+	category, err := workbook.GetCellValue("Data Source", "A1")
+	assert.NoError(t, err)
+	assert.Equal(t, "General", category)
+	header, err := workbook.GetCellValue("Data Source", "A2")
+	assert.NoError(t, err)
+	assert.Equal(t, "Equipment ID", header)
+	assert.Equal(t, "101", mustExportCell(t, workbook, "A3"))
+	assert.Equal(t, "PV-101", mustExportCell(t, workbook, "B3"))
+	assert.Equal(t, "Reactor", mustExportCell(t, workbook, "C3"))
+	assert.Equal(t, "12.5", mustExportCell(t, workbook, "Y3"))
+	assert.Equal(t, "185", mustExportCell(t, workbook, "AJ3"))
+	assetRepo.AssertExpectations(t)
+}
+
+func mustExportCell(t *testing.T, workbook *excelize.File, cell string) string {
+	t.Helper()
+	value, err := workbook.GetCellValue("Data Source", cell)
+	assert.NoError(t, err)
+	return value
+}
+
+func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testing.T) {
+	book := excelize.NewFile()
+	assert.NoError(t, book.SetSheetName("Sheet1", "Data Source"))
+	fields := []string{"Equipment ID", "Equipment Tag", "Equipment Name", "Description", "Equipment Class", "Equipment Type", "Design Pressure", "Flow Rate"}
+	categories := []string{"General", "General", "General", "General", "General", "General", "Component Design", "Component Design"}
+	values := []interface{}{101, "PV-101", "Reactor", "Hydrocracker reactor", "Pressure Vessel", "Vessel", 12.5, 450.0}
+	for index := range fields {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, categories[index]))
+		cell, _ = excelize.CoordinatesToCellName(index+1, 2)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, fields[index]))
+		cell, _ = excelize.CoordinatesToCellName(index+1, 3)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, values[index]))
+	}
+	var file bytes.Buffer
+	assert.NoError(t, book.Write(&file))
+	assert.NoError(t, book.Close())
+
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(assets []models.Asset) bool {
+		if len(assets) != 1 {
+			return false
+		}
+		asset := assets[0]
+		return asset.ID == 101 && asset.TenantID == 42 && asset.TagNumber != nil && *asset.TagNumber == "PV-101" &&
+			asset.Name == "Reactor" && asset.Description != nil && *asset.Description == "Hydrocracker reactor" &&
+			asset.AssetClass != nil && *asset.AssetClass == "Pressure Vessel" && asset.AssetType != nil && *asset.AssetType == "Vessel" &&
+			asset.RBIProperties["Component Design.Design Pressure"] == "12.5" && asset.RBIProperties["Component Design.Flow Rate"] == "450"
+	}), 7).Return(1, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{}, 7, file.Bytes())
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"created_count": 1, "updated_count": 0, "imported_count": 1, "total_count": 1,
+		"errors": []string{}, "validate_only": false,
+	}, result)
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ImportAssetsFromXLSX_RequiresDataSourceSheet(t *testing.T) {
+	book := excelize.NewFile()
+	var file bytes.Buffer
+	assert.NoError(t, book.Write(&file))
+	assert.NoError(t, book.Close())
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), new(MockAssetRepository), new(MockComponentRepository))
+
+	_, err := service.ImportAssets(context.Background(), 42, &request.AssetImportRequest{}, 7, file.Bytes())
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, utils.ErrValidation)
 }
 
 func TestAssetService_CreateAsset_ForeignUnitRejected(t *testing.T) {

@@ -1398,7 +1398,7 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 		return
 	}
 	if req.BatchSize == 0 {
-		req.BatchSize = 100
+		req.BatchSize = 1000
 	}
 	if req.FileFormat != "" && !strings.EqualFold(req.FileFormat, "xlsx") {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only XLSX import is supported", ""))
@@ -1453,7 +1453,7 @@ func (h *AssetHandler) ExportAssets(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only XLSX export is supported", ""))
 		return
 	}
-	fileData, filename, err := h.assetService.ExportAssets(c.Request.Context(), tenantID, &req)
+	fileData, filename, err := h.assetService.ExportAssetsToExcel(c.Request.Context(), tenantID, &req)
 	if err != nil {
 		utils.LogErrorf("Failed to export assets: %v", err)
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to export assets", ""))

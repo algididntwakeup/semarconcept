@@ -29,6 +29,7 @@ type Asset struct {
 	DesignLifeYears         *int       `db:"design_life_years" json:"design_life_years"`
 	RemainingLifeYears      *float64   `db:"remaining_life_years" json:"remaining_life_years"`
 	Specifications          JSONBMap   `gorm:"type:jsonb" db:"specifications" json:"specifications,omitempty"`
+	RBIProperties           JSONBMap   `gorm:"type:jsonb;not null;default:'{}'" db:"rbi_properties" json:"rbi_properties,omitempty"`
 	OperatingParameters     JSONBMap   `gorm:"type:jsonb" db:"operating_parameters" json:"operating_parameters,omitempty"`
 	DesignConditions        JSONBMap   `gorm:"type:jsonb" db:"design_conditions" json:"design_conditions,omitempty"`
 	Materials               JSONBMap   `gorm:"type:jsonb" db:"materials" json:"materials,omitempty"`
@@ -124,6 +125,7 @@ func (e *Asset) ToMap() map[string]interface{} {
 		"design_life_years":        e.DesignLifeYears,
 		"remaining_life_years":     e.RemainingLifeYears,
 		"specifications":           e.Specifications,
+		"rbi_properties":           e.RBIProperties,
 		"operating_parameters":     e.OperatingParameters,
 		"design_conditions":        e.DesignConditions,
 		"materials":                e.Materials,

@@ -55,4 +55,5 @@ type AssetServiceInterface interface {
 	BulkDeleteAssets(ctx context.Context, tenantID int, req *request.BulkAssetOperationRequest, userID int) (interface{}, error)
 	ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error)
 	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
+	ExportAssetsToExcel(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 }

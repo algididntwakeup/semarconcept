@@ -33,6 +33,10 @@ func MigrateAll(db *gorm.DB) error {
 		utils.Errorf("Migration failed: %v", err)
 		return err
 	}
+	if err := db.Exec(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS rbi_properties JSONB NOT NULL DEFAULT '{}'::jsonb`).Error; err != nil {
+		utils.Errorf("Failed to ensure assets.rbi_properties JSONB column: %v", err)
+		return err
+	}
 
 	// The asset registry searches tag numbers with ILIKE '%query%'. A normal
 	// B-tree cannot accelerate leading-wildcard searches, so add a trigram GIN

@@ -1,18 +1,23 @@
 package handlers_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"backend/app/api/handlers"
+	"backend/app/models/request"
 	"backend/app/repositories"
 	"backend/app/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/xuri/excelize/v2"
 )
 
 type assetStatsServiceMock struct {
@@ -20,6 +25,28 @@ type assetStatsServiceMock struct {
 	stats    []repositories.AssetTypeStatusCount
 	err      error
 	tenantID int
+}
+
+type assetExportServiceMock struct {
+	services.AssetServiceInterface
+	tenantID  int
+	data      []byte
+	filename  string
+	err       error
+	importReq *request.AssetImportRequest
+	imported  []byte
+}
+
+func (m *assetExportServiceMock) ExportAssetsToExcel(_ context.Context, tenantID int, _ *request.AssetExportRequest) ([]byte, string, error) {
+	m.tenantID = tenantID
+	return m.data, m.filename, m.err
+}
+
+func (m *assetExportServiceMock) ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, _ int, data []byte) (interface{}, error) {
+	m.tenantID = tenantID
+	m.importReq = req
+	m.imported = data
+	return map[string]interface{}{"created_count": 1}, m.err
 }
 
 func (m *assetStatsServiceMock) GetAssetStats(_ context.Context, tenantID int) ([]repositories.AssetTypeStatusCount, error) {
@@ -61,4 +88,72 @@ func TestGetAssetStatsReturnsJSONInternalError(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, recorder.Code)
 	require.JSONEq(t, `{"success":false,"message":"Failed to retrieve asset statistics","error":"Failed to retrieve asset statistics","code":"API_ERROR"}`, recorder.Body.String())
+}
+
+func TestExportAssetsReturnsExcelAttachment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &assetExportServiceMock{data: []byte("xlsx-content"), filename: "equipment-master.xlsx"}
+	handler := handlers.NewAssetHandler(service, nil)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export?file_format=xlsx", nil)
+	ctx.Set("tenant_id", 42)
+
+	handler.ExportAssets(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, 42, service.tenantID)
+	require.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", recorder.Header().Get("Content-Type"))
+	require.Equal(t, `attachment; filename="equipment-master.xlsx"`, recorder.Header().Get("Content-Disposition"))
+	require.Equal(t, "xlsx-content", recorder.Body.String())
+}
+
+func TestExportAssetsReturnsJSONOnServiceError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &assetExportServiceMock{err: fmt.Errorf("database unavailable")}
+	handler := handlers.NewAssetHandler(service, nil)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export", nil)
+	ctx.Set("tenant_id", 42)
+
+	handler.ExportAssets(ctx)
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	require.Contains(t, recorder.Header().Get("Content-Type"), "application/json")
+}
+
+func TestImportAssetsAcceptsMultipartXLSX(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &assetExportServiceMock{}
+	handler := handlers.NewAssetHandler(service, nil)
+	workbook := excelize.NewFile()
+	var xlsx bytes.Buffer
+	require.NoError(t, workbook.Write(&xlsx))
+	require.NoError(t, workbook.Close())
+
+	var body bytes.Buffer
+	multipartWriter := multipart.NewWriter(&body)
+	fileWriter, err := multipartWriter.CreateFormFile("file", "equipment.xlsx")
+	require.NoError(t, err)
+	_, err = fileWriter.Write(xlsx.Bytes())
+	require.NoError(t, err)
+	require.NoError(t, multipartWriter.WriteField("asset_type", "Asset"))
+	require.NoError(t, multipartWriter.Close())
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/assets/import", &body)
+	ctx.Request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+	ctx.Set("tenant_id", 42)
+	ctx.Set("user_id", 7)
+
+	handler.ImportAssets(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, 42, service.tenantID)
+	require.Equal(t, "Asset", service.importReq.AssetType)
+	require.Equal(t, "equipment.xlsx", service.importReq.FileName)
+	require.Equal(t, xlsx.Bytes(), service.imported)
+	require.Contains(t, recorder.Body.String(), `"created_count":1`)
 }

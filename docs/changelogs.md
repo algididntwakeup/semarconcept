@@ -6,7 +6,7 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ### Docker frontend filesystem isolation
 
-- Mengisolasi `/app/node_modules` dan `/app/.next` dengan anonymous volumes pada service frontend development agar dependency/cache tidak tersinkron melalui bind mount source.
+- Mempertahankan anonymous volume `/app/node_modules` (dibutuhkan untuk dependency Linux dalam container), melepas mount `.next` dan pnpm store yang tidak digunakan Vite, serta mematikan forced filesystem polling.
 - Memperbarui panduan troubleshooting performa; proyek frontend saat ini memakai Vite, dengan cache transform di `node_modules/.vite`.
 
 ### Focus pengembangan RBI Equipment Master
@@ -44,6 +44,13 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Menghubungkan Diagnose duplicates (`GET /assets/diagnose-duplicates`), Fix component links (`POST /assets/fix-links`), dan Sync components to FLOC (`POST /assets/sync-floc`), termasuk state loading, ringkasan hasil, notifikasi, dan invalidasi query setelah mutasi.
 - Menambahkan unggah XLSX multipart ke `POST /assets/import` serta unduh file Excel dari `GET /assets/export`, dengan indikator loading, validasi ekstensi, nama file dari response header, dan notifikasi hasil.
 - Validasi terbaru: `pnpm typecheck`, ESLint untuk file integrasi baru/terkait (tanpa AssetFormModal dan assetServices yang memiliki temuan lint lama), 19 tes terpilih, dan production build lulus; build menampilkan peringatan chunk >500 kB.
+
+### Equipment Master Excel import/export
+
+- Menghasilkan workbook Excel `Data Source` untuk Equipment Master dengan header dua tingkat General, Component Design, dan Operating Envelope.
+- Mengimpor workbook two-tier mulai baris 3, memetakan identitas/tag, description, class, dan type ke kolom relasional; atribut lainnya disimpan di `assets.rbi_properties` JSONB.
+- Menjalankan upsert tenant-scoped dalam satu transaksi PostgreSQL; pembaruan menggabungkan nilai atribut RBI tanpa menghapus properti yang tidak ada di file.
+- Validasi: `go test ./...`, `go build ./...`, dan `go vet` untuk service/handler/routes.
 
 ### Equipment Master API integration
 
