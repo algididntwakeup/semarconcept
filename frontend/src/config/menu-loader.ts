@@ -123,6 +123,7 @@ export const convertMenuItemToNavItem = (item: any): NavItem => {
       ? item.menu_type 
       : (item.children && item.children.length > 0 ? 'collapse' : 'item'),
     url: item.route || undefined,
+    permissions: item.permissions ?? [],
     visible: item.is_visible ?? true,
     disabled: !item.is_active,
   };

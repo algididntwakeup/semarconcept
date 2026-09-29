@@ -85,6 +85,7 @@ func (s *Seeder) SeedMenuItems() error {
 
 	strPtr := func(s string) *string { return &s }
 	childIconBySlug := map[string]string{
+		"equipment-master":         "InventoryIcon",
 		"dashboard-mission-control": "Gauge",
 		"dashboard-asset":           "QueryStatsIcon",
 		"dashboard-inspection":      "ClipboardCheck",
@@ -134,16 +135,17 @@ func (s *Seeder) SeedMenuItems() error {
 		"compliance-certifications": "Award",
 	}
 
-	// 1. Root Items (8 Official AIMS Modules)
+	// 1. Root module items plus the direct Equipment Master shortcut.
 	rootItems := []models.Menu{
 		{Title: "Dashboard", Slug: "dashboard", Icon: strPtr("LayoutDashboard"), Route: strPtr("/dashboard"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Asset Management", Slug: "assets", Icon: strPtr("Package"), Route: strPtr("/assets"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Inspection Management", Slug: "inspection", Icon: strPtr("ClipboardCheck"), Route: strPtr("/inspection"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Risk Management", Slug: "risk", Icon: strPtr("ShieldAlert"), Route: strPtr("/risk"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Analytics", Slug: "analytics", Icon: strPtr("BarChart3"), Route: strPtr("/analytics"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Maintenance Management", Slug: "maintenance", Icon: strPtr("Wrench"), Route: strPtr("/maintenance"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Compliance Management", Slug: "compliance", Icon: strPtr("CheckCircle"), Route: strPtr("/compliance"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Administration", Slug: "administration", Icon: strPtr("Settings"), Route: strPtr("/admin"), OrderIndex: 8, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Equipment Master", Slug: "equipment-master", Icon: strPtr("InventoryIcon"), Route: strPtr("/risk/equipment-master"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item", IsSystemMenu: true},
+		{Title: "Asset Management", Slug: "assets", Icon: strPtr("Package"), Route: strPtr("/assets"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Inspection Management", Slug: "inspection", Icon: strPtr("ClipboardCheck"), Route: strPtr("/inspection"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Risk Management", Slug: "risk", Icon: strPtr("ShieldAlert"), Route: strPtr("/risk"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Analytics", Slug: "analytics", Icon: strPtr("BarChart3"), Route: strPtr("/analytics"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Maintenance Management", Slug: "maintenance", Icon: strPtr("Wrench"), Route: strPtr("/maintenance"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Compliance Management", Slug: "compliance", Icon: strPtr("CheckCircle"), Route: strPtr("/compliance"), OrderIndex: 8, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Administration", Slug: "administration", Icon: strPtr("Settings"), Route: strPtr("/admin"), OrderIndex: 9, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
 	}
 
 	slugToID := make(map[string]int)

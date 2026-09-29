@@ -84,6 +84,20 @@ describe('Route Manifest Contract Tests', () => {
     expect(invalidUrls).toEqual([]);
   });
 
+  it('exposes Equipment Master beside Dashboard in the fallback top-level navigation', () => {
+    const dashboardIndex = menuItemsData.menuItems.findIndex((item) => item.id === 'dashboard');
+    const equipmentMaster = menuItemsData.menuItems[dashboardIndex + 1];
+
+    expect(equipmentMaster).toMatchObject({
+      id: 'equipment-master',
+      title: 'Equipment Master',
+      type: 'item',
+      url: '/risk/equipment-master',
+      order: 2,
+    });
+    expect(getRouteByPath(equipmentMaster.url)?.id).toBe('risk.equipment-master');
+  });
+
   it('Contract 6: guarantees route icons resolve in icon-mapping', () => {
     const routesWithIcons = ROUTE_MANIFEST.filter((r) => r.icon);
     routesWithIcons.forEach((r) => {

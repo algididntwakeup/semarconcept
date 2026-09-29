@@ -3,7 +3,7 @@
   "lastUpdated": "2026-09-01",
   "metadata": {
     "description": "SEMAR (Solution to Enhance Managing Asset Reliability) Navigation Menu",
-    "totalItems": 8,
+    "totalItems": 9,
     "author": "SEMAR Development Team"
   },
   "menuItems": [
@@ -70,13 +70,22 @@
       ]
     },
     {
+      "id": "equipment-master",
+      "title": "Equipment Master",
+      "type": "item",
+      "url": "/risk/equipment-master",
+      "icon": "InventoryIcon",
+      "visible": true,
+      "order": 2
+    },
+    {
       "id": "assets",
       "title": "Asset Management",
       "type": "collapse",
       "url": "/assets",
       "icon": "InventoryIcon",
       "visible": true,
-      "order": 2,
+      "order": 3,
       "permissions": ["asset:view"],
       "children": [
         {

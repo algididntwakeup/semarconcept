@@ -4,6 +4,12 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 28 September 2026
 
+### Equipment Master navbar shortcut
+
+- Menambahkan Equipment Master sebagai shortcut navbar top-level tepat setelah Dashboard, mengarah ke `/risk/equipment-master`.
+- Menambahkan entri seeder menu database dan fallback frontend dengan ikon Inventory; proteksi route halaman tetap mengikuti kontrak route yang ada.
+- Meneruskan metadata permissions pada menu API ke `NavItem` dan menambahkan route/menu contract test.
+
 ### Equipment Master actions, maintenance, and XLSX integration
 
 - Menghubungkan edit/delete dan perubahan lifecycle ke endpoint Asset `PUT /assets/Asset/:id`, `DELETE /assets/Asset/:id`, dan `PUT /assets/:id/lifecycle`; sukses/error dikirim lewat Snackbar global.
