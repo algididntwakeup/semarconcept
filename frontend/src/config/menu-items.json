@@ -3,7 +3,7 @@
   "lastUpdated": "2026-09-01",
   "metadata": {
     "description": "SEMAR (Solution to Enhance Managing Asset Reliability) Navigation Menu",
-    "totalItems": 9,
+    "totalItems": 8,
     "author": "SEMAR Development Team"
   },
   "menuItems": [
@@ -68,15 +68,6 @@
           "permissions": ["dashboard:compliance"]
         }
       ]
-    },
-    {
-      "id": "equipment-master",
-      "title": "Equipment Master",
-      "type": "item",
-      "url": "/risk/equipment-master",
-      "icon": "InventoryIcon",
-      "visible": true,
-      "order": 2
     },
     {
       "id": "assets",
@@ -147,7 +138,7 @@
       "url": "/inspection",
       "icon": "AssignmentIcon",
       "visible": true,
-      "order": 3,
+      "order": 4,
       "permissions": ["inspection:view"],
       "children": [
         {
@@ -209,9 +200,18 @@
       "url": "/risk",
       "icon": "WarningIcon",
       "visible": true,
-      "order": 4,
+      "order": 2,
       "permissions": ["risk:view"],
       "children": [
+        {
+          "id": "equipment-master",
+          "title": "Equipment Master",
+          "type": "item",
+          "url": "/risk/equipment-master",
+          "icon": "InventoryIcon",
+          "visible": true,
+          "order": 1
+        },
         {
           "id": "risk-matrix",
           "title": "Risk Matrix (5x5)",
@@ -219,7 +219,7 @@
           "url": "/risk/matrix",
           "icon": "GridViewIcon",
           "visible": true,
-          "order": 1,
+          "order": 2,
           "permissions": ["risk:matrix"]
         },
         {
@@ -229,7 +229,7 @@
           "url": "/risk/degradation",
           "icon": "TrendingUpIcon",
           "visible": true,
-          "order": 2,
+          "order": 3,
           "permissions": ["risk:degradation"]
         },
         {
@@ -239,7 +239,7 @@
           "url": "/risk/integrity",
           "icon": "SecurityIcon",
           "visible": true,
-          "order": 3,
+          "order": 4,
           "permissions": ["risk:integrity"]
         },
         {
@@ -249,7 +249,7 @@
           "url": "/risk/reports",
           "icon": "AssessmentIcon",
           "visible": true,
-          "order": 4,
+          "order": 5,
           "permissions": ["risk:reports"]
         },
         {
@@ -259,7 +259,7 @@
           "url": "/risk/assessments",
           "icon": "PolicyIcon",
           "visible": true,
-          "order": 5,
+          "order": 6,
           "permissions": ["risk:assessments"]
         }
       ]

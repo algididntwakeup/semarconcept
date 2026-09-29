@@ -135,17 +135,16 @@ func (s *Seeder) SeedMenuItems() error {
 		"compliance-certifications": "Award",
 	}
 
-	// 1. Root module items plus the direct Equipment Master shortcut.
+	// 1. Root Items (8 Official AIMS Modules)
 	rootItems := []models.Menu{
 		{Title: "Dashboard", Slug: "dashboard", Icon: strPtr("LayoutDashboard"), Route: strPtr("/dashboard"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Equipment Master", Slug: "equipment-master", Icon: strPtr("InventoryIcon"), Route: strPtr("/risk/equipment-master"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item", IsSystemMenu: true},
 		{Title: "Asset Management", Slug: "assets", Icon: strPtr("Package"), Route: strPtr("/assets"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
 		{Title: "Inspection Management", Slug: "inspection", Icon: strPtr("ClipboardCheck"), Route: strPtr("/inspection"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Risk Management", Slug: "risk", Icon: strPtr("ShieldAlert"), Route: strPtr("/risk"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Analytics", Slug: "analytics", Icon: strPtr("BarChart3"), Route: strPtr("/analytics"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Maintenance Management", Slug: "maintenance", Icon: strPtr("Wrench"), Route: strPtr("/maintenance"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Compliance Management", Slug: "compliance", Icon: strPtr("CheckCircle"), Route: strPtr("/compliance"), OrderIndex: 8, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
-		{Title: "Administration", Slug: "administration", Icon: strPtr("Settings"), Route: strPtr("/admin"), OrderIndex: 9, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Risk Management", Slug: "risk", Icon: strPtr("ShieldAlert"), Route: strPtr("/risk"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Analytics", Slug: "analytics", Icon: strPtr("BarChart3"), Route: strPtr("/analytics"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Maintenance Management", Slug: "maintenance", Icon: strPtr("Wrench"), Route: strPtr("/maintenance"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Compliance Management", Slug: "compliance", Icon: strPtr("CheckCircle"), Route: strPtr("/compliance"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "collapse", IsSystemMenu: true},
+		{Title: "Administration", Slug: "administration", Icon: strPtr("Settings"), Route: strPtr("/admin"), OrderIndex: 8, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "admin", MenuType: "collapse", IsSystemMenu: true},
 	}
 
 	slugToID := make(map[string]int)
@@ -214,12 +213,13 @@ func (s *Seeder) SeedMenuItems() error {
 		{"inspection", models.Menu{Title: "Inspection Reports", Slug: "inspection-reports", Route: strPtr("/inspection/reports"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Risk Management children
-		{"risk", models.Menu{Title: "Risk Matrix", Slug: "risk-matrix", Route: strPtr("/risk/matrix"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Degradation Mechanisms", Slug: "risk-degradation", Route: strPtr("/risk/degradation"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Integrity Windows", Slug: "risk-integrity", Route: strPtr("/risk/integrity"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "RBI Reports", Slug: "risk-reports", Route: strPtr("/risk/reports"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Risk Assessments", Slug: "risk-assessments", Route: strPtr("/risk/assessments"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
-		{"risk", models.Menu{Title: "Mitigation Actions", Slug: "risk-mitigation", Route: strPtr("/risk/mitigation"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Equipment Master", Slug: "equipment-master", Route: strPtr("/risk/equipment-master"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Risk Matrix", Slug: "risk-matrix", Route: strPtr("/risk/matrix"), OrderIndex: 2, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Degradation Mechanisms", Slug: "risk-degradation", Route: strPtr("/risk/degradation"), OrderIndex: 3, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Integrity Windows", Slug: "risk-integrity", Route: strPtr("/risk/integrity"), OrderIndex: 4, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "RBI Reports", Slug: "risk-reports", Route: strPtr("/risk/reports"), OrderIndex: 5, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Risk Assessments", Slug: "risk-assessments", Route: strPtr("/risk/assessments"), OrderIndex: 6, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
+		{"risk", models.Menu{Title: "Mitigation Actions", Slug: "risk-mitigation", Route: strPtr("/risk/mitigation"), OrderIndex: 7, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},
 
 		// Maintenance Management children
 		{"maintenance", models.Menu{Title: "Work Orders", Slug: "maintenance-work-orders", Route: strPtr("/maintenance/work-orders"), OrderIndex: 1, IsActive: true, IsVisible: true, TenantID: 1, AccessLevel: "user", MenuType: "item"}},

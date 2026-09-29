@@ -84,18 +84,21 @@ describe('Route Manifest Contract Tests', () => {
     expect(invalidUrls).toEqual([]);
   });
 
-  it('exposes Equipment Master beside Dashboard in the fallback top-level navigation', () => {
-    const dashboardIndex = menuItemsData.menuItems.findIndex((item) => item.id === 'dashboard');
-    const equipmentMaster = menuItemsData.menuItems[dashboardIndex + 1];
+  it('exposes Risk Management beside Dashboard and Equipment Master within Risk', () => {
+    const orderedMenus = [...menuItemsData.menuItems].sort((left, right) => left.order - right.order);
+    const dashboardIndex = orderedMenus.findIndex((item) => item.id === 'dashboard');
+    const risk = orderedMenus[dashboardIndex + 1];
+    const equipmentMaster = risk.children?.find((item) => item.id === 'equipment-master');
 
+    expect(risk).toMatchObject({ id: 'risk', title: 'Risk & Reliability', url: '/risk', order: 2 });
     expect(equipmentMaster).toMatchObject({
       id: 'equipment-master',
       title: 'Equipment Master',
       type: 'item',
       url: '/risk/equipment-master',
-      order: 2,
+      order: 1,
     });
-    expect(getRouteByPath(equipmentMaster.url)?.id).toBe('risk.equipment-master');
+    expect(getRouteByPath(equipmentMaster!.url)?.id).toBe('risk.equipment-master');
   });
 
   it('Contract 6: guarantees route icons resolve in icon-mapping', () => {
