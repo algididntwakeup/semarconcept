@@ -54,26 +54,22 @@ describe('Dashboard Equipment Master overview', () => {
     vi.clearAllMocks();
   });
 
-  it('shows lifecycle totals from Equipment Master stats and no unrelated module cards', async () => {
+  it('shows dynamic equipment classes and opens the filtered asset detail modal', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([
-      { asset_type: 'pump', lifecycle_status: 'Installed', count: 8 },
-      { asset_type: 'vessel', lifecycle_status: 'Installed', count: 4 },
-      { asset_type: 'pump', lifecycle_status: 'Sent to repair', count: 3 },
-      { asset_type: 'vessel', lifecycle_status: 'Retired', count: 2 },
-      { asset_type: 'tank', lifecycle_status: 'Condemned', count: 1 },
+      { class: 'Piping', count: 8 },
+      { class: 'Storage Tanks', count: 4 },
     ]);
 
     renderDashboard();
 
-    expect(await screen.findByTestId('equipment-count-total-equipment')).toHaveTextContent('18');
-    expect(screen.getByTestId('equipment-count-installed')).toHaveTextContent('12');
-    expect(screen.getByTestId('equipment-count-sent-to-repair')).toHaveTextContent('3');
-    expect(screen.getByTestId('equipment-count-retired')).toHaveTextContent('2');
-    expect(screen.getByTestId('equipment-count-condemned')).toHaveTextContent('1');
+    expect(await screen.findByRole('button', { name: 'Piping: 8' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Storage Tanks: 4' })).toBeInTheDocument();
     for (const inactiveModuleLabel of ['Inspection Plans', 'Work Orders', 'Compliance Rating', 'Asset Inventory']) {
       expect(screen.queryByText(inactiveModuleLabel, { exact: true })).not.toBeInTheDocument();
     }
     expect(assetService.getEquipmentAssetStats).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Piping: 8' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
   });
 
   it('renders loading placeholders while the equipment summary is fetching', () => {
@@ -81,19 +77,19 @@ describe('Dashboard Equipment Master overview', () => {
 
     renderDashboard();
 
-    expect(screen.getAllByLabelText(/Loading/)).toHaveLength(5);
+    expect(screen.getByLabelText(/Loading Equipment class/)).toBeInTheDocument();
   });
 
   it('shows an error with a retry action when the stats request fails', async () => {
     vi.mocked(assetService.getEquipmentAssetStats)
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce([{ asset_type: 'pump', lifecycle_status: 'Installed', count: 2 }]);
+      .mockResolvedValueOnce([{ class: 'Piping', count: 2 }]);
 
     renderDashboard();
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load Equipment Master overview.');
 
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-    await waitFor(() => expect(screen.getByTestId('equipment-count-total-equipment')).toHaveTextContent('2'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Piping: 2' })).toBeInTheDocument());
     expect(assetService.getEquipmentAssetStats).toHaveBeenCalledTimes(2);
   });
 

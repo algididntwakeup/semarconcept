@@ -22,7 +22,7 @@ import (
 
 type assetStatsServiceMock struct {
 	services.AssetServiceInterface
-	stats    []repositories.AssetTypeStatusCount
+	stats    []repositories.AssetClassCount
 	err      error
 	tenantID int
 }
@@ -49,18 +49,16 @@ func (m *assetExportServiceMock) ImportAssets(ctx context.Context, tenantID int,
 	return map[string]interface{}{"created_count": 1}, m.err
 }
 
-func (m *assetStatsServiceMock) GetAssetStats(_ context.Context, tenantID int) ([]repositories.AssetTypeStatusCount, error) {
+func (m *assetStatsServiceMock) GetAssetStats(_ context.Context, tenantID int) ([]repositories.AssetClassCount, error) {
 	m.tenantID = tenantID
 	return m.stats, m.err
 }
 
 func TestGetAssetStatsReturnsExactTenantAggregate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	service := &assetStatsServiceMock{stats: []repositories.AssetTypeStatusCount{
-		{AssetType: "pump", LifecycleStatus: "Installed", Count: 12},
-		{AssetType: "pump", LifecycleStatus: "Sent to repair", Count: 3},
-		{AssetType: "vessel", LifecycleStatus: "Installed", Count: 7},
-		{AssetType: "Uncategorized", LifecycleStatus: "Unknown", Count: 2},
+	service := &assetStatsServiceMock{stats: []repositories.AssetClassCount{
+		{Class: "Piping", Count: 12},
+		{Class: "Storage Tanks", Count: 7},
 	}}
 	handler := handlers.NewAssetHandler(service, nil)
 	recorder := httptest.NewRecorder()
@@ -72,7 +70,7 @@ func TestGetAssetStatsReturnsExactTenantAggregate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, 42, service.tenantID)
-	require.JSONEq(t, `{"success":true,"message":"Asset statistics retrieved successfully","data":[{"asset_type":"pump","lifecycle_status":"Installed","count":12},{"asset_type":"pump","lifecycle_status":"Sent to repair","count":3},{"asset_type":"vessel","lifecycle_status":"Installed","count":7},{"asset_type":"Uncategorized","lifecycle_status":"Unknown","count":2}]}`, recorder.Body.String())
+	require.JSONEq(t, `{"success":true,"message":"Asset statistics retrieved successfully","data":[{"class":"Piping","count":12},{"class":"Storage Tanks","count":7}]}`, recorder.Body.String())
 }
 
 func TestGetAssetStatsReturnsJSONInternalError(t *testing.T) {
@@ -199,4 +197,3 @@ func TestImportAssetsRejectsFilesOver100MB(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, recorderEmpty.Code)
 	require.Contains(t, recorderEmpty.Body.String(), "XLSX file must be between 1 byte and 100 MB")
 }
-

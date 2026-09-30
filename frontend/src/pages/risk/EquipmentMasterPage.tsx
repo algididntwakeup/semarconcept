@@ -39,7 +39,6 @@ const EMPTY_ASSET_LIST: {
   limit: number;
 } = { assets: [], total: 0, page: 1, limit: PAGE_SIZE };
 
-const statusKey = (status: string) => status.trim().toLowerCase().replace(/_/g, ' ');
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -55,7 +54,7 @@ const EquipmentMasterPage = () => {
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
-    status?: string;
+    equipmentClass: string;
   } | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EquipmentAssetRow | null>(null);
   const [editingAsset, setEditingAsset] = useState<EquipmentAssetRow | null>(null);
@@ -88,24 +87,8 @@ const EquipmentMasterPage = () => {
 
   const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
   const cards = useMemo(() => {
-    const byStatus = new Map<string, number>();
-    const stats = statsQuery.data ?? [];
-    stats.forEach((item) => {
-      const key = statusKey(item.lifecycle_status || 'Unknown');
-      byStatus.set(key, (byStatus.get(key) ?? 0) + item.count);
-    });
-    const total = stats.reduce((sum, item) => sum + item.count, 0);
-    return [
-      { title: 'Total Assets', count: total, status: undefined },
-      { title: 'Installed Assets', count: byStatus.get('installed') ?? 0, status: 'Installed' },
-      {
-        title: 'Sent to Repair',
-        count: byStatus.get('sent to repair') ?? 0,
-        status: 'Sent to repair',
-      },
-      { title: 'Retired Assets', count: byStatus.get('retired') ?? 0, status: 'Retired' },
-      { title: 'Condemned Assets', count: byStatus.get('condemned') ?? 0, status: 'Condemned' },
-    ];
+    return (statsQuery.data ?? []).filter((item) => item.count > 0)
+      .map((item) => ({ title: item.class, count: item.count, equipmentClass: item.class }));
   }, [statsQuery.data]);
 
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
@@ -536,7 +519,7 @@ const EquipmentMasterPage = () => {
       )}
       <section
         aria-label="Equipment metrics"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         {cards.map((card) => (
           <StatCard
@@ -544,9 +527,9 @@ const EquipmentMasterPage = () => {
             title={card.title}
             count={card.count}
             isLoading={statsQuery.isLoading}
-            isActive={selectedStat?.title === card.title}
+            isActive={selectedStat?.equipmentClass === card.equipmentClass}
             onClick={() => setSelectedStat(card)}
-            description="Click to view metric details"
+            description="Equipment class · click to view assets"
           />
         ))}
       </section>
@@ -591,7 +574,7 @@ const EquipmentMasterPage = () => {
           open
           title={selectedStat.title}
           count={selectedStat.count}
-          lifecycleStatus={selectedStat.status}
+          equipmentClass={selectedStat.equipmentClass}
           onClose={handleCloseStat}
           onSelectAsset={handleSelectAsset}
         />

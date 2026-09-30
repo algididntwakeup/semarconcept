@@ -15,8 +15,7 @@ import {
 import apiClient from './apiClient';
 
 export interface EquipmentAssetStat {
-  asset_type: string;
-  lifecycle_status: string;
+  class: string;
   count: number;
 }
 
@@ -36,6 +35,10 @@ export interface EquipmentAsset {
   parentId?: string | number | null;
   parent_id?: string | number | null;
   status?: string | null;
+  materials?: Record<string, unknown> | null;
+  rbi_properties?: Record<string, unknown> | null;
+  functional_location_id?: string | number | null;
+  parent_floc?: string | null;
 }
 
 export interface EquipmentAssetListParams {
@@ -43,6 +46,10 @@ export interface EquipmentAssetListParams {
   limit?: number;
   search?: string;
   lifecycle_status?: string;
+  equipment_class?: string;
+  search_field?: 'tag_number' | 'class' | 'type' | 'material' | 'parent_floc' | 'status';
+  sort_by?: 'tag_number' | 'asset_class' | 'asset_type' | 'materials' | 'parent_floc' | 'status';
+  sort_order?: 'asc' | 'desc';
 }
 
 export interface EquipmentAssetListResponse {

@@ -5,11 +5,19 @@ import type { EquipmentAssetRow } from './AssetDataGrid';
 
 const MODAL_PAGE_SIZE = 8;
 
+const getMaterialProperties = (asset: EquipmentAssetRow) => {
+  const properties = { ...(asset.rbi_properties ?? {}), ...(asset.materials ?? {}) };
+  const materialEntries = Object.entries(properties).filter(([key]) => /material|base metal/i.test(key));
+  const shown = materialEntries.length > 0 ? Object.fromEntries(materialEntries) : properties;
+  return Object.keys(shown).length > 0 ? JSON.stringify(shown) : '—';
+};
+
 interface StatDetailModalProps {
   open: boolean;
   title: string;
   count: number;
   lifecycleStatus?: string;
+  equipmentClass?: string;
   onClose: () => void;
   onSelectAsset?: (asset: EquipmentAssetRow) => void;
 }
@@ -37,12 +45,14 @@ const StatDetailModal = memo(({
   title,
   count,
   lifecycleStatus,
+  equipmentClass,
   onClose,
   onSelectAsset,
 }: StatDetailModalProps) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(lifecycleStatus ?? '');
-  const [sortBy, setSortBy] = useState<'tag' | 'name' | 'type'>('tag');
+  const [sortBy, setSortBy] = useState<'tag_number' | 'asset_class' | 'asset_type' | 'materials' | 'parent_floc' | 'status'>('tag_number');
+  const [searchField, setSearchField] = useState<'tag_number' | 'class' | 'type' | 'material' | 'parent_floc' | 'status'>('tag_number');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
   const assetsQuery = useEquipmentAssets(
@@ -50,33 +60,16 @@ const StatDetailModal = memo(({
       page,
       limit: MODAL_PAGE_SIZE,
       search,
+      search_field: searchField,
       lifecycle_status: statusFilter || undefined,
+      equipment_class: equipmentClass || undefined,
+      sort_by: sortBy,
+      sort_order: sortDirection,
     },
     open
   );
   const result = useMemo(() => unpackAssets(assetsQuery.data), [assetsQuery.data]);
-  const assets = useMemo(() => {
-    const getSortValue = (asset: EquipmentAssetRow) => {
-      if (sortBy === 'name') return asset.name ?? '';
-      if (sortBy === 'type')
-        return (
-          asset.asset_class ??
-          asset.assetClass ??
-          asset.asset_type ??
-          asset.assetType ??
-          asset.type ??
-          ''
-        );
-      return asset.tag_number ?? asset.tagNumber ?? String(asset.id);
-    };
-    return [...result.assets].sort((left, right) => {
-      const comparison = getSortValue(left).localeCompare(getSortValue(right), undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      });
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  }, [result.assets, sortBy, sortDirection]);
+  const assets = result.assets;
   const totalPages = Math.max(1, Math.ceil(result.total / MODAL_PAGE_SIZE));
   const handleBackdropMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) onClose();
@@ -89,8 +82,10 @@ const StatDetailModal = memo(({
     setStatusFilter(event.target.value);
     setPage(1);
   }, []);
-  const handleSortByChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    setSortBy(event.target.value as typeof sortBy);
+  const handleSortByChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => setSortBy(event.target.value as typeof sortBy), []);
+  const handleSearchFieldChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setSearchField(event.target.value as typeof searchField);
+    setPage(1);
   }, []);
   const handleSortDirectionToggle = useCallback(() => {
     setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
@@ -139,9 +134,9 @@ const StatDetailModal = memo(({
           </button>
         </header>
 
-        <div className="grid grid-cols-1 gap-3 border-b border-slate-100 bg-slate-50/60 px-6 py-4 sm:grid-cols-[minmax(220px,1fr)_180px_180px] sm:px-8">
+        <div className="grid grid-cols-1 gap-3 border-b border-slate-100 bg-slate-50/60 px-6 py-4 sm:grid-cols-[minmax(220px,1fr)_160px_180px_180px] sm:px-8">
           <label className="relative">
-            <span className="sr-only">Filter by tag number</span>
+          <span className="sr-only">Search matching assets</span>
             <Search
               size={16}
               aria-hidden="true"
@@ -150,9 +145,15 @@ const StatDetailModal = memo(({
             <input
               value={search}
               onChange={handleSearchChange}
-              placeholder="Filter tag number..."
+              placeholder="Search tag, type, material, FLOC, status..."
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
             />
+          </label>
+          <label>
+            <span className="sr-only">Search within column</span>
+            <select value={searchField} onChange={handleSearchFieldChange} aria-label="Search within column" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500">
+              <option value="tag_number">Search: Tag Number</option><option value="class">Search: Class</option><option value="type">Search: Type</option><option value="material">Search: Material / Properties</option><option value="parent_floc">Search: Parent Funcloc</option><option value="status">Search: Status / Availability</option>
+            </select>
           </label>
           <label>
             <span className="sr-only">Filter lifecycle status</span>
@@ -176,9 +177,12 @@ const StatDetailModal = memo(({
                 onChange={handleSortByChange}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500"
               >
-                <option value="tag">Sort: Tag</option>
-                <option value="name">Sort: Equipment</option>
-                <option value="type">Sort: Class / Type</option>
+                <option value="tag_number">Sort: Tag Number</option>
+                <option value="asset_class">Sort: Class</option>
+                <option value="asset_type">Sort: Type</option>
+                <option value="materials">Sort: Material / Properties</option>
+                <option value="parent_floc">Sort: Parent Funcloc</option>
+                <option value="status">Sort: Status</option>
               </select>
             </label>
             <button
@@ -193,10 +197,10 @@ const StatDetailModal = memo(({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[600px] text-left">
+          <table className="w-full min-w-[1050px] text-left">
             <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <tr>
-                {['Tag number / Equipment', 'Description', 'Class / Type', 'Lifecycle status'].map(
+                {['Tag Number', 'Class', 'Type', 'Material / Properties', 'Parent Funcloc', 'Status / Availability'].map(
                   (heading) => (
                     <th
                       key={heading}
@@ -212,7 +216,7 @@ const StatDetailModal = memo(({
             <tbody className="divide-y divide-slate-100">
               {assetsQuery.isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-14 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
                     <LoaderCircle
                       className="mx-auto mb-2 animate-spin text-emerald-600"
                       size={22}
@@ -223,7 +227,7 @@ const StatDetailModal = memo(({
               ) : assetsQuery.isError ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={6}
                     role="alert"
                     className="px-6 py-14 text-center text-sm text-rose-600"
                   >
@@ -232,7 +236,7 @@ const StatDetailModal = memo(({
                 </tr>
               ) : assets.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-14 text-center text-sm text-slate-500">
+                  <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
                     No assets match these filters.
                   </td>
                 </tr>
@@ -243,33 +247,12 @@ const StatDetailModal = memo(({
                     onClick={() => handleSelectAsset(asset)}
                     className={`hover:bg-slate-50 ${onSelectAsset ? 'cursor-pointer' : ''}`}
                   >
-                    <td className="px-6 py-4">
-                      <span className="block text-sm font-semibold text-slate-800">
-                        {asset.tag_number ?? asset.tagNumber ?? asset.id}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-slate-500">
-                        {asset.name ?? '—'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{asset.description || '—'}</td>
-                    <td className="px-6 py-4 text-sm capitalize text-slate-600">
-                      {(
-                        asset.asset_class ??
-                        asset.assetClass ??
-                        asset.asset_type ??
-                        asset.assetType ??
-                        asset.type ??
-                        '—'
-                      ).replace(/_/g, ' ')}
-                    </td>
-                    <td className="px-6 py-4 text-sm capitalize text-slate-600">
-                      {(
-                        asset.lifecycle_status ??
-                        asset.lifecycleStatus ??
-                        asset.status ??
-                        '—'
-                      ).replace(/_/g, ' ')}
-                    </td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-800">{asset.tag_number ?? asset.tagNumber ?? asset.id}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{asset.asset_class ?? asset.assetClass ?? '—'}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{asset.asset_type ?? asset.assetType ?? asset.type ?? '—'}</td>
+                    <td className="max-w-64 px-6 py-4 text-sm text-slate-600">{getMaterialProperties(asset)}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600">{asset.parent_floc ?? asset.functional_location_id ?? '—'}</td>
+                    <td className="px-6 py-4 text-sm capitalize text-slate-600">{(asset.lifecycle_status ?? asset.lifecycleStatus ?? asset.status ?? '—').replace(/_/g, ' ')}</td>
                   </tr>
                 ))
               )}

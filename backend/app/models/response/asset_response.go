@@ -117,6 +117,8 @@ type AssetResponse struct {
 	OperatingParameters     map[string]interface{} `json:"operating_parameters,omitempty"`
 	DesignConditions        map[string]interface{} `json:"design_conditions,omitempty"`
 	Materials               map[string]interface{} `json:"materials,omitempty"`
+	RBIProperties           map[string]interface{} `json:"rbi_properties,omitempty"`
+	ParentFLOC              string                 `json:"parent_floc,omitempty"`
 	DrawingsReferences      map[string]interface{} `json:"drawings_references,omitempty"`
 	MaintenanceStrategy     string                 `json:"maintenance_strategy"`
 	InspectionStrategy      string                 `json:"inspection_strategy"`

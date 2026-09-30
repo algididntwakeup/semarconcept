@@ -10,7 +10,7 @@ describe('Equipment Master asset service', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('fetches lifecycle statistics from the assets stats endpoint', async () => {
-    const stats = [{ asset_type: 'pump', lifecycle_status: 'Installed', count: 3 }];
+    const stats = [{ class: 'Piping', count: 3 }];
     vi.mocked(apiClient.get).mockResolvedValue({
       data: { success: true, message: 'ok', data: stats },
     });

@@ -503,7 +503,7 @@ func (h *AssetHandler) ListAsset(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Asset retrieved successfully", Asset))
 }
 
-// GetAssetStats returns counts grouped by asset type and lifecycle status.
+// GetAssetStats returns counts grouped by imported equipment class.
 func (h *AssetHandler) GetAssetStats(c *gin.Context) {
 	tenantID, ok := h.requireTenantContext(c)
 	if !ok {

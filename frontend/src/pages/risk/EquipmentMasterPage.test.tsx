@@ -27,17 +27,17 @@ describe('EquipmentMasterPage API integration', () => {
     vi.clearAllMocks();
   });
 
-  it('loads stats and fetches the matching lifecycle list when a stat card is clicked', async () => {
+  it('loads stats and fetches the matching equipment class when a stat card is clicked', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([
-      { asset_type: 'pump', lifecycle_status: 'Installed', count: 2 },
-      { asset_type: 'vessel', lifecycle_status: 'Retired', count: 3 },
+      { class: 'Piping', count: 2 },
+      { class: 'Storage Tanks', count: 3 },
     ]);
     vi.mocked(assetService.getEquipmentAssets).mockImplementation(async (params = {}) => ({
       assets:
-        params.lifecycle_status === 'Installed'
+        params.equipment_class === 'Piping'
           ? [{ id: 1, tag_number: 'P-101', name: 'Installed pump', lifecycle_status: 'Installed' }]
           : [{ id: 1, tag_number: 'P-101', name: 'Installed pump', lifecycle_status: 'Installed' }],
-      total: params.lifecycle_status === 'Installed' ? 2 : 5,
+      total: params.equipment_class === 'Piping' ? 2 : 5,
       page: params.page ?? 1,
       limit: params.limit ?? 10,
     }));
@@ -55,14 +55,14 @@ describe('EquipmentMasterPage API integration', () => {
     );
 
     await waitFor(() => expect(assetService.getEquipmentAssetStats).toHaveBeenCalledOnce());
-    expect(await screen.findByRole('button', { name: 'Installed Assets: 2' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Piping: 2' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Installed Assets: 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Piping: 2' }));
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     await waitFor(() =>
       expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
-        expect.objectContaining({ lifecycle_status: 'Installed', page: 1 })
+        expect.objectContaining({ equipment_class: 'Piping', page: 1 })
       )
     );
     expect(screen.getAllByText('Installed pump')).toHaveLength(2);

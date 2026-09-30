@@ -260,16 +260,18 @@ type AssetListQuery struct {
 	Page               int    `json:"page" form:"page" validate:"min=1"`
 	Limit              int    `json:"limit" form:"limit" validate:"min=1,max=100"`
 	Search             string `json:"search" form:"search"`
+	SearchField        string `json:"search_field" form:"search_field"`
 	SiteID             *int   `json:"site_id" form:"site_id"`
 	UnitID             *int   `json:"unit_id" form:"unit_id"`
 	TaxonomyCategoryID *int   `json:"taxonomy_category_id" form:"taxonomy_category_id"`
 	AssetType          string `json:"asset_type" form:"asset_type"`
+	EquipmentClass     string `json:"equipment_class" form:"equipment_class"`
 	Type               string `json:"type" form:"type"`
 	LifecycleStatus    string `json:"lifecycle_status" form:"lifecycle_status"`
 	Status             string `json:"status" form:"status"`
 	Criticality        *int   `json:"criticality" form:"criticality" validate:"omitempty,min=1,max=5"`
 	SafetyCritical     *bool  `json:"safety_critical" form:"safety_critical"`
-	SortBy             string `json:"sort_by" form:"sort_by" validate:"omitempty,oneof=name tag_number created_at updated_at criticality"`
+	SortBy             string `json:"sort_by" form:"sort_by" validate:"omitempty,oneof=name tag_number created_at updated_at criticality asset_class asset_type materials parent_floc status"`
 	SortOrder          string `json:"sort_order" form:"sort_order" validate:"omitempty,oneof=asc desc"`
 	Manufacturer       string `json:"manufacturer" form:"manufacturer"`
 	SortDirection      string `json:"sort_direction" form:"sort_direction"`

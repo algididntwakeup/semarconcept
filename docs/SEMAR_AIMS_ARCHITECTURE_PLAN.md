@@ -118,7 +118,7 @@ Tahapan backend: (0) pulihkan test dan smoke gate; (1) satu lifecycle DB dan ver
 | Data layer | satu pool GORM + SQLX dan transaction manager tersedia | versioned migration, domain constraints, dan transaksi teruji |
 | API contract | route/DTO legacy masih drift, termasuk asset naming/envelope dan endpoint frontend yang belum ada | OpenAPI inventory, typed DTO, compatibility window (AM-01) |
 | Tenant isolation | SAAS-01: verified context, middleware, granular Asset RBAC, relationship checks, dan negative/boundary tests diterapkan | perluas ke domain/file/cache/job boundary; evaluasi RLS |
-| Asset Management | Registry/Equipment Master UI dan sebagian backend tersedia; hierarchy multi-aspect, Technical Data governed, Documents, import/export, integrasi belum production-complete | jalur AM-01 s/d AM-06; UI bukan bukti readiness end-to-end |
+| Asset Management | Equipment Master memiliki overview agregasi Equipment Class, modal list terfilter, pencarian kolom, sorting server-side, dan dukungan detail material/FLOC; hierarchy multi-aspect, Technical Data governed, Documents, serta integrasi menyeluruh belum production-complete | jalur AM-01 s/d AM-06; UI bukan bukti readiness end-to-end |
 | Design system | MUI, Tailwind, Emotion, serta ikon MUI/Lucide masih bercampur | tetapkan token/ownership bertahap, jangan rewrite serentak |
 | AIMS calculation | helper/analytics parsial; belum ada ruleset engineering terversi dengan golden dataset | mulai setelah schema Asset dan SME approval |
 | Events/integration | interface parsial; transactional outbox belum terbukti | outbox dan worker idempotent |

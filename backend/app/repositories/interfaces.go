@@ -234,7 +234,7 @@ type AssetRepository interface {
 	Update(ctx context.Context, asset *models.Asset) error
 	Delete(ctx context.Context, tenantID int, id int) error
 	List(ctx context.Context, tenantID int, query *request.AssetListQuery) ([]models.Asset, int64, error)
-	GetAssetStats(ctx context.Context, tenantID int) ([]AssetTypeStatusCount, error)
+	GetAssetStats(ctx context.Context, tenantID int) ([]AssetClassCount, error)
 	UpdateLifecycle(ctx context.Context, tenantID, assetID int, status string, userID int) error
 	DiagnoseDuplicateTags(ctx context.Context, tenantID int) ([]DuplicateAssetTag, error)
 	FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
@@ -261,11 +261,10 @@ type AssetRepository interface {
 	GetAssetsRequiringAttention(ctx context.Context, tenantID int) ([]interface{}, error)
 }
 
-// AssetTypeStatusCount is one grouped asset-type/lifecycle-status aggregate.
-type AssetTypeStatusCount struct {
-	AssetType       string `db:"asset_type" json:"asset_type"`
-	LifecycleStatus string `db:"lifecycle_status" json:"lifecycle_status"`
-	Count           int64  `db:"count" json:"count"`
+// AssetClassCount is one grouped equipment-class aggregate.
+type AssetClassCount struct {
+	Class string `gorm:"column:class" json:"class"`
+	Count int64  `gorm:"column:count" json:"count"`
 }
 
 type DuplicateAssetTag struct {

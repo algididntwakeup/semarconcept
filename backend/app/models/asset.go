@@ -14,6 +14,7 @@ type Asset struct {
 	ParentID                *int       `gorm:"index" db:"parent_id" json:"parent_id,omitempty"`
 	UnitID                  *int       `gorm:"index" db:"unit_id" json:"unit_id,omitempty"`
 	FunctionalLocationID    *int       `gorm:"index;index:idx_assets_tenant_functional_location,priority:2" db:"functional_location_id" json:"functional_location_id,omitempty"`
+	ParentFLOC              string     `gorm:"-" db:"parent_floc" json:"-"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
 	Description             *string    `gorm:"type:text" db:"description" json:"description,omitempty"`
 	TagNumber               *string    `gorm:"size:100;uniqueIndex:idx_assets_unique_tag_number;index:idx_assets_tag_number;index:idx_assets_tenant_tag,priority:2" db:"tag_number" json:"tag_number"`

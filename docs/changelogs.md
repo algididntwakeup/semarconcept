@@ -2,6 +2,16 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
+## Unreleased — 30 September 2026
+
+### Equipment Master class overview and detail modal
+
+- Mengubah `GET /api/v1/assets/stats` menjadi agregasi GORM tenant-scoped per `asset_class`, dengan baris kosong dan kelas berjumlah nol tidak ditampilkan. Respons statistik kini berisi `{class, count}` sesuai data Equipment Class yang diimpor dari XLSX.
+- Mengubah kartu Overview dan Equipment Master menjadi dinamis berdasarkan agregat kelas; klik kartu membuka detail dengan filter `equipment_class` pada API daftar aset.
+- Memperluas list API agar menerima filter kelas, pencarian pada kolom tag/class/type/material-properties/parent FLOC/status, serta sorting kolom melalui parameter query.
+- Memperluas data modal menjadi Tag Number, Class, Type, Material/Properties, Parent Funcloc, dan Status/Availability. Response list menyertakan properti RBI hasil impor XLSX dan nama/tag lokasi fungsional induk.
+- Memperbarui kontrak dan fixture frontend/backend terkait.
+
 ## Unreleased — 28 September 2026
 
 ### Equipment Master XLSX import idempotency and GORM OnConflict batch upsert

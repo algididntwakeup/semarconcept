@@ -112,8 +112,8 @@ describe('Asset Query Hooks', () => {
   describe('Equipment Master queries', () => {
     it('loads grouped lifecycle statistics', async () => {
       const stats = [
-        { asset_type: 'pump', lifecycle_status: 'Installed', count: 4 },
-        { asset_type: 'vessel', lifecycle_status: 'Retired', count: 2 },
+        { class: 'Piping', count: 4 },
+        { class: 'Storage Tanks', count: 2 },
       ];
       vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue(stats);
 

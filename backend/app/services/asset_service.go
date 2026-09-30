@@ -549,8 +549,10 @@ func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *reque
 		Page:            query.Page,
 		Limit:           query.Limit,
 		Search:          query.Search,
+		SearchField:     query.SearchField,
 		UnitID:          query.UnitID,
 		AssetType:       query.AssetType,
+		EquipmentClass:  query.EquipmentClass,
 		Type:            query.Type,
 		LifecycleStatus: query.LifecycleStatus,
 		Status:          query.Status,
@@ -571,8 +573,8 @@ func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *reque
 	}, nil
 }
 
-// GetAssetStats returns asset counts grouped by type/class and lifecycle status.
-func (s *AssetService) GetAssetStats(ctx context.Context, tenantID int) ([]repositories.AssetTypeStatusCount, error) {
+// GetAssetStats returns asset counts grouped by equipment class.
+func (s *AssetService) GetAssetStats(ctx context.Context, tenantID int) ([]repositories.AssetClassCount, error) {
 	return s.AssetRepo.GetAssetStats(ctx, tenantID)
 }
 
@@ -1824,6 +1826,8 @@ func (s *AssetService) AssetToResponse(asset *models.Asset) *response.AssetRespo
 		OperatingParameters:     map[string]interface{}(asset.OperatingParameters),
 		DesignConditions:        map[string]interface{}(asset.DesignConditions),
 		Materials:               map[string]interface{}(asset.Materials),
+		RBIProperties:           map[string]interface{}(asset.RBIProperties),
+		ParentFLOC:              asset.ParentFLOC,
 		DrawingsReferences:      map[string]interface{}(asset.DrawingsReferences),
 		MaintenanceStrategy:     s.derefToString(asset.MaintenanceStrategy),
 		InspectionStrategy:      s.derefToString(asset.InspectionStrategy),

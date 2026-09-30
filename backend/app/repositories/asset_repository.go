@@ -236,7 +236,7 @@ func (r *assetRepository) FindByID(ctx context.Context, tenantID int, id int) (*
 
 // List retrieves assets with optional filtering
 func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.AssetListQuery) ([]models.Asset, int64, error) {
-	query := `SELECT * FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
+	query := `SELECT assets.*, (SELECT COALESCE(floc.tag_number, floc.name, '') FROM assets AS floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id) AS parent_floc FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 	countQuery := `SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 
 	args := []interface{}{tenantID}
@@ -250,8 +250,21 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 	}
 
 	if req.Search != "" {
-		query += fmt.Sprintf(` AND tag_number ILIKE $%d`, argIdx)
-		countQuery += fmt.Sprintf(` AND tag_number ILIKE $%d`, argIdx)
+		searchExpression := `COALESCE(tag_number, '')`
+		switch req.SearchField {
+		case "class":
+			searchExpression = `COALESCE(asset_class, '')`
+		case "type":
+			searchExpression = `COALESCE(asset_type, '')`
+		case "material":
+			searchExpression = `COALESCE(materials::text, '') || ' ' || COALESCE(rbi_properties::text, '')`
+		case "parent_floc":
+			searchExpression = `COALESCE((SELECT floc.tag_number || ' ' || floc.name FROM assets floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id), '')`
+		case "status":
+			searchExpression = `COALESCE(lifecycle_status, status, '')`
+		}
+		query += fmt.Sprintf(` AND %s ILIKE $%d`, searchExpression, argIdx)
+		countQuery += fmt.Sprintf(` AND %s ILIKE $%d`, searchExpression, argIdx)
 		searchPattern := "%" + req.Search + "%"
 		args = append(args, searchPattern)
 		argIdx++
@@ -260,6 +273,12 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 	assetType := req.AssetType
 	if assetType == "" {
 		assetType = req.Type
+	}
+	if req.EquipmentClass != "" {
+		query += fmt.Sprintf(` AND asset_class = $%d`, argIdx)
+		countQuery += fmt.Sprintf(` AND asset_class = $%d`, argIdx)
+		args = append(args, req.EquipmentClass)
+		argIdx++
 	}
 	if assetType != "" {
 		query += fmt.Sprintf(` AND COALESCE(NULLIF(asset_type, ''), asset_class) = $%d`, argIdx)
@@ -284,7 +303,19 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 		return nil, 0, fmt.Errorf("count query: %w", err)
 	}
 
-	query += ` ORDER BY created_at DESC`
+	sortColumns := map[string]string{
+		"tag_number": "tag_number", "class": "asset_class", "asset_class": "asset_class", "type": "asset_type", "asset_type": "asset_type",
+		"name": "name", "material": "materials", "materials": "materials", "parent_floc": "(SELECT COALESCE(floc.tag_number, floc.name, '') FROM assets floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id)", "status": "COALESCE(NULLIF(lifecycle_status, ''), status)", "created_at": "created_at",
+	}
+	sortColumn, ok := sortColumns[req.SortBy]
+	if !ok {
+		sortColumn = "created_at"
+	}
+	sortOrder := strings.ToUpper(req.SortOrder)
+	if sortOrder != "ASC" {
+		sortOrder = "DESC"
+	}
+	query += fmt.Sprintf(` ORDER BY %s %s`, sortColumn, sortOrder)
 
 	if req.Limit > 0 {
 		query += fmt.Sprintf(` LIMIT $%d OFFSET $%d`, argIdx, argIdx+1)
@@ -299,21 +330,19 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 	return assets, total, nil
 }
 
-// GetAssetStats aggregates non-deleted assets by type/class and lifecycle status.
-func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) ([]AssetTypeStatusCount, error) {
-	const query = `
-		SELECT
-			COALESCE(NULLIF(asset_type, ''), NULLIF(asset_class, ''), 'Uncategorized') AS asset_type,
-			COALESCE(NULLIF(lifecycle_status, ''), NULLIF(status, ''), 'Unknown') AS lifecycle_status,
-			COUNT(*) AS count
-		FROM assets
-		WHERE tenant_id = $1 AND COALESCE(status, '') <> 'deleted'
-		GROUP BY 1, 2
-		ORDER BY 1, 2`
-
-	stats := make([]AssetTypeStatusCount, 0)
-	if err := r.db.SelectContext(ctx, &stats, query, tenantID); err != nil {
-		return nil, fmt.Errorf("aggregate asset statistics: %w", err)
+// GetAssetStats aggregates non-deleted assets by their imported equipment class.
+func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) ([]AssetClassCount, error) {
+	stats := make([]AssetClassCount, 0)
+	db, err := r.getGormDB()
+	if err != nil {
+		return nil, err
+	}
+	err = db.WithContext(ctx).Model(&models.Asset{}).
+		Select("BTRIM(asset_class) AS class, COUNT(*) AS count").
+		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL", tenantID).
+		Group("BTRIM(asset_class)").Order("BTRIM(asset_class)").Scan(&stats).Error
+	if err != nil {
+		return nil, fmt.Errorf("aggregate equipment class statistics: %w", err)
 	}
 	return stats, nil
 }
