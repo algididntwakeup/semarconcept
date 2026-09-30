@@ -12,16 +12,54 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	gormPostgres "gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
-// assetRepository implements AssetRepository interface using SQLX
+// assetRepository implements AssetRepository interface using SQLX and GORM
 type assetRepository struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	gormDB *gorm.DB
 }
 
-// NewAssetRepository creates a new AssetRepository implementation
-func NewAssetRepository(db *sqlx.DB) AssetRepository {
-	return &assetRepository{db: db.Unsafe()}
+// NewAssetRepository creates a new AssetRepository implementation.
+// It accepts an optional *gorm.DB. If not provided, it initializes GORM from db.DB.
+func NewAssetRepository(db *sqlx.DB, gormDBs ...*gorm.DB) AssetRepository {
+	var gdb *gorm.DB
+	if len(gormDBs) > 0 && gormDBs[0] != nil {
+		gdb = gormDBs[0]
+	} else if db != nil && db.DB != nil {
+		gdb, _ = gorm.Open(gormPostgres.New(gormPostgres.Config{
+			Conn: db.DB,
+		}), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Warn),
+		})
+	}
+	return &assetRepository{
+		db:     db.Unsafe(),
+		gormDB: gdb,
+	}
+}
+
+func (r *assetRepository) getGormDB() (*gorm.DB, error) {
+	if r.gormDB != nil {
+		return r.gormDB, nil
+	}
+	if r.db != nil && r.db.DB != nil {
+		gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{
+			Conn: r.db.DB,
+		}), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Warn),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("initialize gorm: %w", err)
+		}
+		r.gormDB = gdb
+		return gdb, nil
+	}
+	return nil, fmt.Errorf("no database connection available")
 }
 
 // Create inserts a new Asset into the database
@@ -408,60 +446,68 @@ func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int,
 	return assets, nil
 }
 
-// UpsertAssetsFromImport applies an entire import batch atomically for one tenant.
-// A transaction-scoped advisory lock serializes concurrent imports for the tenant,
-// including imports where incoming tag numbers do not yet exist in the database.
+// UpsertAssetsFromImport applies an entire import batch atomically for one tenant using
+// GORM upsert (clause.OnConflict) on tag_number.
+// If any row fails due to corrupted data, tx.Rollback() is called and an error (HTTP 400) is returned.
+// When all rows succeed, tx.Commit() is called.
 func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (created, updated int, err error) {
-	tx, err := r.db.BeginTxx(ctx, nil)
+	if len(assets) == 0 {
+		return 0, 0, nil
+	}
+
+	gdb, err := r.getGormDB()
 	if err != nil {
-		return 0, 0, fmt.Errorf("begin asset import transaction: %w", err)
+		return 0, 0, fmt.Errorf("%w: failed to obtain database connection: %v", utils.ErrValidation, err)
+	}
+
+	// Bungkus seluruh proses batch upsert ini dalam Database Transaction (tx := db.Begin())
+	tx := gdb.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return 0, 0, fmt.Errorf("%w: begin asset import transaction: %v", utils.ErrValidation, tx.Error)
 	}
 	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
+		if r := recover(); r != nil {
+			tx.Rollback()
+			panic(r)
 		}
 	}()
 
-	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1, $2)`, tenantID, 74321); err != nil {
-		return 0, 0, fmt.Errorf("lock tenant asset import: %w", err)
+	// Advisory lock to serialize concurrent imports for the same tenant
+	if err := tx.Exec(`SELECT pg_advisory_xact_lock(?, ?)`, tenantID, 74321).Error; err != nil {
+		tx.Rollback()
+		return 0, 0, fmt.Errorf("%w: lock tenant asset import: %v", utils.ErrValidation, err)
 	}
 
-	const findByTagQuery = `SELECT id FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1 FOR UPDATE`
-	const findByIDQuery = `SELECT id FROM assets WHERE tenant_id = $1 AND id = $2 AND COALESCE(status, '') <> 'deleted' FOR UPDATE`
-	const updateByIDQuery = `
-		UPDATE assets SET
-			name = $1,
-			tag_number = COALESCE($2, tag_number),
-			description = COALESCE($3, description),
-			asset_type = COALESCE($4, asset_type),
-			asset_class = COALESCE($5, asset_class),
-			parent_id = COALESCE($6, parent_id),
-			functional_location_id = COALESCE($7, functional_location_id),
-			lifecycle_status = COALESCE($8, lifecycle_status),
-			status = COALESCE($9, status),
-			rbi_properties = COALESCE(rbi_properties, '{}'::jsonb) || $10::jsonb,
-			updated_by = $11,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $12 AND tenant_id = $13`
-	const insertWithTagQuery = `
-		INSERT INTO assets (
-			tenant_id, name, tag_number, description, asset_type, asset_class, parent_id,
-			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by,
-			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'active'), $11, $12, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-	const insertWithoutTagQuery = `
-		INSERT INTO assets (
-			tenant_id, name, description, asset_type, asset_class, parent_id,
-			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by,
-			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'), $10, $11, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+	// Query existing tags in this tenant to accurately distinguish created vs updated counts
+	tagList := make([]string, 0, len(assets))
+	for _, a := range assets {
+		if a.TagNumber != nil && strings.TrimSpace(*a.TagNumber) != "" {
+			tagList = append(tagList, strings.TrimSpace(*a.TagNumber))
+		}
+	}
+
+	existingTagSet := make(map[string]bool)
+	if len(tagList) > 0 {
+		var foundTags []string
+		if err := tx.Model(&models.Asset{}).
+			Where("tenant_id = ? AND tag_number IN ?", tenantID, tagList).
+			Pluck("tag_number", &foundTags).Error; err != nil {
+			tx.Rollback()
+			return 0, 0, fmt.Errorf("%w: check existing tags: %v", utils.ErrValidation, err)
+		}
+		for _, t := range foundTags {
+			existingTagSet[t] = true
+		}
+	}
 
 	for index := range assets {
 		select {
 		case <-ctx.Done():
-			return created, updated, fmt.Errorf("asset import cancelled: %w", ctx.Err())
+			tx.Rollback()
+			return 0, 0, fmt.Errorf("%w: asset import cancelled: %v", utils.ErrValidation, ctx.Err())
 		default:
 		}
+
 		asset := &assets[index]
 		asset.TenantID = tenantID
 		asset.UpdatedBy = &userID
@@ -472,52 +518,64 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 			asset.RBIProperties = models.JSONBMap{}
 		}
 
-		var existingID int
-		findErr := sql.ErrNoRows
-		if asset.TagNumber != nil && strings.TrimSpace(*asset.TagNumber) != "" {
-			findErr = tx.GetContext(ctx, &existingID, findByTagQuery, tenantID, strings.TrimSpace(*asset.TagNumber))
+		// Reset ID to 0 so new records receive an auto-generated sequence value
+		asset.ID = 0
+
+		tag := ""
+		if asset.TagNumber != nil {
+			trimmed := strings.TrimSpace(*asset.TagNumber)
+			asset.TagNumber = &trimmed
+			tag = trimmed
 		}
-		if findErr == sql.ErrNoRows && asset.ID > 0 {
-			findErr = tx.GetContext(ctx, &existingID, findByIDQuery, tenantID, asset.ID)
+		if tag == "" {
+			tx.Rollback()
+			return 0, 0, fmt.Errorf("%w: row %d is missing tag_number", utils.ErrValidation, index+1)
 		}
-		if findErr != nil && findErr != sql.ErrNoRows {
-			err = findErr
-			return 0, 0, fmt.Errorf("find existing asset at import row %d: %w", index+1, err)
-		}
-		if findErr == nil {
-			_, err = tx.ExecContext(ctx, updateByIDQuery,
-				asset.Name, asset.TagNumber, asset.Description, asset.AssetType, asset.AssetClass,
-				asset.ParentID, asset.FunctionalLocationID, asset.LifecycleStatus, asset.Status,
-				asset.RBIProperties, userID, existingID, tenantID,
-			)
-			if err != nil {
-				return 0, 0, fmt.Errorf("update asset import row %d: %w", index+1, err)
-			}
-			updated++
-			continue
-		}
-		if asset.TagNumber == nil || strings.TrimSpace(*asset.TagNumber) == "" {
-			_, err = tx.ExecContext(ctx, insertWithoutTagQuery,
-				asset.TenantID, asset.Name, asset.Description, asset.AssetType, asset.AssetClass,
-				asset.ParentID, asset.FunctionalLocationID, asset.LifecycleStatus, asset.Status,
-				asset.RBIProperties, userID,
-			)
-		} else {
-			_, err = tx.ExecContext(ctx, insertWithTagQuery,
-				asset.TenantID, asset.Name, asset.TagNumber, asset.Description, asset.AssetType,
-				asset.AssetClass, asset.ParentID, asset.FunctionalLocationID, asset.LifecycleStatus,
-				asset.Status, asset.RBIProperties, userID,
-			)
-		}
+
+		isExisting := existingTagSet[tag]
+
+		// Upsert logic (Insert or Update) using gorm.io/gorm/clause.
+		// Kunci konflik: clause.OnConflict{Columns: []clause.Column{{Name: "tag_number"}}}.
+		// Jika tag_number belum ada di database, lakukan Insert aset baru.
+		// Jika tag_number sudah ada, lakukan Update (timpa) seluruh kolom data
+		// (Description, Class, Type, dan kolom JSONB rbi_properties) dengan data terbaru dari file Excel.
+		err = tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "tag_number"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"name",
+				"description",
+				"asset_class",
+				"asset_type",
+				"parent_id",
+				"functional_location_id",
+				"lifecycle_status",
+				"status",
+				"rbi_properties",
+				"updated_by",
+				"updated_at",
+			}),
+		}).Create(asset).Error
+
+		// Jika ada satu saja baris yang gagal diproses karena data korup, lakukan tx.Rollback() dan kembalikan error 400
 		if err != nil {
-			return 0, 0, fmt.Errorf("insert asset import row %d: %w", index+1, err)
+			tx.Rollback()
+			return 0, 0, fmt.Errorf("%w: row %d (tag: %s) failed to upsert: %v", utils.ErrValidation, index+1, tag, err)
 		}
-		created++
+
+		if isExisting {
+			updated++
+		} else {
+			created++
+			existingTagSet[tag] = true
+		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		return 0, 0, fmt.Errorf("commit asset import transaction: %w", err)
+	// Jika berhasil semua lakukan tx.Commit()
+	if err = tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return 0, 0, fmt.Errorf("%w: commit asset import transaction: %v", utils.ErrValidation, err)
 	}
+
 	return created, updated, nil
 }
 

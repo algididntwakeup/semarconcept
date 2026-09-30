@@ -16,7 +16,7 @@ type Asset struct {
 	FunctionalLocationID    *int       `gorm:"index;index:idx_assets_tenant_functional_location,priority:2" db:"functional_location_id" json:"functional_location_id,omitempty"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
 	Description             *string    `gorm:"type:text" db:"description" json:"description,omitempty"`
-	TagNumber               *string    `gorm:"size:100;index:idx_assets_tag_number;index:idx_assets_tenant_tag,priority:2" db:"tag_number" json:"tag_number"`
+	TagNumber               *string    `gorm:"size:100;uniqueIndex:idx_assets_unique_tag_number;index:idx_assets_tag_number;index:idx_assets_tenant_tag,priority:2" db:"tag_number" json:"tag_number"`
 	AssetType               *string    `gorm:"size:100;index:idx_assets_asset_type;index:idx_assets_tenant_type,priority:2" db:"asset_type" json:"asset_type"`
 	AssetClass              *string    `gorm:"size:100" db:"asset_class" json:"asset_class"`
 	Manufacturer            *string    `gorm:"size:255" db:"manufacturer" json:"manufacturer"`
@@ -29,7 +29,7 @@ type Asset struct {
 	DesignLifeYears         *int       `db:"design_life_years" json:"design_life_years"`
 	RemainingLifeYears      *float64   `db:"remaining_life_years" json:"remaining_life_years"`
 	Specifications          JSONBMap   `gorm:"type:jsonb" db:"specifications" json:"specifications,omitempty"`
-	RBIProperties           JSONBMap   `gorm:"type:jsonb;not null;default:'{}'" db:"rbi_properties" json:"rbi_properties,omitempty"`
+	RBIProperties           JSONBMap   `gorm:"column:rbi_properties;type:jsonb;not null;default:'{}'" db:"rbi_properties" json:"rbi_properties,omitempty"`
 	OperatingParameters     JSONBMap   `gorm:"type:jsonb" db:"operating_parameters" json:"operating_parameters,omitempty"`
 	DesignConditions        JSONBMap   `gorm:"type:jsonb" db:"design_conditions" json:"design_conditions,omitempty"`
 	Materials               JSONBMap   `gorm:"type:jsonb" db:"materials" json:"materials,omitempty"`

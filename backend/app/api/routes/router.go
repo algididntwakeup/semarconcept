@@ -215,7 +215,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	menuRepo := repositories.NewPostgresMenuRepository(sqlxDB)
 
 	// Use existing constructors with correct names
-	assetRepo := repositories.NewAssetRepository(sqlxDB)
+	assetRepo := repositories.NewAssetRepository(sqlxDB, gormDB)
 	dashboardDataRepo := repositories.NewDashboardRepository(sqlxDB)
 	mediaRepo := repositories.NewBasicMediaRepository(sqlxDB)
 

@@ -1422,11 +1422,7 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	result, err := h.assetService.ImportAssets(c.Request.Context(), tenantID, &req, userID, fileData)
 	if err != nil {
 		utils.LogErrorf("Failed to import assets: %v", err)
-		if utils.IsValidationError(err) {
-			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid XLSX import", err.Error()))
-			return
-		}
-		c.JSON(http.StatusUnprocessableEntity, utils.ErrorResponse("Failed to import assets", err.Error()))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to import assets", err.Error()))
 		return
 	}
 

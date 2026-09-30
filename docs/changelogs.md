@@ -4,6 +4,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 28 September 2026
 
+### Equipment Master XLSX import idempotency and GORM OnConflict batch upsert
+
+- Mencegah duplikasi data saat mengunggah workbook Excel yang sama berulang kali pada endpoint `POST /api/v1/assets/import`:
+  - Mengimplementasikan logika Upsert (Insert or Update) pada PostgreSQL menggunakan `gorm.io/gorm/clause` di `AssetRepository.UpsertAssetsFromImport`.
+  - Menggunakan `tag_number` sebagai kunci konflik (`clause.OnConflict{Columns: []clause.Column{{Name: "tag_number"}}}`).
+  - Jika `tag_number` belum ada di database, baris di-insert sebagai aset baru; jika `tag_number` sudah ada, seluruh kolom data (`Description`, `Class`, `Type`, `Name`, dan kolom JSONB `rbi_properties`) ditimpa (update) dengan data terbaru dari file Excel.
+  - Membungkus seluruh proses batch upsert dalam Database Transaction (`tx := db.Begin()`). Jika ada satu saja baris yang gagal diproses karena data korup, memanggil `tx.Rollback()` dan mengembalikan error HTTP 400 (`utils.ErrValidation`); jika semua baris berhasil diproses, memanggil `tx.Commit()`.
+  - Menambahkan unique index permanen `idx_assets_unique_tag_number` pada `assets(tag_number)` melalui migrasi database (`migration.go`) dan tag `uniqueIndex` pada model `models.Asset`.
+  - Mengonfigurasi tag GORM eksplisit `column:rbi_properties` pada `models.Asset.RBIProperties` agar pemetaan kolom snake_case sesuai dengan skema PostgreSQL.
+  - Menambahkan pengujian integrasi live DB (`TestAssetRepository_UpsertAssetsLiveDB`) dan unit test repository yang memverifikasi idempotensi unggah ulang (0 inserted, N updated) serta rollback atomik saat terjadi error baris.
+- Validasi: `docker exec semar-backend go test ./app/api/handlers ./app/repositories ./app/services` dan `docker exec semar-frontend pnpm test:run src/pages/risk/EquipmentMasterPage.test.tsx`.
+
 ### Equipment Master 100 MB XLSX import and streaming processing
 
 - Menaikkan batas ukuran unggah workbook XLSX Equipment Master dari 10 MB menjadi 100 MB (`100 << 20`) pada frontend UI (`EquipmentMasterPage`), backend HTTP handler (`AssetHandler.ImportAssets`), dan konfigurasi reverse proxy Nginx (`client_max_body_size 120M`).

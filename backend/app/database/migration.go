@@ -56,6 +56,10 @@ func MigrateAll(db *gorm.DB) error {
 		utils.Errorf("Failed to create asset tag search index: %v", err)
 		return err
 	}
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_unique_tag_number ON assets (tag_number)`).Error; err != nil {
+		utils.Errorf("Failed to create unique asset tag index: %v", err)
+		return err
+	}
 
 	utils.Info("Database migration completed successfully.")
 	return nil

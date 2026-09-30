@@ -2,7 +2,9 @@ package repositories
 
 import (
 	"backend/app/models"
+	"backend/app/utils"
 	"context"
+	"errors"
 	"regexp"
 	"testing"
 
@@ -73,25 +75,10 @@ func TestAssetRepository_UpsertAssetsFromImportPrioritizesTagAndCommitsAtomicall
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1, $2)`)).
 		WithArgs(42, 74321).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT id FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1 FOR UPDATE`)).
-		WithArgs(42, "EQ-101").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(77))
-	mock.ExpectExec(regexp.QuoteMeta(`
-		UPDATE assets SET
-			name = $1,
-			tag_number = COALESCE($2, tag_number),
-			description = COALESCE($3, description),
-			asset_type = COALESCE($4, asset_type),
-			asset_class = COALESCE($5, asset_class),
-			parent_id = COALESCE($6, parent_id),
-			functional_location_id = COALESCE($7, functional_location_id),
-			lifecycle_status = COALESCE($8, lifecycle_status),
-			status = COALESCE($9, status),
-			rbi_properties = COALESCE(rbi_properties, '{}'::jsonb) || $10::jsonb,
-			updated_by = $11,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $12 AND tenant_id = $13`)).
-		WithArgs("Reactor", &tag, &description, &assetType, nil, nil, nil, nil, nil, sqlmock.AnyArg(), 7, 77, 42).
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "tag_number" FROM "assets" WHERE tenant_id = $1 AND tag_number IN ($2)`)).
+		WithArgs(42, "EQ-101").WillReturnRows(sqlmock.NewRows([]string{"tag_number"}).AddRow("EQ-101"))
+	mock.ExpectQuery("INSERT INTO \"assets\"").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(77))
 	mock.ExpectCommit()
 
 	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"))
@@ -99,5 +86,34 @@ func TestAssetRepository_UpsertAssetsFromImportPrioritizesTagAndCommitsAtomicall
 	require.NoError(t, err)
 	require.Equal(t, 0, created)
 	require.Equal(t, 1, updated)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAssetRepository_UpsertAssetsFromImportRollsBackOnError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	ctx := context.Background()
+	tag := "EQ-ERR"
+	asset := models.Asset{
+		TenantID: 42, TagNumber: &tag, Name: "Corrupt Asset",
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1, $2)`)).
+		WithArgs(42, 74321).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT "tag_number" FROM "assets" WHERE tenant_id = $1 AND tag_number IN ($2)`)).
+		WithArgs(42, "EQ-ERR").WillReturnRows(sqlmock.NewRows([]string{"tag_number"}))
+	mock.ExpectQuery("INSERT INTO \"assets\"").
+		WillReturnError(errors.New("corrupt data in row"))
+	mock.ExpectRollback()
+
+	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"))
+	created, updated, err := repo.UpsertAssetsFromImport(ctx, 42, []models.Asset{asset}, 7)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, utils.ErrValidation))
+	require.Equal(t, 0, created)
+	require.Equal(t, 0, updated)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
