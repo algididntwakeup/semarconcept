@@ -21,7 +21,7 @@ type assetRepository struct {
 
 // NewAssetRepository creates a new AssetRepository implementation
 func NewAssetRepository(db *sqlx.DB) AssetRepository {
-	return &assetRepository{db: db}
+	return &assetRepository{db: db.Unsafe()}
 }
 
 // Create inserts a new Asset into the database

@@ -12,7 +12,8 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
   - Mengganti `book.GetRows()` yang memuat seluruh sheet ke memory menjadi streaming iterator `book.Rows()` dengan pembacaan row-by-row streaming, menjaga pemakaian RAM tetap minimal dan stabil untuk workbook berisi puluhan ribu baris.
   - Membatasi buffer memori multipart form ke 32 MB (`ParseMultipartForm(32 << 20)`) dengan pembersihan otomatis file temporary via `defer c.Request.MultipartForm.RemoveAll()`.
   - Menambahkan cooperative context check (`ctx.Done()`) pada parsing sheet dan loop upsert repositori untuk menangani diskoneksi klien atau pembatalan request secara bersih.
-  - Menyesuaikan batas timeout permintaan import pada frontend Axios dan Nginx proxy menjadi 10 menit (600 detik).
+  - Menyesuaikan batas timeout permintaan import pada frontend Axios, Vite dev proxy (`timeout: 600000`, `proxyTimeout: 600000`), dan Nginx proxy (`proxy_read_timeout 600s`) menjadi 10 menit (600 detik) untuk mencegah socket hang-up / 500 error prematur pada impor dataset besar.
+  - Memperkuat database repository dan migrasi: mengonfigurasi `sqlx.DB.Unsafe()` pada `AssetRepository` agar `SelectContext` / `GetContext` tidak memicu HTTP 500 fatal jika terdapat kolom tambahan tak terpetakan di PostgreSQL, serta menambahkan migrasi `DROP COLUMN IF EXISTS rb_iproperties` untuk membersihkan kolom typo legacy.
 - Validasi: `docker exec semar-backend go test ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-backend go vet ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-frontend pnpm test:run src/pages/risk/EquipmentMasterPage.test.tsx src/services/assetServices.test.ts`, dan `docker exec semar-frontend pnpm typecheck`.
 
 ### Docker frontend filesystem isolation
