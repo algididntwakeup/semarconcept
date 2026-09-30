@@ -65,7 +65,7 @@ describe('EquipmentMasterPage API integration', () => {
         expect.objectContaining({ equipment_class: 'Piping', page: 1 })
       )
     );
-    expect(screen.getAllByText('Installed pump')).toHaveLength(2);
+    expect(screen.getAllByText('P-101')).toHaveLength(2);
   }, 15000);
 
   it('runs maintenance utilities and displays the success result as a toast', async () => {
