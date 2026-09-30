@@ -40,6 +40,10 @@ func MigrateAll(db *gorm.DB) error {
 	if err := db.Exec(`ALTER TABLE assets DROP COLUMN IF EXISTS rb_iproperties`).Error; err != nil {
 		utils.Warnf("Could not drop legacy assets.rb_iproperties column: %v", err)
 	}
+	_ = db.Exec(`ALTER TABLE assets ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP`)
+	_ = db.Exec(`ALTER TABLE assets ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP`)
+	_ = db.Exec(`UPDATE assets SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL`)
+	_ = db.Exec(`UPDATE assets SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL`)
 
 	// The asset registry searches tag numbers with ILIKE '%query%'. A normal
 	// B-tree cannot accelerate leading-wildcard searches, so add a trigram GIN

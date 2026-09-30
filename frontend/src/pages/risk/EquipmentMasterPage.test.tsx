@@ -122,7 +122,43 @@ describe('EquipmentMasterPage API integration', () => {
     expect(assetService.syncEquipmentComponentsToFLOC).toHaveBeenCalledWith(false);
   }, 15000);
 
-  it('shows import failure details and lets the user retry the selected workbook', async () => {
+  it('shows file preview with name and size and allows clearing with the X button', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const workbook = new File(['xlsx data'], 'equipment.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+      target: { files: [workbook] },
+    });
+    expect(screen.getByText('equipment.xlsx')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove file' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit Import' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove file' }));
+    expect(screen.queryByText('equipment.xlsx')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import XLSX' })).toBeInTheDocument();
+  });
+
+  it('shows import failure details, automatically resets uploader, and imports on submit', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
@@ -155,19 +191,32 @@ describe('EquipmentMasterPage API integration', () => {
     const workbook = new File(['xlsx'], 'equipment.xlsx', {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
+
+    // 1. Select file and Submit: fails with error
     fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
       target: { files: [workbook] },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Import' }));
 
-    expect(await screen.findByRole('button', { name: 'Retry equipment.xlsx' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Retry equipment.xlsx' }));
+    expect(await screen.findAllByText('Expected multipart XLSX upload')).not.toHaveLength(0);
+    // Uploader is automatically reset so user can directly select again without refresh
+    expect(screen.getByRole('button', { name: 'Import XLSX' })).toBeInTheDocument();
+
+    // 2. Select file and submit again: succeeds and shows import results
+    const retryWorkbook = new File(['retry data'], 'retry.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+      target: { files: [retryWorkbook] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Import' }));
 
     expect(await screen.findByRole('region', { name: 'XLSX import results' })).toHaveTextContent(
       '3 of 4 rows imported (2 created, 1 updated).'
     );
     expect(screen.getByText('row 5: Equipment Class is required')).toBeInTheDocument();
     expect(assetService.importEquipmentAssets).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(assetService.importEquipmentAssets).mock.calls[1][0]).toBe(workbook);
+    expect(vi.mocked(assetService.importEquipmentAssets).mock.calls[1][0]).toBe(retryWorkbook);
   }, 15000);
 
   it('rejects files larger than 100 MB with an error notification', async () => {

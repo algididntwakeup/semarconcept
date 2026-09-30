@@ -446,13 +446,15 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 	const insertWithTagQuery = `
 		INSERT INTO assets (
 			tenant_id, name, tag_number, description, asset_type, asset_class, parent_id,
-			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'active'), $11, $12, $12)`
+			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by,
+			created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'active'), $11, $12, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
 	const insertWithoutTagQuery = `
 		INSERT INTO assets (
 			tenant_id, name, description, asset_type, asset_class, parent_id,
-			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'), $10, $11, $11)`
+			functional_location_id, lifecycle_status, status, rbi_properties, created_by, updated_by,
+			created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'), $10, $11, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
 
 	for index := range assets {
 		select {

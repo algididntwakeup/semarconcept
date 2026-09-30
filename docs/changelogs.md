@@ -14,7 +14,13 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
   - Menambahkan cooperative context check (`ctx.Done()`) pada parsing sheet dan loop upsert repositori untuk menangani diskoneksi klien atau pembatalan request secara bersih.
   - Menyesuaikan batas timeout permintaan import pada frontend Axios, Vite dev proxy (`timeout: 600000`, `proxyTimeout: 600000`), dan Nginx proxy (`proxy_read_timeout 600s`) menjadi 10 menit (600 detik) untuk mencegah socket hang-up / 500 error prematur pada impor dataset besar.
   - Memperkuat database repository dan migrasi: mengonfigurasi `sqlx.DB.Unsafe()` pada `AssetRepository` agar `SelectContext` / `GetContext` tidak memicu HTTP 500 fatal jika terdapat kolom tambahan tak terpetakan di PostgreSQL, serta menambahkan migrasi `DROP COLUMN IF EXISTS rb_iproperties` untuk membersihkan kolom typo legacy.
-- Validasi: `docker exec semar-backend go test ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-backend go vet ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-frontend pnpm test:run src/pages/risk/EquipmentMasterPage.test.tsx src/services/assetServices.test.ts`, dan `docker exec semar-frontend pnpm typecheck`.
+  - Menjamin kolom `created_at` dan `updated_at` selalu terisi nilai `CURRENT_TIMESTAMP` pada query insert impor dan migrasi schema database, mencegah `Scan error` tipe `time.Time` NULL saat pemanggilan `GET /api/v1/assets`.
+  - Memperbarui UX komponen Uploader XLSX di Equipment Master:
+    - Menambahkan pratinjau nama file dan ukuran file yang diformat sebelum pengguna menekan tombol import.
+    - Menambahkan tombol 'Remove File' / 'Clear' dengan ikon `X` untuk membatalkan pilihan file (`setFile(null)`), mereset input file, dan memungkinkan pengguna memilih file lain.
+    - Menambahkan tombol terpisah 'Submit Import' untuk memulai proses upload setelah file dipilih.
+    - Menerapkan fallback UI otomatis saat impor gagal: menampilkan notifikasi error yang jelas dan secara otomatis mengembalikan komponen uploader ke state awal agar pengguna dapat langsung memilih atau mengunggah ulang file tanpa me-refresh halaman.
+- Validasi: `docker exec semar-backend go test ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-frontend pnpm test:run src/pages/risk/EquipmentMasterPage.test.tsx src/services/assetServices.test.ts`, dan `docker exec semar-frontend pnpm typecheck`.
 
 ### Docker frontend filesystem isolation
 

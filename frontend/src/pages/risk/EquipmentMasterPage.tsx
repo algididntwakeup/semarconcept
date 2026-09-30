@@ -41,6 +41,12 @@ const EMPTY_ASSET_LIST: {
 
 const statusKey = (status: string) => status.trim().toLowerCase().replace(/_/g, ' ');
 
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
 const EquipmentMasterPage = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -63,7 +69,7 @@ const EquipmentMasterPage = () => {
   const [actionError, setActionError] = useState('');
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<EquipmentAssetImportResult | null>(null);
-  const [retryImportFile, setRetryImportFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState<number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
@@ -224,27 +230,48 @@ const EquipmentMasterPage = () => {
     }
   };
 
-  const handleImportFile = async (file?: File) => {
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+  const handleClearFile = useCallback(() => {
+    setFile(null);
+    setImportError('');
+    if (importInputRef.current) {
+      importInputRef.current.value = '';
+    }
+  }, []);
+
+  const handleSelectFile = (selectedFile?: File) => {
+    if (!selectedFile) return;
+    if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
       showNotification('Choose an .xlsx file to import.', 'error');
+      if (importInputRef.current) importInputRef.current.value = '';
       return;
     }
     const MAX_XLSX_SIZE = 100 * 1024 * 1024; // 100 MB
-    if (file.size > MAX_XLSX_SIZE) {
+    if (selectedFile.size > MAX_XLSX_SIZE) {
       showNotification('XLSX files must be 100 MB or smaller.', 'error');
+      if (importInputRef.current) importInputRef.current.value = '';
       return;
     }
     setImportError('');
     setImportResult(null);
-    setRetryImportFile(file);
+    setFile(selectedFile);
+  };
+
+  const handleImportSubmit = async (fileToImport?: File | null) => {
+    const targetFile = fileToImport || file;
+    if (!targetFile) {
+      showNotification('Choose an .xlsx file to import.', 'error');
+      return;
+    }
+    setImportError('');
+    setImportResult(null);
     setImportProgress(0);
     try {
       const result = await maintenance.importAssets.mutateAsync({
-        file,
+        file: targetFile,
         onUploadProgress: setImportProgress,
       });
-      setRetryImportFile(null);
+      setFile(null);
+      if (importInputRef.current) importInputRef.current.value = '';
       setImportResult(result);
       if (result.errors?.length) {
         showNotification(
@@ -254,7 +281,7 @@ const EquipmentMasterPage = () => {
         );
       } else {
         showNotification(
-          `${file.name}: ${result.created_count} created, ${result.updated_count} updated.`,
+          `${targetFile.name}: ${result.created_count} created, ${result.updated_count} updated.`,
           'success'
         );
       }
@@ -262,9 +289,11 @@ const EquipmentMasterPage = () => {
       const message = error instanceof Error ? error.message : 'Unable to import assets.';
       setImportError(message);
       showNotification(message, 'error', 10000);
+      // Fallback UI: kembalikan uploader ke state awal agar user bisa langsung upload ulang
+      setFile(null);
+      if (importInputRef.current) importInputRef.current.value = '';
     } finally {
       setImportProgress(null);
-      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
   const pagination = useMemo(() => (
@@ -368,17 +397,49 @@ const EquipmentMasterPage = () => {
             className="sr-only"
             aria-label="Select XLSX asset import file"
             disabled={maintenance.importAssets.isPending}
-            onChange={(event) => void handleImportFile(event.target.files?.[0])}
+            onChange={(event) => handleSelectFile(event.target.files?.[0])}
           />
-          <button
-            type="button"
-            disabled={maintenance.importAssets.isPending}
-            onClick={() => importInputRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-          >
-            <FileUp size={16} />
-            {maintenance.importAssets.isPending ? 'Importing…' : 'Import XLSX'}
-          </button>
+          {file ? (
+            <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900 shadow-sm">
+              <FileUp size={16} className="text-emerald-700 shrink-0" />
+              <span className="font-semibold truncate max-w-[200px]" title={file.name}>
+                {file.name}
+              </span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                {formatFileSize(file.size)}
+              </span>
+              <button
+                type="button"
+                onClick={handleClearFile}
+                disabled={maintenance.importAssets.isPending}
+                className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+                aria-label="Remove file"
+                title="Remove file"
+              >
+                <X size={14} />
+                <span>Clear</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleImportSubmit()}
+                disabled={maintenance.importAssets.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+              >
+                <FileUp size={14} />
+                {maintenance.importAssets.isPending ? 'Importing…' : 'Submit Import'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={maintenance.importAssets.isPending}
+              onClick={() => importInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+            >
+              <FileUp size={16} />
+              {maintenance.importAssets.isPending ? 'Importing…' : 'Import XLSX'}
+            </button>
+          )}
           <button
             type="button"
             disabled={maintenance.exportAssets.isPending}
@@ -416,16 +477,9 @@ const EquipmentMasterPage = () => {
           <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
             <p className="font-semibold">Import failed</p>
             <p className="mt-1 break-words">{importError}</p>
-            {retryImportFile && (
-              <button
-                type="button"
-                disabled={maintenance.importAssets.isPending}
-                onClick={() => void handleImportFile(retryImportFile)}
-                className="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-1.5 font-medium hover:bg-rose-100 disabled:opacity-60"
-              >
-                Retry {retryImportFile.name}
-              </button>
-            )}
+            <p className="mt-2 text-xs text-rose-600">
+              The uploader has been reset. You can select another file or retry directly.
+            </p>
           </div>
         )}
         {importResult && (
