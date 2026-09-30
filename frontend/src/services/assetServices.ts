@@ -70,6 +70,15 @@ export interface EquipmentFLOCSyncResult {
   cleared_floc_links: number;
 }
 
+export interface EquipmentAssetImportResult {
+  created_count: number;
+  updated_count: number;
+  imported_count: number;
+  total_count: number;
+  errors: string[];
+  validate_only: boolean;
+}
+
 const unwrapApiData = <T,>(value: unknown): T => {
   if (value && typeof value === 'object' && 'data' in value) {
     return (value as { data: T }).data;
@@ -207,16 +216,42 @@ class AssetService {
     return unwrapApiData(response.data) as EquipmentFLOCSyncResult;
   }
 
-  async importEquipmentAssets(file: File): Promise<unknown> {
+  async importEquipmentAssets(
+    file: File,
+    onUploadProgress?: (progress: number) => void
+  ): Promise<EquipmentAssetImportResult> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('asset_type', 'Asset');
     formData.append('import_type', 'full');
     formData.append('file_format', 'xlsx');
     formData.append('file_name', file.name);
-    formData.append('batch_size', '100');
-    const response = await apiClient.post(`${this.baseUrl}/import`, formData);
-    return unwrapApiData(response.data);
+    formData.append('skip_errors', 'true');
+    try {
+      const response = await apiClient.post(`${this.baseUrl}/import`, formData, {
+        // Axios detects FormData and lets the browser attach the boundary on the wire.
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600000,
+        onUploadProgress: (event) => {
+          if (event.total) onUploadProgress?.(Math.round((event.loaded * 100) / event.total));
+        },
+      });
+      return unwrapApiData<EquipmentAssetImportResult>(response.data);
+    } catch (error) {
+      const apiError = error as {
+        message?: string;
+        raw?: { response?: { data?: { message?: string; error?: string } } };
+        response?: { data?: { message?: string; error?: string } };
+      };
+      const body = apiError.raw?.response?.data ?? apiError.response?.data;
+      const details = [body?.message, body?.error]
+        .filter((message): message is string => Boolean(message?.trim()))
+        .filter((message, index, messages) => messages.indexOf(message) === index);
+      if (details.length > 0) {
+        throw new Error(details.join(': '));
+      }
+      throw error;
+    }
   }
 
   async exportEquipmentAssets(): Promise<{ blob: Blob; filename: string }> {

@@ -26,6 +26,7 @@ import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
 import AssetFormModal from '../../components/AssetFormModal';
 import { assetService } from '../../services/assetServices';
+import type { EquipmentAssetImportResult } from '../../services/assetServices';
 import { assetKeys } from '../../shared/api/queryKeys';
 import type { Asset } from '../../types/asset';
 import { useNotification } from '../../hooks/useNotification';
@@ -60,6 +61,10 @@ const EquipmentMasterPage = () => {
     duplicates: { tag_number: string; count: number; asset_ids: number[] }[];
   } | null>(null);
   const [actionError, setActionError] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState<EquipmentAssetImportResult | null>(null);
+  const [retryImportFile, setRetryImportFile] = useState<File | null>(null);
+  const [importProgress, setImportProgress] = useState<number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
   const assetsQuery = useEquipmentAssets({
@@ -225,15 +230,40 @@ const EquipmentMasterPage = () => {
       showNotification('Choose an .xlsx file to import.', 'error');
       return;
     }
+    const MAX_XLSX_SIZE = 100 * 1024 * 1024; // 100 MB
+    if (file.size > MAX_XLSX_SIZE) {
+      showNotification('XLSX files must be 100 MB or smaller.', 'error');
+      return;
+    }
+    setImportError('');
+    setImportResult(null);
+    setRetryImportFile(file);
+    setImportProgress(0);
     try {
-      await maintenance.importAssets.mutateAsync(file);
-      showNotification(`${file.name} imported successfully.`, 'success');
+      const result = await maintenance.importAssets.mutateAsync({
+        file,
+        onUploadProgress: setImportProgress,
+      });
+      setRetryImportFile(null);
+      setImportResult(result);
+      if (result.errors?.length) {
+        showNotification(
+          `Import completed with ${result.errors.length} row issue(s): ${result.imported_count} of ${result.total_count} rows imported.`,
+          'warning',
+          10000
+        );
+      } else {
+        showNotification(
+          `${file.name}: ${result.created_count} created, ${result.updated_count} updated.`,
+          'success'
+        );
+      }
     } catch (error) {
-      showNotification(
-        error instanceof Error ? error.message : 'Unable to import assets.',
-        'error'
-      );
+      const message = error instanceof Error ? error.message : 'Unable to import assets.';
+      setImportError(message);
+      showNotification(message, 'error', 10000);
     } finally {
+      setImportProgress(null);
       if (importInputRef.current) importInputRef.current.value = '';
     }
   };
@@ -337,6 +367,7 @@ const EquipmentMasterPage = () => {
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="sr-only"
             aria-label="Select XLSX asset import file"
+            disabled={maintenance.importAssets.isPending}
             onChange={(event) => void handleImportFile(event.target.files?.[0])}
           />
           <button
@@ -358,6 +389,67 @@ const EquipmentMasterPage = () => {
             {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export Excel'}
           </button>
         </div>
+        {maintenance.importAssets.isPending && (
+          <div role="status" aria-live="polite" className="space-y-2 text-sm text-blue-700">
+            <p>
+              {importProgress !== null && importProgress < 100
+                ? `Uploading XLSX… ${importProgress}%`
+                : 'Upload complete. Processing XLSX and updating equipment…'}
+              {' '}Keep this page open; large workbooks may take a moment.
+            </p>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-blue-100"
+              role="progressbar"
+              aria-label="XLSX import progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={importProgress ?? 100}
+            >
+              <div
+                className={`h-full rounded-full bg-blue-600 transition-all duration-300 ${importProgress === null || importProgress >= 100 ? 'w-full animate-pulse' : ''}`}
+                style={importProgress !== null && importProgress < 100 ? { width: `${importProgress}%` } : undefined}
+              />
+            </div>
+          </div>
+        )}
+        {importError && (
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            <p className="font-semibold">Import failed</p>
+            <p className="mt-1 break-words">{importError}</p>
+            {retryImportFile && (
+              <button
+                type="button"
+                disabled={maintenance.importAssets.isPending}
+                onClick={() => void handleImportFile(retryImportFile)}
+                className="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-1.5 font-medium hover:bg-rose-100 disabled:opacity-60"
+              >
+                Retry {retryImportFile.name}
+              </button>
+            )}
+          </div>
+        )}
+        {importResult && (
+          <div
+            role="region"
+            aria-label="XLSX import results"
+            className={`rounded-xl border p-4 text-sm ${importResult.errors.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}
+          >
+            <p className="font-semibold">
+              Import finished: {importResult.imported_count} of {importResult.total_count} rows imported
+              ({importResult.created_count} created, {importResult.updated_count} updated).
+            </p>
+            {importResult.errors.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer font-medium">
+                  {importResult.errors.length} row issue(s) — show details
+                </summary>
+                <ul className="mt-2 max-h-48 list-inside list-disc space-y-1 overflow-auto">
+                  {importResult.errors.map((issue, index) => <li key={`${index}-${issue}`}>{issue}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
         {duplicateDiagnosis && duplicateDiagnosis.duplicate_count > 0 && (
           <div
             role="region"

@@ -118,7 +118,13 @@ export const useEquipmentMaintenanceActions = () => {
     onSuccess: invalidateAssetData,
   });
   const importAssets = useMutation({
-    mutationFn: (file: File) => assetService.importEquipmentAssets(file),
+    mutationFn: ({
+      file,
+      onUploadProgress,
+    }: {
+      file: File;
+      onUploadProgress?: (progress: number) => void;
+    }) => assetService.importEquipmentAssets(file, onUploadProgress),
     onSuccess: invalidateAssetData,
   });
   const exportAssets = useMutation({ mutationFn: () => assetService.exportEquipmentAssets() });

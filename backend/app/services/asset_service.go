@@ -1130,7 +1130,9 @@ func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, r
 	if len(fileData) == 0 {
 		return nil, fmt.Errorf("empty import workbook: %w", utils.ErrValidation)
 	}
-	book, err := excelize.OpenReader(bytes.NewReader(fileData))
+	book, err := excelize.OpenReader(bytes.NewReader(fileData), excelize.Options{
+		UnzipXMLSizeLimit: 16 << 20,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open XLSX workbook: %w", err)
 	}
@@ -1141,14 +1143,29 @@ func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, r
 	if sheetErr != nil || sheetIndex == -1 {
 		return nil, fmt.Errorf("worksheet %q not found: %w", sheetName, utils.ErrValidation)
 	}
-	rows, err := book.GetRows(sheetName)
+	rowIterator, err := book.Rows(sheetName)
 	if err != nil {
 		return nil, fmt.Errorf("read worksheet %q: %w", sheetName, err)
 	}
-	if len(rows) < 2 {
+	defer func() { _ = rowIterator.Close() }()
+
+	if !rowIterator.Next() {
 		return nil, fmt.Errorf("worksheet must contain two header rows: %w", utils.ErrValidation)
 	}
-	columns := equipmentImportColumns(rows[0], rows[1])
+	categoryRow, err := rowIterator.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("read category header row: %w", err)
+	}
+
+	if !rowIterator.Next() {
+		return nil, fmt.Errorf("worksheet must contain two header rows: %w", utils.ErrValidation)
+	}
+	headerRow, err := rowIterator.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("read field header row: %w", err)
+	}
+
+	columns := equipmentImportColumns(categoryRow, headerRow)
 	if !equipmentImportHasField(columns, "assetid", "equipmentid", "id", "tagnumber", "equipmenttag", "equipmenttagnumber", "tag") {
 		return nil, fmt.Errorf("row 2 must contain Asset ID or Tag Number: %w", utils.ErrValidation)
 	}
@@ -1156,30 +1173,43 @@ func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, r
 		return nil, fmt.Errorf("row 2 must contain Equipment Class or Equipment Type: %w", utils.ErrValidation)
 	}
 
-	batchSize := req.BatchSize
-	if batchSize <= 0 || batchSize > 1000 {
-		batchSize = 1000
-	}
-	assets := make([]models.Asset, 0, len(rows)-2)
+	assets := make([]models.Asset, 0)
 	issues := make([]string, 0)
-	total := len(rows) - 2
-	for rowIndex, row := range rows[2:] {
-		if rowIndex >= batchSize {
-			issues = append(issues, fmt.Sprintf("row %d: batch size limit (%d) exceeded", rowIndex+3, batchSize))
-			break
+	total := 0
+	rowNumber := 2
+
+	for rowIterator.Next() {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("asset import cancelled: %w", ctx.Err())
+		default:
+		}
+		rowNumber++
+		row, err := rowIterator.Columns()
+		if err != nil {
+			issues = append(issues, fmt.Sprintf("row %d: read error: %v", rowNumber, err))
+			if !req.SkipErrors {
+				return nil, fmt.Errorf("read row %d: %w", rowNumber, err)
+			}
+			continue
 		}
 		if equipmentImportRowIsEmpty(row) {
 			continue
 		}
+		total++
 		asset, parseErr := parseEquipmentImportRow(columns, row, tenantID, userID, req.AssetType)
 		if parseErr != nil {
-			issues = append(issues, fmt.Sprintf("row %d: %v", rowIndex+3, parseErr))
+			issues = append(issues, fmt.Sprintf("row %d: %v", rowNumber, parseErr))
 			if !req.SkipErrors {
-				return nil, fmt.Errorf("validate equipment import: %w", utils.ErrValidation)
+				return nil, fmt.Errorf("validate equipment import: %s: %w", strings.Join(issues, "; "), utils.ErrValidation)
 			}
 			continue
 		}
 		assets = append(assets, asset)
+	}
+
+	if err := rowIterator.Error(); err != nil {
+		return nil, fmt.Errorf("stream worksheet %q: %w", sheetName, err)
 	}
 
 	if req.ValidateOnly || req.DryRun {

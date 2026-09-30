@@ -121,4 +121,89 @@ describe('EquipmentMasterPage API integration', () => {
     ).toBeInTheDocument();
     expect(assetService.syncEquipmentComponentsToFLOC).toHaveBeenCalledWith(false);
   }, 15000);
+
+  it('shows import failure details and lets the user retry the selected workbook', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.importEquipmentAssets)
+      .mockRejectedValueOnce(new Error('Expected multipart XLSX upload'))
+      .mockResolvedValueOnce({
+        created_count: 2,
+        updated_count: 1,
+        imported_count: 3,
+        total_count: 4,
+        errors: ['row 5: Equipment Class is required'],
+        validate_only: false,
+      });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const workbook = new File(['xlsx'], 'equipment.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+      target: { files: [workbook] },
+    });
+
+    expect(await screen.findByRole('button', { name: 'Retry equipment.xlsx' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry equipment.xlsx' }));
+
+    expect(await screen.findByRole('region', { name: 'XLSX import results' })).toHaveTextContent(
+      '3 of 4 rows imported (2 created, 1 updated).'
+    );
+    expect(screen.getByText('row 5: Equipment Class is required')).toBeInTheDocument();
+    expect(assetService.importEquipmentAssets).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(assetService.importEquipmentAssets).mock.calls[1][0]).toBe(workbook);
+  }, 15000);
+
+  it('rejects files larger than 100 MB with an error notification', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const oversizedFile = new File(['oversized'], 'oversized.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    Object.defineProperty(oversizedFile, 'size', {
+      value: 101 * 1024 * 1024,
+      configurable: true,
+    });
+
+    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+      target: { files: [oversizedFile] },
+    });
+
+    expect(await screen.findByText('XLSX files must be 100 MB or smaller.')).toBeInTheDocument();
+    expect(assetService.importEquipmentAssets).not.toHaveBeenCalled();
+  });
 });
+

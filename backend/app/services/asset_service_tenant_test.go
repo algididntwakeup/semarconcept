@@ -5,6 +5,7 @@ package services_test
 import (
 	"bytes"
 	"context"
+	"strconv"
 	"testing"
 
 	"backend/app/models"
@@ -233,6 +234,36 @@ func TestAssetService_ImportAssetsFromXLSX_RequiresDataSourceSheet(t *testing.T)
 	_, err := service.ImportAssets(context.Background(), 42, &request.AssetImportRequest{}, 7, file.Bytes())
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, utils.ErrValidation)
+}
+
+func TestAssetService_ImportAssetsFromXLSX_ImportsMoreThan100Rows(t *testing.T) {
+	book := excelize.NewFile()
+	assert.NoError(t, book.SetSheetName("Sheet1", "Data Source"))
+	for column, field := range []string{"Equipment ID", "Equipment Tag", "Equipment Class"} {
+		cell, _ := excelize.CoordinatesToCellName(column+1, 2)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, field))
+	}
+	for row := 3; row < 104; row++ {
+		assert.NoError(t, book.SetCellValue("Data Source", "A"+strconv.Itoa(row), row-2))
+		assert.NoError(t, book.SetCellValue("Data Source", "B"+strconv.Itoa(row), "TAG-"+strconv.Itoa(row-2)))
+		assert.NoError(t, book.SetCellValue("Data Source", "C"+strconv.Itoa(row), "Pressure Vessel"))
+	}
+	var file bytes.Buffer
+	assert.NoError(t, book.Write(&file))
+	assert.NoError(t, book.Close())
+
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(assets []models.Asset) bool {
+		return len(assets) == 101
+	}), 7).Return(101, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{BatchSize: 100}, 7, file.Bytes())
+	assert.NoError(t, err)
+	assert.Equal(t, 101, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, 101, result.(map[string]interface{})["total_count"])
+	assetRepo.AssertExpectations(t)
 }
 
 func TestAssetService_CreateAsset_ForeignUnitRejected(t *testing.T) {

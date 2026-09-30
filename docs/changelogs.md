@@ -4,6 +4,17 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 28 September 2026
 
+### Equipment Master 100 MB XLSX import and streaming processing
+
+- Menaikkan batas ukuran unggah workbook XLSX Equipment Master dari 10 MB menjadi 100 MB (`100 << 20`) pada frontend UI (`EquipmentMasterPage`), backend HTTP handler (`AssetHandler.ImportAssets`), dan konfigurasi reverse proxy Nginx (`client_max_body_size 120M`).
+- Mengoptimalkan pembacaan workbook besar secara hati-hati:
+  - Mengonfigurasi `excelize.Options{UnzipXMLSizeLimit: 16 << 20}` agar worksheet XML berukuran >16 MB diekstrak ke temporary files daripada membebani memory heap Go.
+  - Mengganti `book.GetRows()` yang memuat seluruh sheet ke memory menjadi streaming iterator `book.Rows()` dengan pembacaan row-by-row streaming, menjaga pemakaian RAM tetap minimal dan stabil untuk workbook berisi puluhan ribu baris.
+  - Membatasi buffer memori multipart form ke 32 MB (`ParseMultipartForm(32 << 20)`) dengan pembersihan otomatis file temporary via `defer c.Request.MultipartForm.RemoveAll()`.
+  - Menambahkan cooperative context check (`ctx.Done()`) pada parsing sheet dan loop upsert repositori untuk menangani diskoneksi klien atau pembatalan request secara bersih.
+  - Menyesuaikan batas timeout permintaan import pada frontend Axios dan Nginx proxy menjadi 10 menit (600 detik).
+- Validasi: `docker exec semar-backend go test ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-backend go vet ./app/api/handlers ./app/repositories ./app/services`, `docker exec semar-frontend pnpm test:run src/pages/risk/EquipmentMasterPage.test.tsx src/services/assetServices.test.ts`, dan `docker exec semar-frontend pnpm typecheck`.
+
 ### Docker frontend filesystem isolation
 
 - Mempertahankan anonymous volume `/app/node_modules` (dibutuhkan untuk dependency Linux dalam container), melepas mount `.next` dan pnpm store yang tidak digunakan Vite, serta mematikan forced filesystem polling.
@@ -43,6 +54,9 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Menghubungkan edit/delete dan perubahan lifecycle ke endpoint Asset `PUT /assets/Asset/:id`, `DELETE /assets/Asset/:id`, dan `PUT /assets/:id/lifecycle`; sukses/error dikirim lewat Snackbar global.
 - Menghubungkan Diagnose duplicates (`GET /assets/diagnose-duplicates`), Fix component links (`POST /assets/fix-links`), dan Sync components to FLOC (`POST /assets/sync-floc`), termasuk state loading, ringkasan hasil, notifikasi, dan invalidasi query setelah mutasi.
 - Menambahkan unggah XLSX multipart ke `POST /assets/import` serta unduh file Excel dari `GET /assets/export`, dengan indikator loading, validasi ekstensi, nama file dari response header, dan notifikasi hasil.
+- Memperbaiki header upload multipart agar Axios/browser menyertakan boundary; menambah progres upload/pemrosesan, retry dengan file terpilih, hasil created/updated, dan detail kesalahan per baris.
+- Mengimpor seluruh baris XLSX yang valid (dalam batas file 10 MB) tanpa batas tersembunyi 100 baris; mode `skip_errors` mempertahankan baris valid dan melaporkan error tiap baris.
+- Validasi lanjutan: `go test ./...`, `go build ./...`, `go vet` service/handler/repository/database, tes service + halaman XLSX (8 tes), frontend typecheck, serta production build.
 - Validasi terbaru: `pnpm typecheck`, ESLint untuk file integrasi baru/terkait (tanpa AssetFormModal dan assetServices yang memiliki temuan lint lama), 19 tes terpilih, dan production build lulus; build menampilkan peringatan chunk >500 kB.
 
 ### Equipment Master Excel import/export

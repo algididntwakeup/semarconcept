@@ -93,18 +93,33 @@ describe('Equipment Master asset service', () => {
     const file = new File(['xlsx-content'], 'equipment.xlsx', {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    vi.mocked(apiClient.post).mockResolvedValue({ data: { success: true, data: { imported: 1 } } });
+    const importResult = {
+      created_count: 1,
+      updated_count: 0,
+      imported_count: 1,
+      total_count: 1,
+      errors: [],
+      validate_only: false,
+    };
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { success: true, data: importResult } });
     const blob = new Blob(['xlsx-content']);
     vi.mocked(apiClient.get).mockResolvedValue({
       data: blob,
       headers: { 'content-disposition': 'attachment; filename="equipment.xlsx"' },
     });
 
-    await expect(assetService.importEquipmentAssets(file)).resolves.toEqual({ imported: 1 });
-    const [url, formData] = vi.mocked(apiClient.post).mock.calls[0];
+    await expect(assetService.importEquipmentAssets(file)).resolves.toEqual(importResult);
+    const [url, formData, config] = vi.mocked(apiClient.post).mock.calls[0];
     expect(url).toBe('/assets/import');
     expect(formData).toBeInstanceOf(FormData);
     expect((formData as FormData).get('file')).toBe(file);
+    expect((formData as FormData).get('skip_errors')).toBe('true');
+    expect((formData as FormData).has('batch_size')).toBe(false);
+    expect(config).toMatchObject({
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 600000,
+    });
+    expect(config).toHaveProperty('onUploadProgress', expect.any(Function));
 
     await expect(assetService.exportEquipmentAssets()).resolves.toEqual({
       blob,

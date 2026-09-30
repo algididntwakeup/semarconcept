@@ -455,6 +455,11 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'active'), $10, $11, $11)`
 
 	for index := range assets {
+		select {
+		case <-ctx.Done():
+			return created, updated, fmt.Errorf("asset import cancelled: %w", ctx.Err())
+		default:
+		}
 		asset := &assets[index]
 		asset.TenantID = tenantID
 		asset.UpdatedBy = &userID

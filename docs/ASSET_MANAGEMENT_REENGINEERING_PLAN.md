@@ -52,7 +52,7 @@ Audit pada bagian ini adalah kondisi saat discovery 3 September 2026, sebelum SA
 | Hierarchy | Kuning/merah | tree dapat memanggil API, tetapi hanya model Site → Unit → Asset → Component dan validasi backend belum memeriksa cycle/orphan lengkap | desain ulang sebagai multiple structure/aspect |
 | Technical Data | Merah | data/specification/drawing masih array sample dan state lokal; JSON bebas memakai `any` | perlu schema registry, unit definition, validation, version/provenance |
 | Asset Documents | Merah | halaman hanya state lokal; backend tidak memiliki asset-document model/repository/route | bangun document metadata + object storage lifecycle |
-| Import/Export | Merah | job/template sample; service backend mengembalikan “not yet implemented” | buat asynchronous staged import dengan validation report |
+| Import/Export | Kuning | Equipment Master mendukung import XLSX streaming hingga 100 MB dan export; bulk staged import umum/asinkron tetap menjadi target AM-04 | buat asynchronous staged import dengan validation report |
 | Database migration | Merah | `AutoMigrate` hanya memuat sebagian model; Component tidak ikut daftar walau service memakainya; tidak ada versioned asset schema migration | ganti dengan migration versioned dan constraints eksplisit |
 | Tenant isolation | Merah/kritis | request path Asset efektif diarahkan ke tenant 1 oleh helper hardcoded; belum ada negative cross-tenant suite/RLS defense | gate pertama sebelum demo multitenant |
 | Engineering calculation readiness | Merah | `remaining_life_years` dihitung dari design life minus umur kalender; ini bukan remaining safe life engineering | hapus makna engineering palsu; keluarkan hanya dari versioned ruleset |

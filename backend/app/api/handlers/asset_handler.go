@@ -1362,18 +1362,29 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 		return
 	}
 	userID := utils.GetUserID(c)
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 11<<20)
-	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+
+	const maxUploadSize = 100 << 20  // 100 MB max XLSX file
+	const maxMemoryBuffer = 32 << 20 // 32 MB in RAM; remainder spooled to temp disk files
+	const maxBodySize = 110 << 20    // 110 MB to allow multipart envelope, headers, and fields
+
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodySize)
+	if err := c.Request.ParseMultipartForm(maxMemoryBuffer); err != nil {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Expected multipart XLSX upload", err.Error()))
 		return
 	}
+	defer func() {
+		if c.Request.MultipartForm != nil {
+			_ = c.Request.MultipartForm.RemoveAll()
+		}
+	}()
+
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file is required in multipart field 'file'", err.Error()))
 		return
 	}
-	if fileHeader.Size <= 0 || fileHeader.Size > 10<<20 {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file must be between 1 byte and 10 MB", ""))
+	if fileHeader.Size <= 0 || fileHeader.Size > maxUploadSize {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file must be between 1 byte and 100 MB", ""))
 		return
 	}
 	if strings.ToLower(filepath.Ext(fileHeader.Filename)) != ".xlsx" {
@@ -1386,9 +1397,9 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 		return
 	}
 	defer file.Close()
-	fileData, err := io.ReadAll(io.LimitReader(file, (10<<20)+1))
-	if err != nil || len(fileData) > 10<<20 {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read XLSX file or file exceeds 10 MB", ""))
+	fileData, err := io.ReadAll(io.LimitReader(file, maxUploadSize+1))
+	if err != nil || int64(len(fileData)) > maxUploadSize {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read XLSX file or file exceeds 100 MB", ""))
 		return
 	}
 
