@@ -261,16 +261,16 @@ class AssetService {
     }
   }
 
-  async exportEquipmentAssets(): Promise<{ blob: Blob; filename: string }> {
+  async exportEquipmentAssets(format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ blob: Blob; filename: string }> {
     const response = await apiClient.get(`${this.baseUrl}/export`, {
-      params: { asset_type: 'Asset', export_type: 'full', file_format: 'xlsx', format: 'xlsx' },
+      params: { asset_type: 'Asset', export_type: 'full', format },
       responseType: 'blob',
     });
     const disposition = response.headers?.['content-disposition'] as string | undefined;
     const filename = disposition?.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
     return {
       blob: response.data as Blob,
-      filename: decodeURIComponent(filename?.[1] ?? filename?.[2] ?? 'assets.xlsx'),
+      filename: decodeURIComponent(filename?.[1] ?? filename?.[2] ?? `equipment-master.${format}`),
     };
   }
 

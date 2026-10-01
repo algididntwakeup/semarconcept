@@ -5,6 +5,8 @@ package services_test
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
+	"io"
 	"strconv"
 	"testing"
 
@@ -87,7 +89,15 @@ func (m *MockAssetRepository) ListAssetsForExport(ctx context.Context, tenantID 
 	return args.Get(0).([]models.Asset), args.Error(1)
 }
 
-func (m *MockAssetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (int, int, error) {
+func (m *MockAssetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
+	args := m.Called(ctx, tenantID, tagNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Asset), args.Error(1)
+}
+
+func (m *MockAssetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []repositories.AssetImportRecord, userID int) (int, int, error) {
 	args := m.Called(ctx, tenantID, assets, userID)
 	return args.Int(0), args.Int(1), args.Error(2)
 }
@@ -155,10 +165,19 @@ func TestAssetService_ExportAssetsToExcel_WritesTwoTierEquipmentWorkbook(t *test
 		Name:                name,
 		DesignConditions:    models.JSONBMap{"design_pressure": pressure},
 		OperatingParameters: models.JSONBMap{"operating_temperature": 185.0},
-	}}, nil).Once()
+		RBIProperties: models.JSONBMap{
+			"Component Design.Design Pressure":      88.0,
+			"Operating Envelope.Operating Pressure": 99.5,
+			"Component Design.Flow Rate":            450.0,
+			"Custom Data.Test Value":                "round-trip",
+			"Bare Property":                         "general-value",
+			"Custom Data.Metadata":                  map[string]interface{}{"key": "value"},
+			"Custom Data.Value List":                []interface{}{1, "two"},
+		},
+	}}, nil).Twice()
 
 	service := services.NewAssetService(siteRepo, unitRepo, assetRepo, componentRepo)
-	data, filename, err := service.ExportAssetsToExcel(ctx, 42, &request.AssetExportRequest{})
+	data, filename, err := service.ExportAssets(ctx, 42, &request.AssetExportRequest{})
 	assert.NoError(t, err)
 	assert.Equal(t, "equipment-master.xlsx", filename)
 	assert.NotEmpty(t, data)
@@ -176,8 +195,65 @@ func TestAssetService_ExportAssetsToExcel_WritesTwoTierEquipmentWorkbook(t *test
 	assert.Equal(t, "101", mustExportCell(t, workbook, "A3"))
 	assert.Equal(t, "PV-101", mustExportCell(t, workbook, "B3"))
 	assert.Equal(t, "Reactor", mustExportCell(t, workbook, "C3"))
-	assert.Equal(t, "12.5", mustExportCell(t, workbook, "Y3"))
-	assert.Equal(t, "185", mustExportCell(t, workbook, "AJ3"))
+	flowColumn := mustExportColumn(t, workbook, "Flow Rate")
+	knownColumn := mustExportColumn(t, workbook, "Operating Pressure")
+	customColumn := mustExportColumn(t, workbook, "Test Value")
+	designPressureColumn := mustExportColumn(t, workbook, "Design Pressure")
+	operatingTemperatureColumn := mustExportColumn(t, workbook, "Operating Temperature")
+	assert.Equal(t, "12.5", mustExportCell(t, workbook, designPressureColumn+"3"))
+	assert.Equal(t, "185", mustExportCell(t, workbook, operatingTemperatureColumn+"3"))
+	assert.Equal(t, "450", mustExportCell(t, workbook, flowColumn+"3"))
+	assert.Equal(t, "99.5", mustExportCell(t, workbook, knownColumn+"3"))
+	assert.Equal(t, "round-trip", mustExportCell(t, workbook, customColumn+"3"))
+	metadataColumn := mustExportColumn(t, workbook, "Metadata")
+	listColumn := mustExportColumn(t, workbook, "Value List")
+	assert.Equal(t, `{"key":"value"}`, mustExportCell(t, workbook, metadataColumn+"3"))
+	assert.Equal(t, `[1,"two"]`, mustExportCell(t, workbook, listColumn+"3"))
+	barePropertyColumn := mustExportColumn(t, workbook, "Bare Property")
+	assert.Equal(t, "general-value", mustExportCell(t, workbook, barePropertyColumn+"3"))
+	assert.NotZero(t, mustExportStyleID(t, workbook, "A1"))
+	assert.NotZero(t, mustExportStyleID(t, workbook, "A2"))
+	csvData, csvFilename, err := service.ExportAssets(ctx, 42, &request.AssetExportRequest{Format: "csv"})
+	assert.NoError(t, err)
+	assert.Equal(t, "equipment-master.csv", csvFilename)
+	reader := csv.NewReader(bytes.NewReader(csvData))
+	categoryRow, err := reader.Read()
+	assert.NoError(t, err)
+	fieldRow, err := reader.Read()
+	assert.NoError(t, err)
+	assetRow, err := reader.Read()
+	assert.NoError(t, err)
+	assert.Equal(t, "General", categoryRow[0])
+	assert.Equal(t, "Equipment ID", fieldRow[0])
+	assert.Equal(t, "101", assetRow[0])
+	flowCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "Component Design", "Flow Rate")
+	designPressureColumnCount := 0
+	currentCategory := ""
+	for index, field := range fieldRow {
+		if categoryRow[index] != "" {
+			currentCategory = categoryRow[index]
+		}
+		if currentCategory == "Component Design" && field == "Design Pressure" {
+			designPressureColumnCount++
+		}
+	}
+	assert.Equal(t, 1, designPressureColumnCount)
+	knownCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "Operating Envelope", "Operating Pressure")
+	customCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "Custom Data", "Test Value")
+	metadataCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "Custom Data", "Metadata")
+	designPressureCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "Component Design", "Design Pressure")
+	assert.Equal(t, "12.5", assetRow[designPressureCSVColumn])
+	assert.Equal(t, "", categoryRow[1])
+	listCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "Custom Data", "Value List")
+	assert.Equal(t, "450", assetRow[flowCSVColumn])
+	assert.Equal(t, "99.5", assetRow[knownCSVColumn])
+	assert.Equal(t, "round-trip", assetRow[customCSVColumn])
+	assert.Equal(t, `{"key":"value"}`, assetRow[metadataCSVColumn])
+	assert.Equal(t, `[1,"two"]`, assetRow[listCSVColumn])
+	barePropertyCSVColumn := findCSVExportColumn(t, categoryRow, fieldRow, "General", "Bare Property")
+	assert.Equal(t, "general-value", assetRow[barePropertyCSVColumn])
+	_, err = reader.Read()
+	assert.Equal(t, io.EOF, err)
 	assetRepo.AssertExpectations(t)
 }
 
@@ -186,6 +262,41 @@ func mustExportCell(t *testing.T, workbook *excelize.File, cell string) string {
 	value, err := workbook.GetCellValue("Data Source", cell)
 	assert.NoError(t, err)
 	return value
+}
+
+func mustExportColumn(t *testing.T, workbook *excelize.File, header string) string {
+	t.Helper()
+	for index := 1; index <= 256; index++ {
+		column, err := excelize.ColumnNumberToName(index)
+		assert.NoError(t, err)
+		if mustExportCell(t, workbook, column+"2") == header {
+			return column
+		}
+	}
+	t.Fatalf("export column %q not found", header)
+	return ""
+}
+
+func mustExportStyleID(t *testing.T, workbook *excelize.File, cell string) int {
+	t.Helper()
+	styleID, err := workbook.GetCellStyle("Data Source", cell)
+	assert.NoError(t, err)
+	return styleID
+}
+
+func findCSVExportColumn(t *testing.T, categories, headers []string, category, header string) int {
+	t.Helper()
+	currentCategory := ""
+	for index, field := range headers {
+		if categories[index] != "" {
+			currentCategory = categories[index]
+		}
+		if currentCategory == category && field == header {
+			return index
+		}
+	}
+	t.Fatalf("CSV export column %q.%q not found", category, header)
+	return -1
 }
 
 func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testing.T) {
@@ -208,12 +319,12 @@ func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testi
 
 	ctx := context.Background()
 	assetRepo := new(MockAssetRepository)
-	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(assets []models.Asset) bool {
-		if len(assets) != 1 {
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 1 {
 			return false
 		}
-		asset := assets[0]
-		return asset.ID == 101 && asset.TenantID == 42 && asset.TagNumber != nil && *asset.TagNumber == "PV-101" &&
+		asset := records[0].Asset
+		return records[0].ParentTag == "" && asset.ID == 101 && asset.TenantID == 42 && asset.TagNumber != nil && *asset.TagNumber == "PV-101" &&
 			asset.Name == "Reactor" && asset.Description != nil && *asset.Description == "Hydrocracker reactor" &&
 			asset.AssetClass != nil && *asset.AssetClass == "Pressure Vessel" && asset.AssetType != nil && *asset.AssetType == "Vessel" &&
 			asset.RBIProperties["Component Design.Design Pressure"] == "12.5" && asset.RBIProperties["Component Design.Flow Rate"] == "450"
@@ -226,6 +337,107 @@ func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testi
 		"created_count": 1, "updated_count": 0, "imported_count": 1, "total_count": 1,
 		"errors": []string{}, "validate_only": false,
 	}, result)
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ImportAssetsFromCSV_FillsIDsAndParentTags(t *testing.T) {
+	csvData := []byte("General,General,General,General,General,General,General,Design Data\nAsset ID,Equipment Tag,Equipment Name,Equipment Class,Parent Equipment Tag,Parent Equipment ID,Description,Pressure\n101,ROOT, Root ,Pump,, ,Root description,\n,CHILD-1, Child 1 ,Pump,ROOT,,N/A,9999\n-9999,CHILD-2, Child 2 ,Pump,,777,-9999,N/A\n")
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.Anything, 7).Return(3, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{FileFormat: "csv"}, 7, csvData)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, 3, result.(map[string]interface{})["total_count"])
+	records := assetRepo.Calls[0].Arguments.Get(2).([]repositories.AssetImportRecord)
+	assert.Len(t, records, 3)
+	assert.Equal(t, 101, records[1].Asset.ID)
+	assert.Equal(t, "Child 1", records[1].Asset.Name)
+	assert.Equal(t, "ROOT", records[1].ParentTag)
+	assert.Nil(t, records[1].Asset.ParentID)
+	assert.Nil(t, records[1].Asset.Description)
+	assert.Equal(t, 101, records[2].Asset.ID)
+	assert.Equal(t, "Child 2", records[2].Asset.Name)
+	assert.Equal(t, "ROOT", records[2].ParentTag)
+	assert.Equal(t, 777, *records[2].Asset.ParentID)
+	assert.Nil(t, records[2].Asset.Description)
+	assert.Equal(t, "Root description", *records[0].Asset.Description)
+	for _, record := range records {
+		assert.NotContains(t, record.Asset.RBIProperties, "Design Data.Pressure")
+	}
+	assert.Equal(t, []string{}, result.(map[string]interface{})["errors"])
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ImportAssetsFromCSV_DryRunDoesNotWrite(t *testing.T) {
+	csvData := []byte("General,General,General,General,General\nAsset ID,Equipment Tag,Equipment Name,Equipment Class,Parent Equipment Tag\n101,ROOT,Root,Pump\n,CHILD,Child,Pump,ROOT\n")
+	assetRepo := new(MockAssetRepository)
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := service.ImportAssets(context.Background(), 42, &request.AssetImportRequest{FileFormat: "csv", DryRun: true}, 7, csvData)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, 2, result.(map[string]interface{})["total_count"])
+	assert.True(t, result.(map[string]interface{})["validate_only"].(bool))
+	assetRepo.AssertNotCalled(t, "UpsertAssetsFromImport", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestAssetService_ImportAssetsFromCSV_SkipsUnavailableParentAndDependents(t *testing.T) {
+	csvData := []byte("General,General,General,General,General\nAsset ID,Equipment Tag,Equipment Name,Equipment Class,Parent Equipment Tag\n101,ROOT,Root,Pump,\n102,BAD-CHILD,Bad child,Pump,MISSING\n103,GRANDCHILD,Grandchild,Pump,BAD-CHILD\n104,SELF,Self,Pump,SELF\n")
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("FindByTagNumber", ctx, 42, "MISSING").Return((*models.Asset)(nil), nil).Once()
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		return len(records) == 1 && records[0].Asset.TagNumber != nil && *records[0].Asset.TagNumber == "ROOT"
+	}), 7).Return(1, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{FileFormat: "csv", SkipErrors: true}, 7, csvData)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, 4, result.(map[string]interface{})["total_count"])
+	assert.Len(t, result.(map[string]interface{})["errors"], 3)
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ImportAssetsFromCSV_ResolvesExternalParentAndRetainsLastValidID(t *testing.T) {
+	csvData := []byte("General,General,General,General,General\nAsset ID,Equipment Tag,Equipment Name,Equipment Class,Parent Equipment Tag\n101,ROOT,Root,Pump,\ninvalid,IGNORED,Ignored,Pump,\n,CHILD,Child,Pump,EXTERNAL\n")
+	ctx := context.Background()
+	externalParent := &models.Asset{ID: 900}
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("FindByTagNumber", ctx, 42, "EXTERNAL").Return(externalParent, nil).Once()
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 2 || records[0].Asset.ID != 101 || records[1].Asset.ID != 101 {
+			return false
+		}
+		return records[1].Asset.ParentID != nil && *records[1].Asset.ParentID == 900
+	}), 7).Return(2, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{FileFormat: "csv", SkipErrors: true}, 7, csvData)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, 3, result.(map[string]interface{})["total_count"])
+	assert.Equal(t, []string{"row 4: invalid Asset ID \"invalid\""}, result.(map[string]interface{})["errors"])
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ImportAssetsFromCSV_RejectsMalformedQuotes(t *testing.T) {
+	csvData := []byte("General,General\nAsset ID,Equipment Class\n101,\"Pump\n")
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), new(MockAssetRepository), new(MockComponentRepository))
+	_, err := service.ImportAssets(context.Background(), 42, &request.AssetImportRequest{FileFormat: "csv"}, 7, csvData)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "read import data row")
+}
+
+func TestAssetService_ImportAssetsFromCSV_RejectsMissingParentWithoutWrites(t *testing.T) {
+	csvData := []byte("General,General,General,General,General\nAsset ID,Equipment Tag,Equipment Name,Equipment Class,Parent Equipment Tag\n101,CHILD,Child,Pump,MISSING\n")
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("FindByTagNumber", ctx, 42, "MISSING").Return((*models.Asset)(nil), nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	_, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{FileFormat: "csv"}, 7, csvData)
+	assert.ErrorIs(t, err, utils.ErrValidation)
+	assetRepo.AssertNotCalled(t, "UpsertAssetsFromImport", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	assetRepo.AssertExpectations(t)
 }
 
@@ -259,8 +471,8 @@ func TestAssetService_ImportAssetsFromXLSX_ImportsMoreThan100Rows(t *testing.T) 
 
 	ctx := context.Background()
 	assetRepo := new(MockAssetRepository)
-	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(assets []models.Asset) bool {
-		return len(assets) == 101
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		return len(records) == 101
 	}), 7).Return(101, 0, nil).Once()
 	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
 
@@ -423,23 +635,20 @@ func TestAssetService_ImportAssetsFromXLSX_Sanitizes9999AndNAValues(t *testing.T
 
 	ctx := context.Background()
 	assetRepo := new(MockAssetRepository)
-	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(assets []models.Asset) bool {
-		if len(assets) != 1 {
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 1 {
 			return false
 		}
-		asset := assets[0]
-		// Description was "9999", must be sanitized to nil (NULL in DB)
+		asset := records[0].Asset
 		if asset.Description != nil {
 			return false
 		}
-		// Design Temperature ("9999") and Flow Rate ("-9999") must be omitted from JSONB
 		if _, hasTemp := asset.RBIProperties["Design Data.Design Temperature"]; hasTemp {
 			return false
 		}
 		if _, hasFlow := asset.RBIProperties["Design Data.Flow Rate"]; hasFlow {
 			return false
 		}
-		// Valid field "Real Note" must be retained
 		return asset.RBIProperties["Design Data.Notes"] == "Real Note"
 	}), 7).Return(1, 0, nil).Once()
 

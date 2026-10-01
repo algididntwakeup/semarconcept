@@ -240,7 +240,7 @@ type AssetRepository interface {
 	FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
 	ValidateFLOCLinks(ctx context.Context, tenantID, userID int, dryRun bool) (*FLOCSyncResult, error)
 	ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error)
-	UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (created, updated int, err error)
+	UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []AssetImportRecord, userID int) (created, updated int, err error)
 	FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error)
 	HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error)
 	PurgeAll(ctx context.Context, tenantID int) (int64, error)
@@ -260,6 +260,12 @@ type AssetRepository interface {
 	CalculateAssetHealthScore(ctx context.Context, tenantID int, assetType string) (float64, error)
 	GetCriticalAssets(ctx context.Context, tenantID int) ([]interface{}, error)
 	GetAssetsRequiringAttention(ctx context.Context, tenantID int) ([]interface{}, error)
+}
+
+// AssetImportRecord carries import-only relationship input alongside the persisted asset.
+type AssetImportRecord struct {
+	Asset     models.Asset
+	ParentTag string
 }
 
 // AssetClassCount is one grouped equipment-class aggregate.

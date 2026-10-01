@@ -29,20 +29,25 @@ type assetStatsServiceMock struct {
 
 type assetExportServiceMock struct {
 	services.AssetServiceInterface
-	tenantID  int
-	data      []byte
-	filename  string
-	err       error
-	importReq *request.AssetImportRequest
-	imported  []byte
+	tenantID     int
+	data         []byte
+	filename     string
+	err          error
+	importReq    *request.AssetImportRequest
+	imported     []byte
+	called       bool
+	exportFormat string
 }
 
-func (m *assetExportServiceMock) ExportAssetsToExcel(_ context.Context, tenantID int, _ *request.AssetExportRequest) ([]byte, string, error) {
+func (m *assetExportServiceMock) ExportAssets(_ context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error) {
+	m.called = true
 	m.tenantID = tenantID
+	m.exportFormat = req.Format
 	return m.data, m.filename, m.err
 }
 
 func (m *assetExportServiceMock) ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, _ int, data []byte) (interface{}, error) {
+	m.called = true
 	m.tenantID = tenantID
 	m.importReq = req
 	m.imported = data
@@ -94,16 +99,68 @@ func TestExportAssetsReturnsExcelAttachment(t *testing.T) {
 	handler := handlers.NewAssetHandler(service, nil)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export?file_format=xlsx", nil)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export?file_format=csv", nil)
 	ctx.Set("tenant_id", 42)
 
 	handler.ExportAssets(ctx)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
+	require.True(t, service.called)
 	require.Equal(t, 42, service.tenantID)
+	require.Equal(t, "xlsx", service.exportFormat)
 	require.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", recorder.Header().Get("Content-Type"))
 	require.Equal(t, `attachment; filename="equipment-master.xlsx"`, recorder.Header().Get("Content-Disposition"))
 	require.Equal(t, "xlsx-content", recorder.Body.String())
+}
+
+func TestExportAssetsAcceptsExplicitXLSXFormat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &assetExportServiceMock{data: []byte("xlsx-content"), filename: "equipment-master.xlsx"}
+	handler := handlers.NewAssetHandler(service, nil)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export?format=%20XLSX%20", nil)
+	ctx.Set("tenant_id", 42)
+
+	handler.ExportAssets(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "xlsx", service.exportFormat)
+	require.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", recorder.Header().Get("Content-Type"))
+	require.Equal(t, `attachment; filename="equipment-master.xlsx"`, recorder.Header().Get("Content-Disposition"))
+}
+
+func TestExportAssetsDispatchesCSV(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &assetExportServiceMock{data: []byte("csv-content"), filename: "equipment-master.csv"}
+	handler := handlers.NewAssetHandler(service, nil)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export?format=%20CSV%20", nil)
+	ctx.Set("tenant_id", 42)
+
+	handler.ExportAssets(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "csv", service.exportFormat)
+	require.Equal(t, "text/csv", recorder.Header().Get("Content-Type"))
+	require.Equal(t, `attachment; filename="equipment-master.csv"`, recorder.Header().Get("Content-Disposition"))
+	require.Equal(t, "csv-content", recorder.Body.String())
+}
+
+func TestExportAssetsRejectsUnsupportedFormat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &assetExportServiceMock{}
+	handler := handlers.NewAssetHandler(service, nil)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/assets/export?format=pdf", nil)
+	ctx.Set("tenant_id", 42)
+
+	handler.ExportAssets(ctx)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.False(t, service.called)
 }
 
 func TestExportAssetsReturnsJSONOnServiceError(t *testing.T) {
@@ -156,6 +213,45 @@ func TestImportAssetsAcceptsMultipartXLSX(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"created_count":1`)
 }
 
+func TestImportAssetsAcceptsCSVAndRejectsUnsupportedExtension(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	requestWithFile := func(filename string) (*httptest.ResponseRecorder, *assetExportServiceMock) {
+		service := &assetExportServiceMock{}
+		handler := handlers.NewAssetHandler(service, nil)
+		fileContent := []byte("category,category\nAsset ID,Equipment Tag\n101,ROOT\n")
+		var body bytes.Buffer
+		multipartWriter := multipart.NewWriter(&body)
+		fileWriter, err := multipartWriter.CreateFormFile("file", filename)
+		require.NoError(t, err)
+		_, err = fileWriter.Write(fileContent)
+		require.NoError(t, err)
+		require.NoError(t, multipartWriter.WriteField("file_format", "xlsx"))
+		require.NoError(t, multipartWriter.Close())
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/assets/import", &body)
+		ctx.Request.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+		ctx.Set("tenant_id", 42)
+		ctx.Set("user_id", 7)
+		handler.ImportAssets(ctx)
+		return recorder, service
+	}
+
+	recorder, service := requestWithFile("equipment.csv")
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.True(t, service.called)
+	require.Equal(t, "csv", service.importReq.FileFormat)
+	require.Equal(t, "equipment.csv", service.importReq.FileName)
+	require.Equal(t, []byte("category,category\nAsset ID,Equipment Tag\n101,ROOT\n"), service.imported)
+	uppercaseRecorder, uppercaseService := requestWithFile("equipment.CSV")
+	require.Equal(t, http.StatusOK, uppercaseRecorder.Code)
+	require.Equal(t, "csv", uppercaseService.importReq.FileFormat)
+
+	unsupportedRecorder, unsupportedService := requestWithFile("equipment.txt")
+	require.Equal(t, http.StatusBadRequest, unsupportedRecorder.Code)
+	require.False(t, unsupportedService.called)
+}
+
 func TestImportAssetsRejectsFilesOver100MB(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	service := &assetExportServiceMock{}
@@ -195,5 +291,5 @@ func TestImportAssetsRejectsFilesOver100MB(t *testing.T) {
 
 	handler.ImportAssets(ctxEmpty)
 	require.Equal(t, http.StatusBadRequest, recorderEmpty.Code)
-	require.Contains(t, recorderEmpty.Body.String(), "XLSX file must be between 1 byte and 100 MB")
+	require.Contains(t, recorderEmpty.Body.String(), "File must be between 1 byte and 100 MB")
 }

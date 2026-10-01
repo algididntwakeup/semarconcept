@@ -105,7 +105,7 @@ describe('Equipment Master asset service', () => {
     const blob = new Blob(['xlsx-content']);
     vi.mocked(apiClient.get).mockResolvedValue({
       data: blob,
-      headers: { 'content-disposition': 'attachment; filename="equipment.xlsx"' },
+	  headers: { 'content-disposition': 'attachment; filename="equipment-master.xlsx"' },
     });
 
     await expect(assetService.importEquipmentAssets(file)).resolves.toEqual(importResult);
@@ -121,14 +121,32 @@ describe('Equipment Master asset service', () => {
     });
     expect(config).toHaveProperty('onUploadProgress', expect.any(Function));
 
-    await expect(assetService.exportEquipmentAssets()).resolves.toEqual({
-      blob,
-      filename: 'equipment.xlsx',
-    });
-    expect(apiClient.get).toHaveBeenCalledWith('/assets/export', {
-      params: { asset_type: 'Asset', export_type: 'full', file_format: 'xlsx', format: 'xlsx' },
-      responseType: 'blob',
-    });
+	await expect(assetService.exportEquipmentAssets()).resolves.toEqual({
+	  blob,
+	  filename: 'equipment-master.xlsx',
+	});
+	expect(apiClient.get).toHaveBeenCalledWith('/assets/export', {
+	  params: { asset_type: 'Asset', export_type: 'full', format: 'xlsx' },
+	  responseType: 'blob',
+	});
+
+	vi.mocked(apiClient.get).mockResolvedValueOnce({
+	  data: blob,
+	  headers: { 'content-disposition': 'attachment; filename="equipment-master.csv"' },
+	});
+	await expect(assetService.exportEquipmentAssets('csv')).resolves.toEqual({
+	  blob,
+	  filename: 'equipment-master.csv',
+	});
+	expect(apiClient.get).toHaveBeenLastCalledWith('/assets/export', {
+	  params: { asset_type: 'Asset', export_type: 'full', format: 'csv' },
+	  responseType: 'blob',
+	});
+	vi.mocked(apiClient.get).mockResolvedValueOnce({ data: blob, headers: {} });
+	await expect(assetService.exportEquipmentAssets('csv')).resolves.toEqual({
+	  blob,
+	  filename: 'equipment-master.csv',
+	});
   });
 
   it('purges all equipment assets for the tenant via DELETE /assets/purge', async () => {

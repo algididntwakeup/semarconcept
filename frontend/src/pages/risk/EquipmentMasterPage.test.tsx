@@ -28,6 +28,56 @@ describe('EquipmentMasterPage API integration', () => {
     vi.clearAllMocks();
   });
 
+  it('downloads selected XLSX and CSV formats with their response filenames', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    const blob = new Blob(['equipment export']);
+    vi.mocked(assetService.exportEquipmentAssets)
+      .mockResolvedValueOnce({ blob, filename: 'equipment-master.xlsx' })
+      .mockResolvedValueOnce({ blob, filename: 'equipment-master.csv' });
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:equipment-export'),
+      revokeObjectURL: vi.fn(),
+    });
+    let downloadedFilename: string | undefined;
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      downloadedFilename = this.download;
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const formatSelector = screen.getByLabelText('Export format') as HTMLSelectElement;
+    expect(formatSelector.value).toBe('xlsx');
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(1, 'xlsx'));
+    expect(downloadedFilename).toBe('equipment-master.xlsx');
+    expect(await screen.findByText('Equipment export downloaded.')).toBeInTheDocument();
+
+    fireEvent.change(formatSelector, { target: { value: 'csv' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(2, 'csv'));
+    expect(downloadedFilename).toBe('equipment-master.csv');
+
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  }, 15000);
+
   it('loads stats and fetches the matching equipment class when a stat card is clicked', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([
       { class: 'Piping', count: 2 },

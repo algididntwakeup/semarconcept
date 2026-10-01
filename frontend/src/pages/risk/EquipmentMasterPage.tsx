@@ -51,7 +51,8 @@ const EquipmentMasterPage = () => {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [lifecycleFilter, setLifecycleFilter] = useState('');
+	const [lifecycleFilter, setLifecycleFilter] = useState('');
+	const [exportFormat, setExportFormat] = useState<'xlsx' | 'csv'>('xlsx');
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
@@ -179,7 +180,7 @@ const EquipmentMasterPage = () => {
 
   const handleExport = async () => {
     try {
-      const { blob, filename } = await maintenance.exportAssets.mutateAsync();
+		const { blob, filename } = await maintenance.exportAssets.mutateAsync(exportFormat);
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
@@ -188,7 +189,7 @@ const EquipmentMasterPage = () => {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(downloadUrl);
-      showNotification('Asset Excel export downloaded.', 'success');
+		showNotification('Equipment export downloaded.', 'success');
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Unable to export assets.',
@@ -447,6 +448,17 @@ const EquipmentMasterPage = () => {
               {maintenance.importAssets.isPending ? 'Importing…' : 'Import XLSX'}
             </button>
           )}
+		  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+		    Export format
+		    <select
+		      value={exportFormat}
+		      onChange={(event) => setExportFormat(event.target.value as 'xlsx' | 'csv')}
+		      className="rounded-lg border border-slate-300 bg-white px-2 py-2"
+		    >
+		      <option value="xlsx">XLSX</option>
+		      <option value="csv">CSV</option>
+		    </select>
+		  </label>
           <button
             type="button"
             disabled={maintenance.exportAssets.isPending}
@@ -454,7 +466,7 @@ const EquipmentMasterPage = () => {
             className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-60"
           >
             <FileDown size={16} />
-            {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export Excel'}
+		    {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export'}
           </button>
           <button
             type="button"

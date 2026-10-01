@@ -62,7 +62,7 @@ func TestAssetRepository_UpsertAssetsLiveDB(t *testing.T) {
 	}
 
 	// 1. First upload: insert new asset
-	created, updated, err := repo.UpsertAssetsFromImport(ctx, tenantID, []models.Asset{asset1}, userID)
+	created, updated, err := repo.UpsertAssetsFromImport(ctx, tenantID, []AssetImportRecord{{Asset: asset1}}, userID)
 	require.NoError(t, err)
 	require.Equal(t, 1, created, "First upload should insert 1 new asset")
 	require.Equal(t, 0, updated, "First upload should update 0 assets")
@@ -96,7 +96,7 @@ func TestAssetRepository_UpsertAssetsLiveDB(t *testing.T) {
 		},
 	}
 
-	created2, updated2, err2 := repo.UpsertAssetsFromImport(ctx, tenantID, []models.Asset{asset2}, userID)
+	created2, updated2, err2 := repo.UpsertAssetsFromImport(ctx, tenantID, []AssetImportRecord{{Asset: asset2}}, userID)
 	require.NoError(t, err2)
 	require.Equal(t, 0, created2, "Second upload should not insert new assets")
 	require.Equal(t, 1, updated2, "Second upload should update the existing asset")
@@ -124,7 +124,7 @@ func TestAssetRepository_UpsertAssetsLiveDB(t *testing.T) {
 	failAsset1 := models.Asset{TenantID: tenantID, TagNumber: &failTag1, Name: "OK Asset"}
 	failAsset2 := models.Asset{TenantID: tenantID, TagNumber: &failTag2, Name: "Invalid Asset"}
 
-	created3, updated3, err3 := repo.UpsertAssetsFromImport(ctx, tenantID, []models.Asset{failAsset1, failAsset2}, userID)
+	created3, updated3, err3 := repo.UpsertAssetsFromImport(ctx, tenantID, []AssetImportRecord{{Asset: failAsset1}, {Asset: failAsset2}}, userID)
 	require.Error(t, err3)
 	require.True(t, errors.Is(err3, utils.ErrValidation))
 	require.Equal(t, 0, created3)

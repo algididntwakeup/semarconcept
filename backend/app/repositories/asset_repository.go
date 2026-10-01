@@ -479,7 +479,7 @@ func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int,
 // GORM upsert (clause.OnConflict) on tag_number.
 // If any row fails due to corrupted data, tx.Rollback() is called and an error (HTTP 400) is returned.
 // When all rows succeed, tx.Commit() is called.
-func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (created, updated int, err error) {
+func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []AssetImportRecord, userID int) (created, updated int, err error) {
 	if len(assets) == 0 {
 		return 0, 0, nil
 	}
@@ -509,7 +509,8 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 
 	// Query existing tags in this tenant to accurately distinguish created vs updated counts
 	tagList := make([]string, 0, len(assets))
-	for _, a := range assets {
+	for _, record := range assets {
+		a := record.Asset
 		if a.TagNumber != nil && strings.TrimSpace(*a.TagNumber) != "" {
 			tagList = append(tagList, strings.TrimSpace(*a.TagNumber))
 		}
@@ -537,7 +538,7 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 		default:
 		}
 
-		asset := &assets[index]
+		asset := &assets[index].Asset
 		asset.TenantID = tenantID
 		asset.UpdatedBy = &userID
 		if asset.CreatedBy == nil {
@@ -596,6 +597,56 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 		} else {
 			created++
 			existingTagSet[tag] = true
+		}
+	}
+	parentTags := make([]string, 0)
+	for _, record := range assets {
+		if record.ParentTag != "" && record.Asset.ParentID == nil {
+			parentTags = append(parentTags, record.ParentTag)
+		}
+	}
+	if len(parentTags) > 0 {
+		type assetTagID struct {
+			ID        int
+			TagNumber string `gorm:"column:tag_number"`
+		}
+		var resolved []assetTagID
+		lookupTagSet := make(map[string]struct{}, len(parentTags)+len(tagList))
+		lookupTags := make([]string, 0, len(parentTags)+len(tagList))
+		for _, tag := range append(append([]string(nil), parentTags...), tagList...) {
+			if _, exists := lookupTagSet[tag]; exists {
+				continue
+			}
+			lookupTagSet[tag] = struct{}{}
+			lookupTags = append(lookupTags, tag)
+		}
+		if err := tx.Model(&models.Asset{}).Select("id, tag_number").Where("tenant_id = ? AND tag_number IN ?", tenantID, lookupTags).Find(&resolved).Error; err != nil {
+			tx.Rollback()
+			return 0, 0, fmt.Errorf("%w: resolve imported parent tags: %v", utils.ErrValidation, err)
+		}
+		idsByTag := make(map[string]int, len(resolved))
+		for _, row := range resolved {
+			idsByTag[row.TagNumber] = row.ID
+		}
+		for index, record := range assets {
+			if record.ParentTag == "" || record.Asset.ParentID != nil {
+				continue
+			}
+			parentID, found := idsByTag[record.ParentTag]
+			if !found || (record.Asset.TagNumber != nil && strings.EqualFold(strings.TrimSpace(*record.Asset.TagNumber), record.ParentTag)) {
+				tx.Rollback()
+				return 0, 0, fmt.Errorf("%w: row %d references unavailable parent tag %q", utils.ErrValidation, index+1, record.ParentTag)
+			}
+			childTag := strings.TrimSpace(*record.Asset.TagNumber)
+			result := tx.Table("assets").Where("tenant_id = ? AND tag_number = ?", tenantID, childTag).Update("parent_id", parentID)
+			if result.Error != nil {
+				tx.Rollback()
+				return 0, 0, fmt.Errorf("%w: update parent for tag %q: %v", utils.ErrValidation, childTag, result.Error)
+			}
+			if result.RowsAffected != 1 {
+				tx.Rollback()
+				return 0, 0, fmt.Errorf("%w: update parent for tag %q affected %d rows", utils.ErrValidation, childTag, result.RowsAffected)
+			}
 		}
 	}
 

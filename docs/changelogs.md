@@ -28,6 +28,21 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Memperluas data modal menjadi Tag Number, Class, Type, Material/Properties, Parent Funcloc, dan Status/Availability. Response list menyertakan properti RBI hasil impor XLSX dan nama/tag lokasi fungsional induk.
 - Memperbarui kontrak dan fixture frontend/backend terkait.
 
+### Equipment Master CSV/XLSX import and parent relationship resolution
+
+- `POST /api/v1/assets/import` now accepts `.xlsx` and `.csv` uploads (case-insensitive extension detection); the filename extension determines the parser regardless of multipart `file_format`, while retaining the 100 MiB limit.
+- Both readers use the Equipment Master contract: category row 1, field-name row 2, data from row 3. CSV is standard comma-delimited input with ragged rows allowed; cell values are trimmed and supported dummy tokens remain omitted from relational columns and `rbi_properties`.
+- Missing or dummy Asset IDs and Parent Equipment Tags fill down from the preceding valid value. Parent Equipment Tag is relationship input rather than JSONB; explicit Parent Equipment ID takes precedence, and tag references resolve against same-file rows or tenant-scoped existing assets.
+- Valid records retain the `tag_number` upsert, tenant advisory lock, and one atomic transaction; the transaction resolves same-file parent tags after all rows are upserted so file ordering does not affect parent links.
+- Verification: handler CSV/unsupported-extension tests, service CSV fill-down/sanitization/parent/dry-run tests, and repository parent-link commit/rollback sqlmock tests.
+
+### Equipment Master CSV/XLSX export formats
+
+- `GET /api/v1/assets/export` accepts query `format=xlsx|csv`; a missing or blank value defaults to `xlsx`, case and surrounding whitespace are normalized, and unsupported formats return HTTP 400. The legacy `file_format` query parameter does not select the export format.
+- XLSX remains the default and returns `equipment-master.xlsx` with the styled `Data Source` worksheet. CSV returns `equipment-master.csv` with `text/csv`; both use the Equipment Master two-tier category/field template and tenant-scoped database assets.
+- Both serializers include the canonical template columns and append otherwise-unmapped `rbi_properties` fields in deterministic category/field order. CSV leaves category header cells empty within each contiguous category group; model-backed values take precedence over matching RBI property fallbacks.
+- Equipment Master exposes XLSX/CSV selection and downloads the filename supplied by `Content-Disposition`.
+
 ## Unreleased — 28 September 2026
 
 ### Equipment Master XLSX import idempotency and GORM OnConflict batch upsert

@@ -1382,13 +1382,13 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	}
 	userID := utils.GetUserID(c)
 
-	const maxUploadSize = 100 << 20  // 100 MB max XLSX file
+	const maxUploadSize = 100 << 20  // 100 MB max upload file
 	const maxMemoryBuffer = 32 << 20 // 32 MB in RAM; remainder spooled to temp disk files
 	const maxBodySize = 110 << 20    // 110 MB to allow multipart envelope, headers, and fields
 
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodySize)
 	if err := c.Request.ParseMultipartForm(maxMemoryBuffer); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Expected multipart XLSX upload", err.Error()))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Expected multipart XLSX or CSV upload", err.Error()))
 		return
 	}
 	defer func() {
@@ -1399,26 +1399,27 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file is required in multipart field 'file'", err.Error()))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX or CSV file is required in multipart field 'file'", err.Error()))
 		return
 	}
 	if fileHeader.Size <= 0 || fileHeader.Size > maxUploadSize {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("XLSX file must be between 1 byte and 100 MB", ""))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("File must be between 1 byte and 100 MB", ""))
 		return
 	}
-	if strings.ToLower(filepath.Ext(fileHeader.Filename)) != ".xlsx" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only .xlsx files are supported", ""))
+	extension := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if extension != ".xlsx" && extension != ".csv" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only .xlsx and .csv files are supported", ""))
 		return
 	}
 	file, err := fileHeader.Open()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read XLSX file", err.Error()))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read import file", err.Error()))
 		return
 	}
 	defer file.Close()
 	fileData, err := io.ReadAll(io.LimitReader(file, maxUploadSize+1))
 	if err != nil || int64(len(fileData)) > maxUploadSize {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read XLSX file or file exceeds 100 MB", ""))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to read import file or file exceeds 100 MB", ""))
 		return
 	}
 
@@ -1430,11 +1431,7 @@ func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	if req.BatchSize == 0 {
 		req.BatchSize = 1000
 	}
-	if req.FileFormat != "" && !strings.EqualFold(req.FileFormat, "xlsx") {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only XLSX import is supported", ""))
-		return
-	}
-	req.FileFormat = "xlsx"
+	req.FileFormat = strings.TrimPrefix(extension, ".")
 	if req.FileName == "" {
 		req.FileName = filepath.Base(fileHeader.Filename)
 	}
@@ -1471,22 +1468,27 @@ func (h *AssetHandler) ExportAssets(c *gin.Context) {
 	if req.ExportType == "" {
 		req.ExportType = "full"
 	}
-	format := strings.ToLower(req.FileFormat)
+	format := strings.ToLower(strings.TrimSpace(req.Format))
 	if format == "" {
-		format = strings.ToLower(req.Format)
+		format = "xlsx"
 	}
-	if format != "" && format != "xlsx" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Only XLSX export is supported", ""))
+	if format != "xlsx" && format != "csv" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Unsupported export format", "Format must be xlsx or csv"))
 		return
 	}
-	fileData, filename, err := h.assetService.ExportAssetsToExcel(c.Request.Context(), tenantID, &req)
+	req.Format = format
+	fileData, filename, err := h.assetService.ExportAssets(c.Request.Context(), tenantID, &req)
 	if err != nil {
 		utils.LogErrorf("Failed to export assets: %v", err)
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to export assets", ""))
 		return
 	}
+	contentType := "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	if format == "csv" {
+		contentType = "text/csv"
+	}
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(filename)))
-	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileData)
+	c.Data(http.StatusOK, contentType, fileData)
 }
 
 // ===== REGISTER ROUTES =====

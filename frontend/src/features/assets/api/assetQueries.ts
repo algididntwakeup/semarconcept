@@ -127,7 +127,9 @@ export const useEquipmentMaintenanceActions = () => {
     }) => assetService.importEquipmentAssets(file, onUploadProgress),
     onSuccess: invalidateAssetData,
   });
-  const exportAssets = useMutation({ mutationFn: () => assetService.exportEquipmentAssets() });
+	const exportAssets = useMutation({
+		mutationFn: (format: 'xlsx' | 'csv' = 'xlsx') => assetService.exportEquipmentAssets(format),
+	});
   const purgeAllAssets = useMutation({
     mutationFn: () => assetService.purgeAllEquipmentAssets(),
     onSuccess: invalidateAssetData,
