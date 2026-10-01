@@ -231,7 +231,6 @@ class AssetService {
     formData.append('file', file);
     formData.append('asset_type', 'Asset');
     formData.append('import_type', 'full');
-    formData.append('file_format', 'xlsx');
     formData.append('file_name', file.name);
     formData.append('skip_errors', 'true');
     try {

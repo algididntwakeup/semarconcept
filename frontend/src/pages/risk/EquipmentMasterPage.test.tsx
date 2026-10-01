@@ -62,20 +62,52 @@ describe('EquipmentMasterPage API integration', () => {
       </QueryClientProvider>
     );
 
-    const formatSelector = screen.getByLabelText('Export format') as HTMLSelectElement;
-    expect(formatSelector.value).toBe('xlsx');
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    const exportButton = screen.getByRole('button', { name: 'Export' });
+    expect(exportButton).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(exportButton);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'XLSX' }));
     await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(1, 'xlsx'));
     expect(downloadedFilename).toBe('equipment-master.xlsx');
     expect(await screen.findByText('Equipment export downloaded.')).toBeInTheDocument();
 
-    fireEvent.change(formatSelector, { target: { value: 'csv' } });
     fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'CSV' }));
     await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(2, 'csv'));
     expect(downloadedFilename).toBe('equipment-master.csv');
 
     clickSpy.mockRestore();
     vi.unstubAllGlobals();
+  }, 15000);
+
+  it('closes the export menu without exporting when the chosen format is dismissed', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(await screen.findByRole('menu', { name: 'Export format' })).toBeInTheDocument();
+
+    fireEvent.blur(screen.getByRole('menuitem', { name: 'CSV' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('menu', { name: 'Export format' })).not.toBeInTheDocument()
+    );
+    expect(assetService.exportEquipmentAssets).not.toHaveBeenCalled();
   }, 15000);
 
   it('loads stats and fetches the matching equipment class when a stat card is clicked', async () => {
@@ -197,7 +229,7 @@ describe('EquipmentMasterPage API integration', () => {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
-    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+    fireEvent.change(screen.getByLabelText('Select XLSX or CSV asset import file'), {
       target: { files: [workbook] },
     });
     expect(screen.getByText('equipment.xlsx')).toBeInTheDocument();
@@ -206,8 +238,84 @@ describe('EquipmentMasterPage API integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove file' }));
     expect(screen.queryByText('equipment.xlsx')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Import XLSX' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
   });
+
+  it('accepts a CSV file through the single import button and uploads it', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.importEquipmentAssets).mockResolvedValue({
+      created_count: 2,
+      updated_count: 0,
+      imported_count: 2,
+      total_count: 2,
+      errors: [],
+      validate_only: false,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const csv = new File(['Asset ID/Tag Number,Equipment Class\nTAG-1,PI\n'], 'equipment.csv', {
+      type: 'text/csv',
+    });
+    fireEvent.change(screen.getByLabelText('Select XLSX or CSV asset import file'), {
+      target: { files: [csv] },
+    });
+    expect(screen.getByText('equipment.csv')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Import' }));
+    await waitFor(() =>
+      expect(assetService.importEquipmentAssets).toHaveBeenCalledWith(csv, expect.any(Function))
+    );
+    expect(await screen.findByText('equipment.csv: 2 created, 0 updated.')).toBeInTheDocument();
+  }, 15000);
+
+  it('rejects a file whose extension is neither XLSX nor CSV', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const pdf = new File(['%PDF-1.4'], 'equipment.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('Select XLSX or CSV asset import file'), {
+      target: { files: [pdf] },
+    });
+
+    expect(
+      await screen.findByText('Choose an .xlsx or .csv file to import.')
+    ).toBeInTheDocument();
+    expect(screen.queryByText('equipment.pdf')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(assetService.importEquipmentAssets).not.toHaveBeenCalled();
+  }, 15000);
 
   it('shows import failure details, automatically resets uploader, and imports on submit', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
@@ -244,25 +352,25 @@ describe('EquipmentMasterPage API integration', () => {
     });
 
     // 1. Select file and Submit: fails with error
-    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+    fireEvent.change(screen.getByLabelText('Select XLSX or CSV asset import file'), {
       target: { files: [workbook] },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Submit Import' }));
 
     expect(await screen.findAllByText('Expected multipart XLSX upload')).not.toHaveLength(0);
     // Uploader is automatically reset so user can directly select again without refresh
-    expect(screen.getByRole('button', { name: 'Import XLSX' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
 
     // 2. Select file and submit again: succeeds and shows import results
     const retryWorkbook = new File(['retry data'], 'retry.xlsx', {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
-    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+    fireEvent.change(screen.getByLabelText('Select XLSX or CSV asset import file'), {
       target: { files: [retryWorkbook] },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Submit Import' }));
 
-    expect(await screen.findByRole('region', { name: 'XLSX import results' })).toHaveTextContent(
+    expect(await screen.findByRole('region', { name: 'Import results' })).toHaveTextContent(
       '3 of 4 rows imported (2 created, 1 updated).'
     );
     expect(screen.getByText('row 5: Equipment Class is required')).toBeInTheDocument();
@@ -298,11 +406,11 @@ describe('EquipmentMasterPage API integration', () => {
       configurable: true,
     });
 
-    fireEvent.change(screen.getByLabelText('Select XLSX asset import file'), {
+    fireEvent.change(screen.getByLabelText('Select XLSX or CSV asset import file'), {
       target: { files: [oversizedFile] },
     });
 
-    expect(await screen.findByText('XLSX files must be 100 MB or smaller.')).toBeInTheDocument();
+    expect(await screen.findByText('Import files must be 100 MB or smaller.')).toBeInTheDocument();
     expect(assetService.importEquipmentAssets).not.toHaveBeenCalled();
   });
 

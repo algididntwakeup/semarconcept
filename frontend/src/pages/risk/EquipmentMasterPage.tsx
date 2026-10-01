@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -52,7 +53,7 @@ const EquipmentMasterPage = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 	const [lifecycleFilter, setLifecycleFilter] = useState('');
-	const [exportFormat, setExportFormat] = useState<'xlsx' | 'csv'>('xlsx');
+	const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
@@ -178,9 +179,9 @@ const EquipmentMasterPage = () => {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'xlsx' | 'csv') => {
     try {
-		const { blob, filename } = await maintenance.exportAssets.mutateAsync(exportFormat);
+		const { blob, filename } = await maintenance.exportAssets.mutateAsync(format);
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
@@ -248,14 +249,15 @@ const EquipmentMasterPage = () => {
 
   const handleSelectFile = (selectedFile?: File) => {
     if (!selectedFile) return;
-    if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
-      showNotification('Choose an .xlsx file to import.', 'error');
+    const extension = selectedFile.name.toLowerCase().split('.').pop();
+    if (extension !== 'xlsx' && extension !== 'csv') {
+      showNotification('Choose an .xlsx or .csv file to import.', 'error');
       if (importInputRef.current) importInputRef.current.value = '';
       return;
     }
-    const MAX_XLSX_SIZE = 100 * 1024 * 1024; // 100 MB
-    if (selectedFile.size > MAX_XLSX_SIZE) {
-      showNotification('XLSX files must be 100 MB or smaller.', 'error');
+    const MAX_IMPORT_SIZE = 100 * 1024 * 1024; // 100 MB
+    if (selectedFile.size > MAX_IMPORT_SIZE) {
+      showNotification('Import files must be 100 MB or smaller.', 'error');
       if (importInputRef.current) importInputRef.current.value = '';
       return;
     }
@@ -267,7 +269,7 @@ const EquipmentMasterPage = () => {
   const handleImportSubmit = async (fileToImport?: File | null) => {
     const targetFile = fileToImport || file;
     if (!targetFile) {
-      showNotification('Choose an .xlsx file to import.', 'error');
+      showNotification('Choose an .xlsx or .csv file to import.', 'error');
       return;
     }
     setImportError('');
@@ -401,9 +403,9 @@ const EquipmentMasterPage = () => {
           <input
             ref={importInputRef}
             type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="sr-only"
-            aria-label="Select XLSX asset import file"
+            aria-label="Select XLSX or CSV asset import file"
             disabled={maintenance.importAssets.isPending}
             onChange={(event) => handleSelectFile(event.target.files?.[0])}
           />
@@ -445,29 +447,53 @@ const EquipmentMasterPage = () => {
               className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
             >
               <FileUp size={16} />
-              {maintenance.importAssets.isPending ? 'Importing…' : 'Import XLSX'}
+              {maintenance.importAssets.isPending ? 'Importing…' : 'Import'}
             </button>
           )}
-		  <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-		    Export format
-		    <select
-		      value={exportFormat}
-		      onChange={(event) => setExportFormat(event.target.value as 'xlsx' | 'csv')}
-		      className="rounded-lg border border-slate-300 bg-white px-2 py-2"
-		    >
-		      <option value="xlsx">XLSX</option>
-		      <option value="csv">CSV</option>
-		    </select>
-		  </label>
-          <button
-            type="button"
-            disabled={maintenance.exportAssets.isPending}
-            onClick={() => void handleExport()}
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+          <div
+            className="relative inline-flex"
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setExportMenuOpen(false);
+              }
+            }}
           >
-            <FileDown size={16} />
-		    {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export'}
-          </button>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={exportMenuOpen}
+              disabled={maintenance.exportAssets.isPending}
+              onClick={() => setExportMenuOpen((open) => !open)}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+            >
+              <FileDown size={16} />
+              {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export'}
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
+            {exportMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Export format"
+                className="absolute left-0 top-full z-30 mt-1 w-32 rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
+              >
+                {(['xlsx', 'csv'] as const).map((format) => (
+                  <button
+                    key={format}
+                    type="button"
+                    role="menuitem"
+                    disabled={maintenance.exportAssets.isPending}
+                    onClick={() => {
+                      setExportMenuOpen(false);
+                      void handleExport(format);
+                    }}
+                    className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-blue-50 hover:text-blue-800 disabled:opacity-50"
+                  >
+                    {format.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             disabled={isPurging || maintenance.importAssets.isPending}
@@ -482,14 +508,14 @@ const EquipmentMasterPage = () => {
           <div role="status" aria-live="polite" className="space-y-2 text-sm text-blue-700">
             <p>
               {importProgress !== null && importProgress < 100
-                ? `Uploading XLSX… ${importProgress}%`
-                : 'Upload complete. Processing XLSX and updating equipment…'}
+                ? `Uploading file… ${importProgress}%`
+                : 'Upload complete. Processing the workbook and updating equipment…'}
               {' '}Keep this page open; large workbooks may take a moment.
             </p>
             <div
               className="h-2 overflow-hidden rounded-full bg-blue-100"
               role="progressbar"
-              aria-label="XLSX import progress"
+              aria-label="Import upload progress"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={importProgress ?? 100}
@@ -513,7 +539,7 @@ const EquipmentMasterPage = () => {
         {importResult && (
           <div
             role="region"
-            aria-label="XLSX import results"
+            aria-label="Import results"
             className={`rounded-xl border p-4 text-sm ${importResult.errors.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}
           >
             <p className="font-semibold">

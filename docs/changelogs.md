@@ -28,6 +28,13 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Kolom export datar yang tidak punya kolom model (Parent FunLoc, Installed FunLoc, Hierarchy Level, Serial Number, P&ID Ref, dan lainnya) disimpan apa adanya di `rbi_properties` dengan key `General.<header>`.
 - Validasi: regresi `TestAssetService_ImportAssetsFromXLSX_AcceptsFlatEquipmentMasterSheet` dan `TestAssetService_ImportAssetsFromCSV_AcceptsFlatHeaderRow`, import nyata `datatester/Equipment_Master_01102026_125743.xlsx` (2141 aset, 0 error, parent tautan benar, import ulang idempoten).
 
+### Equipment Master toolbar consolidation (single Import and Export controls)
+
+- Toolbar Equipment Master kini punya satu tombol `Import` yang menerima `.xlsx` dan `.csv`; pemilihan parser ditentukan server dari ekstensi file, jadi tidak ada lagi tombol khusus XLSX. Validasi file, batas 100 MB, teks progres, dan label aksesibilitas ("Select XLSX or CSV asset import file", "Import upload progress", "Import results") tidak lagi menyebut XLSX saja.
+- Pilihan format export yang tadinya berupa dropdown terpisah + tombol `Export` digabung menjadi satu tombol `Export` dengan menu `XLSX`/`CSV` (`aria-haspopup="menu"`, `aria-expanded`, menu tertutup saat fokus berpindah). Tidak ada dua kontrol terpisah lagi.
+- Client berhenti mengirim `file_format=xlsx` yang hardcoded pada multipart import; server memang menurunkannya dari ekstensi nama file, sehingga nilai lama itu menyesatkan untuk unggahan CSV.
+- Validasi: `pnpm test:run src/pages/risk/EquipmentMasterPage.test.tsx src/services/assetServices.test.ts` (16 test), `pnpm typecheck`, dan verifikasi UI nyata: tombol `Import` mengunggah CSV (2 baris dibuat, HTTP 200), tombol `Export` membuka menu `XLSX`/`CSV` dan mengunduh `equipment-master.xlsx` serta `equipment-master.csv`.
+
 ## Unreleased — 30 September 2026
 
 ### Equipment Master Excel import data sanitization (9999 and N/A dummy values)
