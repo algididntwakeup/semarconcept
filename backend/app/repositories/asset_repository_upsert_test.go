@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"backend/app/models"
+	"backend/app/models/request"
 	"backend/app/utils"
 	"context"
 	"errors"
@@ -137,4 +138,53 @@ func TestAssetRepository_UpsertAssetsLiveDB(t *testing.T) {
 
 	// Clean up
 	_ = gormDB.Exec("DELETE FROM assets WHERE tag_number = ?", testTag).Error
+}
+
+// TestAssetRepository_ListLiveDBNullParentFLOC guards the listing query against
+// assets that have no functional location: the projected parent_floc column is
+// NULL, and scanning it into models.Asset.ParentFLOC (a plain string) used to
+// fail every list request with "converting NULL to string is unsupported".
+func TestAssetRepository_ListLiveDBNullParentFLOC(t *testing.T) {
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		t.Skip("Skipping live database test because DB_HOST is not set")
+	}
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"), os.Getenv("DB_NAME"))
+
+	sqlxDB, err := sqlx.Connect("postgres", dsn)
+	require.NoError(t, err)
+	defer sqlxDB.Close()
+
+	gormDB, err := gorm.Open(gormPostgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Warn),
+	})
+	require.NoError(t, err)
+
+	repo := NewAssetRepository(sqlxDB, gormDB)
+	ctx := context.Background()
+
+	tenantID := 1
+	testTag := "TEST-LIST-NULL-FLOC-01"
+	_ = gormDB.Exec("DELETE FROM assets WHERE tag_number = ?", testTag).Error
+	insert := gormDB.Exec(
+		`INSERT INTO assets (tenant_id, tag_number, name, status, functional_location_id) VALUES (?, ?, ?, 'active', NULL)`,
+		tenantID, testTag, "Asset without parent FLOC")
+	require.NoError(t, insert.Error)
+	defer func() { _ = gormDB.Exec("DELETE FROM assets WHERE tag_number = ?", testTag).Error }()
+
+	assets, total, err := repo.List(ctx, tenantID, &request.AssetListQuery{Page: 1, Limit: 5, SortBy: "created_at", SortOrder: "desc"})
+	require.NoError(t, err)
+	require.Positive(t, total)
+
+	found := false
+	for _, asset := range assets {
+		require.Empty(t, asset.ParentFLOC, "assets without a functional location must scan as an empty parent FLOC")
+		if asset.TagNumber != nil && *asset.TagNumber == testTag {
+			found = true
+		}
+	}
+	require.True(t, found, "listed assets must include the asset with a NULL functional_location_id")
 }

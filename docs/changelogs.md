@@ -15,6 +15,11 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
   - Field referensi duplikat disimpan sebagai properti JSONB dengan key `kategori.header`, bukan dibuang.
 - Validasi: `go test ./app/services ./app/repositories ./app/api/handlers`, regresi `TestAssetService_ImportAssetsFromXLSX_UsesCombinedIdentityColumn`, dan unggah nyata `Asset_Data_Source_29092026_105526.xlsx` (2123 aset, 0 error).
 
+### Equipment Master list "Failed to retrieve assets" (NULL parent FLOC)
+
+- Memperbaiki `GET /api/v1/assets` yang mengembalikan HTTP 500 `Failed to retrieve Asset` setelah import besar: proyeksi `parent_floc` di `AssetRepository.List` mengembalikan `NULL` untuk aset tanpa functional location, dan `sqlx` gagal men-scan `NULL` ke `models.Asset.ParentFLOC` (`converting NULL to string is unsupported`). Subquery kini dibungkus `COALESCE(..., '')` sehingga aset tanpa parent FLOC ter-scan sebagai string kosong.
+- Validasi: regresi live-DB `TestAssetRepository_ListLiveDBNullParentFLOC` (gagal sebelum perbaikan dengan error scan yang sama, lulus sesudahnya), endpoint `GET /assets` (2123 baris, filter kelas, sorting/pencarian `parent_floc`, pagination) mengembalikan 200, dan tabel Equipment Master UI menampilkan baris beserta filter kelas dan pagination tanpa pesan gagal.
+
 ## Unreleased — 30 September 2026
 
 ### Equipment Master Excel import data sanitization (9999 and N/A dummy values)

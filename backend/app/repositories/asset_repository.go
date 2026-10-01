@@ -236,7 +236,7 @@ func (r *assetRepository) FindByID(ctx context.Context, tenantID int, id int) (*
 
 // List retrieves assets with optional filtering
 func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.AssetListQuery) ([]models.Asset, int64, error) {
-	query := `SELECT assets.*, (SELECT COALESCE(floc.tag_number, floc.name, '') FROM assets AS floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id) AS parent_floc FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
+	query := `SELECT assets.*, COALESCE((SELECT COALESCE(floc.tag_number, floc.name, '') FROM assets AS floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id), '') AS parent_floc FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 	countQuery := `SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 
 	args := []interface{}{tenantID}
