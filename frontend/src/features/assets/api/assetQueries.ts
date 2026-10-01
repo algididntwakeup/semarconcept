@@ -128,6 +128,10 @@ export const useEquipmentMaintenanceActions = () => {
     onSuccess: invalidateAssetData,
   });
   const exportAssets = useMutation({ mutationFn: () => assetService.exportEquipmentAssets() });
+  const purgeAllAssets = useMutation({
+    mutationFn: () => assetService.purgeAllEquipmentAssets(),
+    onSuccess: invalidateAssetData,
+  });
 
   return {
     diagnoseDuplicates,
@@ -135,7 +139,22 @@ export const useEquipmentMaintenanceActions = () => {
     syncComponentsToFLOC,
     importAssets,
     exportAssets,
+    purgeAllAssets,
   };
+};
+
+export const usePurgeAllEquipmentAssets = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => assetService.purgeAllEquipmentAssets(),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() }),
+        queryClient.invalidateQueries({ queryKey: assetKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: assetKeys.statistics() }),
+      ]);
+    },
+  });
 };
 
 /**

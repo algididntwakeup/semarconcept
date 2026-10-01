@@ -1125,6 +1125,11 @@ func (s *AssetService) ImportAssets(ctx context.Context, tenantID int, req *requ
 	return s.ImportAssetsFromXLSX(ctx, tenantID, req, userID, fileData)
 }
 
+// ImportAssetsFromExcel is an alias for ImportAssetsFromXLSX.
+func (s *AssetService) ImportAssetsFromExcel(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error) {
+	return s.ImportAssetsFromXLSX(ctx, tenantID, req, userID, fileData)
+}
+
 // ImportAssetsFromXLSX imports the Data Source worksheet using its category row,
 // field-name row, and data rows beginning at row three. Relational fields stay on
 // Asset; all other fields are retained in the RBI JSONB property map.
@@ -1230,6 +1235,11 @@ func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, r
 	}, nil
 }
 
+// PurgeAssets permanently deletes all assets for a given tenant.
+func (s *AssetService) PurgeAssets(ctx context.Context, tenantID int) (int64, error) {
+	return s.AssetRepo.PurgeAll(ctx, tenantID)
+}
+
 type equipmentImportColumn struct {
 	key        string
 	normalized string
@@ -1290,16 +1300,43 @@ func equipmentImportRowIsEmpty(row []string) bool {
 	return true
 }
 
+// sanitizeValue checks whether an input cell value represents dummy or placeholder N/A data.
+// If the value is "9999", "-9999", "N/A", or empty (after trimming), it returns nil.
+// Otherwise, it returns the trimmed string.
+func sanitizeValue(val string) interface{} {
+	trimmed := strings.TrimSpace(val)
+	if trimmed == "" {
+		return nil
+	}
+	switch strings.ToUpper(trimmed) {
+	case "9999", "-9999", "9999.0", "-9999.0", "9999.00", "-9999.00", "N/A", "NA", "#N/A", "NULL", "NONE", "-":
+		return nil
+	}
+	return trimmed
+}
+
+// SanitizeValue is the exported helper for sanitizeValue
+func SanitizeValue(val string) interface{} {
+	return sanitizeValue(val)
+}
+
 func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string) (models.Asset, error) {
 	asset := models.Asset{TenantID: tenantID, RBIProperties: make(models.JSONBMap)}
 	for index, column := range columns {
 		if column.normalized == "" || index >= len(row) {
 			continue
 		}
-		value := strings.TrimSpace(row[index])
-		if value == "" {
+		raw := strings.TrimSpace(row[index])
+		if raw == "" {
 			continue
 		}
+		sanitized := sanitizeValue(raw)
+		if sanitized == nil {
+			// Nilai "9999", "-9999", "N/A", atau kosong di-omit dari JSONB map maupun kolom relasional
+			continue
+		}
+		value := sanitized.(string)
+
 		switch column.normalized {
 		case "id", "assetid", "equipmentid":
 			id, err := strconv.Atoi(value)

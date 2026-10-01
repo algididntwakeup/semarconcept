@@ -9,6 +9,7 @@ import {
   Link2,
   RefreshCw,
   ScanSearch,
+  Trash2,
   X,
 } from 'lucide-react';
 import {
@@ -70,6 +71,7 @@ const EquipmentMasterPage = () => {
   const [importResult, setImportResult] = useState<EquipmentAssetImportResult | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState<number | null>(null);
+  const [isPurging, setIsPurging] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
   const assetsQuery = useEquipmentAssets({
@@ -192,6 +194,28 @@ const EquipmentMasterPage = () => {
         error instanceof Error ? error.message : 'Unable to export assets.',
         'error'
       );
+    }
+  };
+
+  const handlePurgeAll = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to permanently delete all equipment assets for this organization? This action cannot be undone.'
+    );
+    if (!confirmed) return;
+    try {
+      setIsPurging(true);
+      const result = await maintenance.purgeAllAssets.mutateAsync();
+      showNotification(
+        `All equipment assets cleared successfully (${result.deleted_count} record(s) removed).`,
+        'success'
+      );
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Failed to clear equipment assets.',
+        'error'
+      );
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -431,6 +455,15 @@ const EquipmentMasterPage = () => {
           >
             <FileDown size={16} />
             {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export Excel'}
+          </button>
+          <button
+            type="button"
+            disabled={isPurging || maintenance.importAssets.isPending}
+            onClick={() => void handlePurgeAll()}
+            className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100 disabled:opacity-60"
+          >
+            <Trash2 size={16} />
+            {isPurging ? 'Clearing…' : 'Clear All Equipment'}
           </button>
         </div>
         {maintenance.importAssets.isPending && (

@@ -1355,6 +1355,25 @@ func (h *AssetHandler) BulkDeleteAssets(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Bulk delete completed successfully", result))
 }
 
+// PurgeAssets permanently deletes all assets for the current tenant
+func (h *AssetHandler) PurgeAssets(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+
+	count, err := h.assetService.PurgeAssets(c.Request.Context(), tenantID)
+	if err != nil {
+		utils.LogErrorf("Failed to purge assets: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to purge assets", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("All equipment assets purged successfully", gin.H{
+		"deleted_count": count,
+	}))
+}
+
 // ImportAssets imports assets from file
 func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	tenantID, ok := h.requireTenantContext(c)
@@ -1545,6 +1564,7 @@ func (h *AssetHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/validate-hierarchy", h.ValidateAssetHierarchy)
 	router.PATCH("/bulk-update", h.BulkUpdateAssets)
 	router.DELETE("/bulk-delete", h.BulkDeleteAssets)
+	router.DELETE("/purge", h.PurgeAssets)
 
 	// Import/Export
 	router.POST("/import", h.ImportAssets)

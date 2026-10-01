@@ -243,6 +243,7 @@ type AssetRepository interface {
 	UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []models.Asset, userID int) (created, updated int, err error)
 	FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error)
 	HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error)
+	PurgeAll(ctx context.Context, tenantID int) (int64, error)
 
 	GetSiteByID(ctx context.Context, id int, tenantID int) (*models.Site, error)
 	GetUnitByID(ctx context.Context, id int, tenantID int) (*models.Unit, error)

@@ -274,6 +274,14 @@ class AssetService {
     };
   }
 
+  async purgeAllEquipmentAssets(): Promise<{ deleted_count: number }> {
+    const response = await apiClient.delete(`${this.baseUrl}/purge`);
+    const payload = unwrapApiData<{ deleted_count?: number }>(response.data);
+    return {
+      deleted_count: Number(payload?.deleted_count ?? 0),
+    };
+  }
+
   /**
    * Get asset performance metrics
    */

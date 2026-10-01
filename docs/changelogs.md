@@ -4,6 +4,22 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 30 September 2026
 
+### Equipment Master Excel import data sanitization (9999 and N/A dummy values)
+
+- Mengimplementasikan helper function `sanitizeValue(val string) interface{}` di `AssetService` (`backend/app/services/asset_service.go`):
+  - Memeriksa apakah nilai cell merupakan penanda dummy / N/A dari sistem legacy: `"9999"`, `"-9999"`, `"9999.0"`, `"-9999.0"`, `"9999.00"`, `"-9999.00"`, `"N/A"`, `"NA"`, `"#N/A"`, `"NULL"`, `"NONE"`, `"-"`, atau string kosong setelah di-trim.
+  - Jika cocok, mengembalikan `nil`.
+- Menerapkan sanitasi data sebelum proses upsert ke PostgreSQL di `parseEquipmentImportRow`:
+  - Untuk kolom relasional (seperti `Description`, `AssetClass`, `AssetType`, `LifecycleStatus`, `Status`), nilai menjadi pointer `nil` yang dipetakan menjadi SQL `NULL`.
+  - Untuk kolom dinamis / JSONB `rbi_properties` (seperti `Design Temperature`, `Flow Rate`, properti desain lainnya), key tidak dimasukkan ke dalam map (di-omit dari JSON).
+  - Menyediakan fungsi helper publik `SanitizeValue(val string) interface{}` untuk pengujian dan consumer package.
+- Menambahkan endpoint dan utilitas pembersihan data aset korup / legacy:
+  - Backend: `DELETE /api/v1/assets/purge` di `asset_routes.go` dan `asset_handler.go`, memanggil `AssetService.PurgeAssets` dan `AssetRepository.PurgeAll(ctx, tenantID)`.
+  - Frontend: Menambahkan fungsi `purgeAllEquipmentAssets` pada `assetService`, hook `usePurgeAllEquipmentAssets` / `purgeAllAssets` pada `useEquipmentMaintenanceActions`, serta tombol `Clear All Equipment` (dengan ikon `Trash2` dan dialog konfirmasi) pada halaman Equipment Master UI (`EquipmentMasterPage.tsx`).
+- Validasi:
+  - Unit test `TestAssetService_ImportAssetsFromXLSX_Sanitizes9999AndNAValues` dan `TestAssetService_PurgeAssets` lulus 100%.
+  - Unit test frontend `assetServices.test.ts`, `assetQueries.test.tsx`, dan `EquipmentMasterPage.test.tsx` lulus 100%.
+
 ### Equipment Master class overview and detail modal
 
 - Mengubah `GET /api/v1/assets/stats` menjadi agregasi GORM tenant-scoped per `asset_class`, dengan baris kosong dan kelas berjumlah nol tidak ditampilkan. Respons statistik kini berisi `{class, count}` sesuai data Equipment Class yang diimpor dari XLSX.

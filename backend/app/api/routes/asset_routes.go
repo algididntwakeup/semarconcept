@@ -129,6 +129,7 @@ func RegisterAssetRoutesWithRBAC(router *gin.RouterGroup, h *handlers.AssetHandl
 	router.POST("/validate-hierarchy", rbac("asset:view"), h.ValidateAssetHierarchy)
 	router.PATCH("/bulk-update", rbac("asset:update"), h.BulkUpdateAssets)
 	router.DELETE("/bulk-delete", rbac("asset:delete"), h.BulkDeleteAssets)
+	router.DELETE("/purge", rbac("asset:delete"), h.PurgeAssets)
 
 	// Test endpoint
 	router.GET("/assets/test", func(c *gin.Context) {

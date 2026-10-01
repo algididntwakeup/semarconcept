@@ -9,6 +9,7 @@ import {
   useDeleteAsset,
   useEquipmentAssetStats,
   useEquipmentAssets,
+  usePurgeAllEquipmentAssets,
 } from './assetQueries';
 import { assetService } from '../../../services/assetServices';
 import { assetKeys } from '../../../shared/api/queryKeys';
@@ -24,6 +25,7 @@ vi.mock('../../../services/assetServices', () => ({
     getAssetStatistics: vi.fn(),
     getEquipmentAssetStats: vi.fn(),
     getEquipmentAssets: vi.fn(),
+    purgeAllEquipmentAssets: vi.fn(),
   },
 }));
 
@@ -159,6 +161,24 @@ describe('Asset Query Hooks', () => {
 
       expect(assetService.deleteAsset).toHaveBeenCalledWith('ast-1');
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assetKeys.lists() });
+    });
+  });
+
+  describe('usePurgeAllEquipmentAssets', () => {
+    it('calls purgeAllEquipmentAssets and invalidates equipment, list, and statistics caches', async () => {
+      vi.mocked(assetService.purgeAllEquipmentAssets).mockResolvedValue({ deleted_count: 1537 });
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      const { result } = renderHook(() => usePurgeAllEquipmentAssets(), {
+        wrapper: createWrapper(),
+      });
+
+      await result.current.mutateAsync();
+
+      expect(assetService.purgeAllEquipmentAssets).toHaveBeenCalledOnce();
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assetKeys.equipmentMaster.all() });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assetKeys.lists() });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: assetKeys.statistics() });
     });
   });
 });

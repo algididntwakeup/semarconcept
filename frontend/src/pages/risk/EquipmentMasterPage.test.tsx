@@ -18,6 +18,7 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       syncEquipmentComponentsToFLOC: vi.fn(),
       importEquipmentAssets: vi.fn(),
       exportEquipmentAssets: vi.fn(),
+      purgeAllEquipmentAssets: vi.fn(),
     },
   };
 });
@@ -253,6 +254,42 @@ describe('EquipmentMasterPage API integration', () => {
 
     expect(await screen.findByText('XLSX files must be 100 MB or smaller.')).toBeInTheDocument();
     expect(assetService.importEquipmentAssets).not.toHaveBeenCalled();
+  });
+
+  it('triggers purgeAllEquipmentAssets after user confirms clear all equipment dialog', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.purgeAllEquipmentAssets).mockResolvedValue({ deleted_count: 1537 });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
+          <EquipmentMasterPage />
+        </NotificationProvider>
+      </QueryClientProvider>
+    );
+
+    const clearButton = screen.getByRole('button', { name: /Clear All Equipment/i });
+    fireEvent.click(clearButton);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(assetService.purgeAllEquipmentAssets).toHaveBeenCalledOnce();
+    });
+    expect(
+      await screen.findByText(/All equipment assets cleared successfully \(1537 record\(s\) removed\)\./)
+    ).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
   });
 });
 

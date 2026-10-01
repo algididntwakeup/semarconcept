@@ -608,6 +608,15 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 	return created, updated, nil
 }
 
+// PurgeAll permanently deletes all assets for a given tenant.
+func (r *assetRepository) PurgeAll(ctx context.Context, tenantID int) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM assets WHERE tenant_id = $1`, tenantID)
+	if err != nil {
+		return 0, fmt.Errorf("purge all assets for tenant %d: %w", tenantID, err)
+	}
+	return result.RowsAffected()
+}
+
 func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, `SELECT * FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1`, tenantID, tagNumber)

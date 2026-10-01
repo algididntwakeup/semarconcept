@@ -92,6 +92,11 @@ func (m *MockAssetRepository) UpsertAssetsFromImport(ctx context.Context, tenant
 	return args.Int(0), args.Int(1), args.Error(2)
 }
 
+func (m *MockAssetRepository) PurgeAll(ctx context.Context, tenantID int) (int64, error) {
+	args := m.Called(ctx, tenantID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // MockComponentRepository for boundary testing
 type MockComponentRepository struct {
 	repositories.ComponentRepository
@@ -382,4 +387,78 @@ func TestAssetService_CreateComponent_ForeignAssetRejected(t *testing.T) {
 	assert.Nil(t, res)
 	assert.ErrorIs(t, err, utils.ErrAssetNotFound)
 	mockAssetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ImportAssetsFromXLSX_Sanitizes9999AndNAValues(t *testing.T) {
+	// 1. Direct helper test
+	assert.Nil(t, services.SanitizeValue("9999"))
+	assert.Nil(t, services.SanitizeValue("-9999"))
+	assert.Nil(t, services.SanitizeValue("9999.0"))
+	assert.Nil(t, services.SanitizeValue("N/A"))
+	assert.Nil(t, services.SanitizeValue("NA"))
+	assert.Nil(t, services.SanitizeValue("#N/A"))
+	assert.Nil(t, services.SanitizeValue("NULL"))
+	assert.Nil(t, services.SanitizeValue(""))
+	assert.Nil(t, services.SanitizeValue("   "))
+	assert.Equal(t, "450.5", services.SanitizeValue("450.5"))
+	assert.Equal(t, "Stainless Steel", services.SanitizeValue("Stainless Steel"))
+
+	// 2. Integration with ImportAssetsFromExcel
+	book := excelize.NewFile()
+	assert.NoError(t, book.SetSheetName("Sheet1", "Data Source"))
+	fields := []string{"Equipment ID", "Equipment Tag", "Equipment Name", "Description", "Equipment Class", "Equipment Type", "Design Temperature", "Flow Rate", "Notes"}
+	categories := []string{"General", "General", "General", "General", "General", "General", "Design Data", "Design Data", "Design Data"}
+	values := []interface{}{102, "E-102", "Exchanger", "9999", "Heat Exchanger", "Exchanger", "9999", "-9999", "Real Note"}
+	for index := range fields {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, categories[index]))
+		cell, _ = excelize.CoordinatesToCellName(index+1, 2)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, fields[index]))
+		cell, _ = excelize.CoordinatesToCellName(index+1, 3)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, values[index]))
+	}
+	var file bytes.Buffer
+	assert.NoError(t, book.Write(&file))
+	assert.NoError(t, book.Close())
+
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(assets []models.Asset) bool {
+		if len(assets) != 1 {
+			return false
+		}
+		asset := assets[0]
+		// Description was "9999", must be sanitized to nil (NULL in DB)
+		if asset.Description != nil {
+			return false
+		}
+		// Design Temperature ("9999") and Flow Rate ("-9999") must be omitted from JSONB
+		if _, hasTemp := asset.RBIProperties["Design Data.Design Temperature"]; hasTemp {
+			return false
+		}
+		if _, hasFlow := asset.RBIProperties["Design Data.Flow Rate"]; hasFlow {
+			return false
+		}
+		// Valid field "Real Note" must be retained
+		return asset.RBIProperties["Design Data.Notes"] == "Real Note"
+	}), 7).Return(1, 0, nil).Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := svc.ImportAssetsFromExcel(ctx, 42, &request.AssetImportRequest{}, 7, file.Bytes())
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_PurgeAssets(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("PurgeAll", ctx, tenantID).Return(int64(1537), nil).Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	deleted, err := svc.PurgeAssets(ctx, tenantID)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1537), deleted)
+	assetRepo.AssertExpectations(t)
 }

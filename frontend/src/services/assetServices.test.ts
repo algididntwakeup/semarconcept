@@ -130,4 +130,14 @@ describe('Equipment Master asset service', () => {
       responseType: 'blob',
     });
   });
+
+  it('purges all equipment assets for the tenant via DELETE /assets/purge', async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue({
+      data: { success: true, message: 'All equipment assets purged successfully', data: { deleted_count: 1537 } },
+    });
+
+    const result = await assetService.purgeAllEquipmentAssets();
+    expect(result).toEqual({ deleted_count: 1537 });
+    expect(apiClient.delete).toHaveBeenCalledWith('/assets/purge');
+  });
 });
