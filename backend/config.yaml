@@ -6,8 +6,10 @@ ENVIRONMENT: "development" # development, staging, production
 
 HTTP_SERVER:
   PORT: "4072"
-  READ_TIMEOUT: 15 # seconds
-  WRITE_TIMEOUT: 15 # seconds
+  # Keys must match the Config struct mapstructure tags; bulk XLSX/CSV
+  # import and export legitimately run for minutes.
+  READ_TIMEOUT_SECONDS: 300
+  WRITE_TIMEOUT_SECONDS: 600
 
 DATABASE:
   DB_DRIVER: "postgres"

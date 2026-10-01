@@ -7,6 +7,7 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 ### Equipment Master bulk import 502 and vendor template identity fix
 
 - Memperbaiki kegagalan unggah workbook 28 MB yang tampil sebagai "Import failed" dengan halaman error nginx: `backend/main.go` memakai `WRITE_TIMEOUT_SECONDS` default 15 detik, sehingga koneksi ditutup sebelum respons selesai dan nginx mencatat `upstream prematurely closed connection` lalu mengembalikan HTTP 502 ke browser. Default kini `READ_TIMEOUT_SECONDS=300` dan `WRITE_TIMEOUT_SECONDS=600`; import 2123 baris selesai dalam ~14 detik dan mengembalikan HTTP 200.
+- Menyelaraskan `backend/config.yaml`: key `HTTP_SERVER.READ_TIMEOUT`/`WRITE_TIMEOUT` tidak pernah terbaca karena tag struct adalah `*_TIMEOUT_SECONDS`, sehingga nilai file tersebut diam-diam diabaikan; key kini memakai nama yang benar dengan nilai 300/600 detik.
 - Memperbaiki deteksi kolom identitas pada template Data Source vendor di `equipmentImportColumns` (`backend/app/services/asset_service.go`):
   - Kolom gabungan `Asset ID/Tag Number` (atau `Equipment ID`/`Tag`) kini menjadi pemilik identitas aset; kolom referensi lain yang kebetulan bernama `Asset ID` (mis. grup `Equipment References`) berisi `9999` dan tidak lagi di-parse sebagai ID numerik, sehingga import tidak lagi gagal dengan `invalid Asset ID "13-V-1108B"`.
   - Kolom identitas berisi teks kini dipetakan ke `tag_number`, bukan hanya ke `id`, sehingga baris tanpa ID numerik tetap valid.
