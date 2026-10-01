@@ -2,6 +2,18 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
+## Unreleased — 1 October 2026
+
+### Equipment Master bulk import 502 and vendor template identity fix
+
+- Memperbaiki kegagalan unggah workbook 28 MB yang tampil sebagai "Import failed" dengan halaman error nginx: `backend/main.go` memakai `WRITE_TIMEOUT_SECONDS` default 15 detik, sehingga koneksi ditutup sebelum respons selesai dan nginx mencatat `upstream prematurely closed connection` lalu mengembalikan HTTP 502 ke browser. Default kini `READ_TIMEOUT_SECONDS=300` dan `WRITE_TIMEOUT_SECONDS=600`; import 2123 baris selesai dalam ~14 detik dan mengembalikan HTTP 200.
+- Memperbaiki deteksi kolom identitas pada template Data Source vendor di `equipmentImportColumns` (`backend/app/services/asset_service.go`):
+  - Kolom gabungan `Asset ID/Tag Number` (atau `Equipment ID`/`Tag`) kini menjadi pemilik identitas aset; kolom referensi lain yang kebetulan bernama `Asset ID` (mis. grup `Equipment References`) berisi `9999` dan tidak lagi di-parse sebagai ID numerik, sehingga import tidak lagi gagal dengan `invalid Asset ID "13-V-1108B"`.
+  - Kolom identitas berisi teks kini dipetakan ke `tag_number`, bukan hanya ke `id`, sehingga baris tanpa ID numerik tetap valid.
+  - Header satu kolom (`Hierarchy Level`, `Parent Asset Tag`) yang hanya terisi di baris kategori kini dikenali sebagai field, bukan kolom ber-key kategori kosong, dan `Parent Asset Tag` dipetakan ke relasi parent.
+  - Field referensi duplikat disimpan sebagai properti JSONB dengan key `kategori.header`, bukan dibuang.
+- Validasi: `go test ./app/services ./app/repositories ./app/api/handlers`, regresi `TestAssetService_ImportAssetsFromXLSX_UsesCombinedIdentityColumn`, dan unggah nyata `Asset_Data_Source_29092026_105526.xlsx` (2123 aset, 0 error).
+
 ## Unreleased — 30 September 2026
 
 ### Equipment Master Excel import data sanitization (9999 and N/A dummy values)

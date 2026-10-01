@@ -340,6 +340,58 @@ func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testi
 	assetRepo.AssertExpectations(t)
 }
 
+// TestAssetService_ImportAssetsFromXLSX_UsesCombinedIdentityColumn guards the
+// vendor Data Source template: "Asset ID/Tag Number" owns the asset identity
+// while reference columns literally named "Asset ID"/"Equipment ID" only carry
+// extra data and must never be parsed as numeric IDs.
+func TestAssetService_ImportAssetsFromXLSX_UsesCombinedIdentityColumn(t *testing.T) {
+	book := excelize.NewFile()
+	assert.NoError(t, book.SetSheetName("Sheet1", "Data Source"))
+	categories := []string{"Hierarchy Level", "Parent Asset Tag", "General", "General", "General", "General", "Equipment References"}
+	fields := []string{"", "", "Asset ID/Tag Number", "Description", "Equipment Class", "Equipment Type", "Asset ID"}
+	rows := [][]interface{}{
+		{1, "", "PV-101", "Vessel A", "VE", "AD", "REF-9"},
+		{2, "PV-101", "PV-101 SHELL", "Shell", "VE", "AD", 9999},
+	}
+	for index := range categories {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, categories[index]))
+		cell, _ = excelize.CoordinatesToCellName(index+1, 2)
+		assert.NoError(t, book.SetCellValue("Data Source", cell, fields[index]))
+	}
+	for rowIndex, values := range rows {
+		for index, value := range values {
+			cell, _ := excelize.CoordinatesToCellName(index+1, rowIndex+3)
+			assert.NoError(t, book.SetCellValue("Data Source", cell, value))
+		}
+	}
+	var file bytes.Buffer
+	assert.NoError(t, book.Write(&file))
+	assert.NoError(t, book.Close())
+
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 2 {
+			return false
+		}
+		parent, child := records[0].Asset, records[1].Asset
+		return parent.ID == 0 && parent.TagNumber != nil && *parent.TagNumber == "PV-101" &&
+			parent.Name == "PV-101" && parent.RBIProperties["General.Hierarchy Level"] == "1" &&
+			parent.RBIProperties["Equipment References.Asset ID"] == "REF-9" &&
+			child.TagNumber != nil && *child.TagNumber == "PV-101 SHELL" &&
+			records[1].ParentTag == "PV-101" &&
+			child.RBIProperties["Equipment References.Asset ID"] == nil
+	}), 7).Return(2, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{}, 7, file.Bytes())
+	assert.NoError(t, err)
+	assert.Equal(t, 2, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, []string{}, result.(map[string]interface{})["errors"])
+	assetRepo.AssertExpectations(t)
+}
+
 func TestAssetService_ImportAssetsFromCSV_FillsIDsAndParentTags(t *testing.T) {
 	csvData := []byte("General,General,General,General,General,General,General,Design Data\nAsset ID,Equipment Tag,Equipment Name,Equipment Class,Parent Equipment Tag,Parent Equipment ID,Description,Pressure\n101,ROOT, Root ,Pump,, ,Root description,\n,CHILD-1, Child 1 ,Pump,ROOT,,N/A,9999\n-9999,CHILD-2, Child 2 ,Pump,,777,-9999,N/A\n")
 	ctx := context.Background()

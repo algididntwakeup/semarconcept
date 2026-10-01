@@ -1221,7 +1221,7 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 		return nil, fmt.Errorf("read field header row: %w", err)
 	}
 	columns := equipmentImportColumns(categoryRow, headerRow)
-	if !equipmentImportHasField(columns, "assetid", "equipmentid", "id", "tagnumber", "equipmenttag", "equipmenttagnumber", "tag") {
+	if !equipmentImportHasField(columns, "assetid", "assetidtagnumber", "equipmentid", "id", "tagnumber", "equipmenttag", "equipmenttagnumber", "tag") {
 		return nil, fmt.Errorf("row 2 must contain Asset ID or Tag Number: %w", utils.ErrValidation)
 	}
 	if !equipmentImportHasField(columns, "assetclass", "equipmentclass", "class", "assettype", "equipmenttype", "type") {
@@ -1236,18 +1236,22 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 	total := 0
 	assetIDColumn, parentTagColumn, tagColumn := -1, -1, -1
 	for index, column := range columns {
+		if !column.identity {
+			if column.normalized == "parenttag" || column.normalized == "parentequipmenttag" || column.normalized == "parentassettag" {
+				if parentTagColumn == -1 {
+					parentTagColumn = index
+				}
+			}
+			continue
+		}
 		switch column.normalized {
-		case "assetid", "equipmentid", "id":
+		case "id", "assetid", "equipmentid":
 			if assetIDColumn == -1 {
 				assetIDColumn = index
 			}
-		case "tag", "tagnumber", "equipmenttag", "equipmenttagnumber":
+		default:
 			if tagColumn == -1 {
 				tagColumn = index
-			}
-		case "parenttag", "parentequipmenttag":
-			if parentTagColumn == -1 {
-				parentTagColumn = index
 			}
 		}
 	}
@@ -1411,6 +1415,9 @@ func (s *AssetService) PurgeAssets(ctx context.Context, tenantID int) (int64, er
 type equipmentImportColumn struct {
 	key        string
 	normalized string
+	// identity marks the column that owns the asset identity; duplicate
+	// Asset ID/tag columns in the same sheet stay plain data.
+	identity bool
 }
 
 func equipmentImportColumns(categories, headers []string) []equipmentImportColumn {
@@ -1421,16 +1428,34 @@ func equipmentImportColumns(categories, headers []string) []equipmentImportColum
 	columns := make([]equipmentImportColumn, count)
 	category := "General"
 	for index := 0; index < count; index++ {
-		if index < len(categories) && strings.TrimSpace(categories[index]) != "" {
-			category = strings.TrimSpace(categories[index])
-		}
-		field := ""
+		leaf := ""
 		if index < len(headers) {
-			field = strings.TrimSpace(headers[index])
+			leaf = strings.TrimSpace(headers[index])
+		}
+		if leaf != "" {
+			if index < len(categories) && strings.TrimSpace(categories[index]) != "" {
+				category = strings.TrimSpace(categories[index])
+			}
+		} else if index < len(categories) {
+			// Single-column groups name the leaf in the category row and leave
+			// the field row empty; only grouped columns carry a category.
+			leaf = strings.TrimSpace(categories[index])
 		}
 		columns[index] = equipmentImportColumn{
-			key:        category + "." + field,
-			normalized: normalizeImportHeader(field),
+			key:        category + "." + leaf,
+			normalized: normalizeImportHeader(leaf),
+		}
+	}
+	// The vendor Data Source template ships one combined "Asset ID/Tag Number"
+	// column next to reference columns literally named "Asset ID"/"Equipment ID".
+	// When the combined column exists it owns the identity; the others are data.
+	combinedIdentity := equipmentImportHasField(columns, "assetidtagnumber")
+	for index := range columns {
+		switch columns[index].normalized {
+		case "id", "assetid", "equipmentid":
+			columns[index].identity = !combinedIdentity
+		case "assetidtagnumber", "tag", "tagnumber", "equipmenttag", "equipmenttagnumber":
+			columns[index].identity = true
 		}
 	}
 	return columns
@@ -1443,6 +1468,16 @@ func equipmentImportHasField(columns []equipmentImportColumn, names ...string) b
 				return true
 			}
 		}
+	}
+	return false
+}
+
+// isIdentityImportHeader reports whether a normalized header names the asset
+// identity rather than an ordinary data field.
+func isIdentityImportHeader(normalized string) bool {
+	switch normalized {
+	case "id", "assetid", "equipmentid", "assetidtagnumber", "tag", "tagnumber", "equipmenttag", "equipmenttagnumber":
+		return true
 	}
 	return false
 }
@@ -1506,6 +1541,15 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 		}
 		value := sanitized.(string)
 
+		// A sheet may carry both the asset identity column and reference
+		// columns that merely share its name (for example "Equipment ID" next
+		// to "Asset ID/Tag Number"); only the identity column maps to the
+		// model, the rest stay as JSONB properties.
+		if !column.identity && isIdentityImportHeader(column.normalized) {
+			asset.RBIProperties[column.key] = value
+			continue
+		}
+
 		switch column.normalized {
 		case "id", "assetid", "equipmentid":
 			id, err := strconv.Atoi(value)
@@ -1513,7 +1557,7 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 				return repositories.AssetImportRecord{}, fmt.Errorf("invalid Asset ID %q", value)
 			}
 			asset.ID = id
-		case "tag", "tagnumber", "equipmenttag", "equipmenttagnumber":
+		case "assetidtagnumber", "tag", "tagnumber", "equipmenttag", "equipmenttagnumber":
 			asset.TagNumber = &value
 		case "description", "equipmentdescription":
 			asset.Description = &value
@@ -1529,7 +1573,7 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 				return repositories.AssetImportRecord{}, fmt.Errorf("invalid Parent Equipment ID %q", value)
 			}
 			asset.ParentID = &id
-		case "parenttag", "parentequipmenttag":
+		case "parenttag", "parentequipmenttag", "parentassettag":
 			parentTag = value
 		case "functionallocationid":
 			id, err := strconv.Atoi(value)

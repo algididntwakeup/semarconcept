@@ -106,8 +106,10 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetDefault("ENVIRONMENT", "development")
 	viper.SetDefault("HTTP_SERVER.HOST", "0.0.0.0") // Default to listen on all interfaces
 	viper.SetDefault("HTTP_SERVER.PORT", "4072")
-	viper.SetDefault("HTTP_SERVER.READ_TIMEOUT_SECONDS", 15)
-	viper.SetDefault("HTTP_SERVER.WRITE_TIMEOUT_SECONDS", 15)
+	// Bulk XLSX/CSV import & export legitimately run for minutes; the old 15s
+	// defaults aborted the response mid-flight and clients saw a proxy 502.
+	viper.SetDefault("HTTP_SERVER.READ_TIMEOUT_SECONDS", 300)
+	viper.SetDefault("HTTP_SERVER.WRITE_TIMEOUT_SECONDS", 600)
 	viper.SetDefault("HTTP_SERVER.IDLE_TIMEOUT_SECONDS", 60)
 	viper.SetDefault("LOG_LEVEL", "info")
 
