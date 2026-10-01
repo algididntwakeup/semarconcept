@@ -493,7 +493,7 @@ func TestAssetService_ImportAssetsFromCSV_RejectsMissingParentWithoutWrites(t *t
 	assetRepo.AssertExpectations(t)
 }
 
-func TestAssetService_ImportAssetsFromXLSX_RequiresDataSourceSheet(t *testing.T) {
+func TestAssetService_ImportAssetsFromXLSX_RequiresKnownSheet(t *testing.T) {
 	book := excelize.NewFile()
 	var file bytes.Buffer
 	assert.NoError(t, book.Write(&file))
@@ -503,6 +503,78 @@ func TestAssetService_ImportAssetsFromXLSX_RequiresDataSourceSheet(t *testing.T)
 	_, err := service.ImportAssets(context.Background(), 42, &request.AssetImportRequest{}, 7, file.Bytes())
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, utils.ErrValidation)
+}
+
+// TestAssetService_ImportAssetsFromXLSX_AcceptsFlatEquipmentMasterSheet covers
+// the source system's flat export: sheet "Equipment Master", field names in
+// row 1 only, and data from row 2.
+func TestAssetService_ImportAssetsFromXLSX_AcceptsFlatEquipmentMasterSheet(t *testing.T) {
+	book := excelize.NewFile()
+	assert.NoError(t, book.SetSheetName("Sheet1", "Equipment Master"))
+	fields := []string{"Parent FunLoc", "Asset ID/Tag Number", "Description", "Hierarchy Level", "Parent Asset Tag", "Equipment Class", "Equipment Type", "Serial Number"}
+	for index, field := range fields {
+		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
+		assert.NoError(t, book.SetCellValue("Equipment Master", cell, field))
+	}
+	rows := [][]interface{}{
+		{nil, `1"-AI-12001-1G1`, "First instrument", 1, nil, "PI", "CA", "SN-1"},
+		{nil, `1"-AI-12002-1G1`, "Second instrument", 2, `1"-AI-12001-1G1`, "PI", "CA", "SN-2"},
+		{nil, `1"-AI-12003-1G1`, "Third instrument", 1, nil, "PI", "CA", "SN-3"},
+	}
+	for rowIndex, values := range rows {
+		for index, value := range values {
+			cell, _ := excelize.CoordinatesToCellName(index+1, rowIndex+2)
+			assert.NoError(t, book.SetCellValue("Equipment Master", cell, value))
+		}
+	}
+	var file bytes.Buffer
+	assert.NoError(t, book.Write(&file))
+	assert.NoError(t, book.Close())
+
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 3 {
+			return false
+		}
+		first, second := records[0].Asset, records[1].Asset
+		return first.TagNumber != nil && *first.TagNumber == `1"-AI-12001-1G1` &&
+			first.Name == `1"-AI-12001-1G1` && first.Description != nil && *first.Description == "First instrument" &&
+			first.AssetClass != nil && *first.AssetClass == "PI" && first.AssetType != nil && *first.AssetType == "CA" &&
+			first.RBIProperties["General.Serial Number"] == "SN-1" &&
+			second.RBIProperties["General.Hierarchy Level"] == "2" &&
+			records[1].ParentTag == `1"-AI-12001-1G1` &&
+			records[2].ParentTag == ""
+	}), 7).Return(3, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{}, 7, file.Bytes())
+	assert.NoError(t, err)
+	assert.Equal(t, 3, result.(map[string]interface{})["imported_count"])
+	assert.Equal(t, []string{}, result.(map[string]interface{})["errors"])
+	assetRepo.AssertExpectations(t)
+}
+
+// TestAssetService_ImportAssetsFromCSV_AcceptsFlatHeaderRow proves the flat
+// single-header layout is detected for CSV as well as XLSX.
+func TestAssetService_ImportAssetsFromCSV_AcceptsFlatHeaderRow(t *testing.T) {
+	csvData := []byte("Asset ID/Tag Number,Description,Equipment Class,Equipment Type\nTAG-1,First asset,PI,CA\nTAG-2,Second asset,PI,CA\n")
+	ctx := context.Background()
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 2 {
+			return false
+		}
+		return records[0].Asset.TagNumber != nil && *records[0].Asset.TagNumber == "TAG-1" &&
+			records[1].Asset.TagNumber != nil && *records[1].Asset.TagNumber == "TAG-2" &&
+			records[1].Asset.Description != nil && *records[1].Asset.Description == "Second asset"
+	}), 7).Return(2, 0, nil).Once()
+	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+
+	result, err := service.ImportAssets(ctx, 42, &request.AssetImportRequest{FileFormat: "csv"}, 7, csvData)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, result.(map[string]interface{})["imported_count"])
+	assetRepo.AssertExpectations(t)
 }
 
 func TestAssetService_ImportAssetsFromXLSX_ImportsMoreThan100Rows(t *testing.T) {

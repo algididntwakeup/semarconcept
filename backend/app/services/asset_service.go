@@ -1151,7 +1151,9 @@ func (s *AssetService) ImportAssetsFromExcel(ctx context.Context, tenantID int, 
 	return s.ImportAssetsFromXLSX(ctx, tenantID, req, userID, fileData)
 }
 
-// ImportAssetsFromXLSX imports the Data Source worksheet using two header rows.
+// ImportAssetsFromXLSX imports an Equipment Master worksheet. Two vendor
+// layouts are accepted: the two-tier Data Source template and the flat
+// Equipment Master export.
 func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error) {
 	if len(fileData) == 0 {
 		return nil, fmt.Errorf("empty import workbook: %w", utils.ErrValidation)
@@ -1162,10 +1164,9 @@ func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, r
 	}
 	defer func() { _ = book.Close() }()
 
-	const sheetName = "Data Source"
-	sheetIndex, sheetErr := book.GetSheetIndex(sheetName)
-	if sheetErr != nil || sheetIndex == -1 {
-		return nil, fmt.Errorf("worksheet %q not found: %w", sheetName, utils.ErrValidation)
+	sheetName, err := resolveEquipmentImportSheet(book)
+	if err != nil {
+		return nil, err
 	}
 	rowIterator, err := book.Rows(sheetName)
 	if err != nil {
@@ -1185,6 +1186,20 @@ func (s *AssetService) ImportAssetsFromXLSX(ctx context.Context, tenantID int, r
 		}
 		return trimImportRecord(row), nil
 	})
+}
+
+// equipmentImportSheetNames lists the worksheet names produced by the source
+// system and by this service's own export.
+var equipmentImportSheetNames = []string{"Data Source", "Equipment Master"}
+
+func resolveEquipmentImportSheet(book *excelize.File) (string, error) {
+	for _, name := range equipmentImportSheetNames {
+		if index, err := book.GetSheetIndex(name); err == nil && index != -1 {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("worksheet %q not found (workbook sheets: %s): %w",
+		equipmentImportSheetNames[0], strings.Join(book.GetSheetList(), ", "), utils.ErrValidation)
 }
 
 func (s *AssetService) importAssetsFromCSV(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error) {
@@ -1212,21 +1227,39 @@ func trimImportRecord(record []string) []string {
 }
 
 func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, nextRecord func() ([]string, error)) (interface{}, error) {
-	categoryRow, err := nextRecord()
+	firstRow, err := nextRecord()
 	if err != nil {
 		return nil, fmt.Errorf("read category header row: %w", err)
 	}
-	headerRow, err := nextRecord()
+	secondRow, err := nextRecord()
 	if err != nil {
 		return nil, fmt.Errorf("read field header row: %w", err)
 	}
-	columns := equipmentImportColumns(categoryRow, headerRow)
-	if !equipmentImportHasField(columns, "assetid", "assetidtagnumber", "equipmentid", "id", "tagnumber", "equipmenttag", "equipmenttagnumber", "tag") {
-		return nil, fmt.Errorf("row 2 must contain Asset ID or Tag Number: %w", utils.ErrValidation)
+
+	// Two vendor layouts share this reader. The Data Source template names the
+	// category in row 1 and the field in row 2, so data starts at row 3; the
+	// flat Equipment Master export names every field in row 1, so the second
+	// row is already data. The layout is whichever one yields a usable column
+	// set, which also rejects a flat file whose first data row coincidentally
+	// looks like field names.
+	columns := equipmentImportColumns(firstRow, secondRow)
+	firstDataRow := 3
+	var pendingRow []string
+	if layoutErr := validateEquipmentImportColumns(columns); layoutErr != nil {
+		columns = equipmentImportColumns(nil, firstRow)
+		if flatErr := validateEquipmentImportColumns(columns); flatErr != nil {
+			return nil, layoutErr
+		}
+		firstDataRow = 2
+		pendingRow = secondRow
 	}
-	if !equipmentImportHasField(columns, "assetclass", "equipmentclass", "class", "assettype", "equipmenttype", "type") {
-		return nil, fmt.Errorf("row 2 must contain Equipment Class or Equipment Type: %w", utils.ErrValidation)
-	}
+
+	// The two-tier Data Source template writes a grouped record's id and parent
+	// tag once and leaves the continuation rows blank, so blanks carry the
+	// previous value forward. The flat export repeats both on every row, where
+	// a blank parent means "no parent" — carrying it forward there would invent
+	// hierarchies that the file does not describe.
+	fillDownRecords := firstDataRow == 3
 
 	assets := make([]repositories.AssetImportRecord, 0)
 	assetRowNumbers := make([]int, 0)
@@ -1256,18 +1289,24 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 		}
 	}
 
-	for rowNumber := 3; ; rowNumber++ {
+	for rowNumber := firstDataRow; ; rowNumber++ {
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("asset import cancelled: %w", ctx.Err())
 		default:
 		}
-		row, readErr := nextRecord()
-		if errors.Is(readErr, io.EOF) {
-			break
-		}
-		if readErr != nil {
-			return nil, fmt.Errorf("read import data row %d: %w", rowNumber, readErr)
+		var row []string
+		if pendingRow != nil {
+			row, pendingRow = pendingRow, nil
+		} else {
+			var readErr error
+			row, readErr = nextRecord()
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			if readErr != nil {
+				return nil, fmt.Errorf("read import data row %d: %w", rowNumber, readErr)
+			}
 		}
 		row = trimImportRecord(row)
 		if equipmentImportRowIsEmpty(row) {
@@ -1282,7 +1321,7 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 				fileTags[tag.(string)] = struct{}{}
 			}
 		}
-		if assetIDColumn >= 0 {
+		if fillDownRecords && assetIDColumn >= 0 {
 			value := row[assetIDColumn]
 			if sanitizeValue(value) == nil {
 				row[assetIDColumn] = lastAssetID
@@ -1290,7 +1329,7 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 				lastAssetID = value
 			}
 		}
-		if parentTagColumn >= 0 {
+		if fillDownRecords && parentTagColumn >= 0 {
 			value := row[parentTagColumn]
 			if sanitizeValue(value) == nil {
 				row[parentTagColumn] = lastParentTag
@@ -1470,6 +1509,18 @@ func equipmentImportHasField(columns []equipmentImportColumn, names ...string) b
 		}
 	}
 	return false
+}
+
+// validateEquipmentImportColumns requires the identity and class columns that
+// every supported Equipment Master layout must provide.
+func validateEquipmentImportColumns(columns []equipmentImportColumn) error {
+	if !equipmentImportHasField(columns, "assetid", "assetidtagnumber", "equipmentid", "id", "tagnumber", "equipmenttag", "equipmenttagnumber", "tag") {
+		return fmt.Errorf("header must contain Asset ID or Tag Number: %w", utils.ErrValidation)
+	}
+	if !equipmentImportHasField(columns, "assetclass", "equipmentclass", "class", "assettype", "equipmenttype", "type") {
+		return fmt.Errorf("header must contain Equipment Class or Equipment Type: %w", utils.ErrValidation)
+	}
+	return nil
 }
 
 // isIdentityImportHeader reports whether a normalized header names the asset

@@ -20,6 +20,14 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 - Memperbaiki `GET /api/v1/assets` yang mengembalikan HTTP 500 `Failed to retrieve Asset` setelah import besar: proyeksi `parent_floc` di `AssetRepository.List` mengembalikan `NULL` untuk aset tanpa functional location, dan `sqlx` gagal men-scan `NULL` ke `models.Asset.ParentFLOC` (`converting NULL to string is unsupported`). Subquery kini dibungkus `COALESCE(..., '')` sehingga aset tanpa parent FLOC ter-scan sebagai string kosong.
 - Validasi: regresi live-DB `TestAssetRepository_ListLiveDBNullParentFLOC` (gagal sebelum perbaikan dengan error scan yang sama, lulus sesudahnya), endpoint `GET /assets` (2123 baris, filter kelas, sorting/pencarian `parent_floc`, pagination) mengembalikan 200, dan tabel Equipment Master UI menampilkan baris beserta filter kelas dan pagination tanpa pesan gagal.
 
+### Equipment Master flat export import (sheet "Equipment Master")
+
+- `POST /api/v1/assets/import` kini menerima worksheet `Equipment Master` di samping `Data Source`; nama sheet lain ditolak dengan pesan yang menyebutkan sheet yang tersedia.
+- Importer mendeteksi tata letak header secara otomatis: template dua-tier (`Data Source`) memakai baris 1 sebagai kategori dan baris 2 sebagai field dengan data mulai baris 3, sedangkan export datar memakai baris 1 sebagai field dan data mulai baris 2. Deteksi memakai kelengkapan kolom identitas dan kelas sehingga baris data tidak salah dibaca sebagai header. Berlaku untuk XLSX maupun CSV.
+- Fill-down ID/parent tag kini hanya berlaku pada template dua-tier yang memang mengosongkan baris lanjutan; pada export datar sel kosong berarti "tanpa parent". Sebelumnya carry-forward membuat 1569 baris level-1 mewarisi parent baris sebelumnya.
+- Kolom export datar yang tidak punya kolom model (Parent FunLoc, Installed FunLoc, Hierarchy Level, Serial Number, P&ID Ref, dan lainnya) disimpan apa adanya di `rbi_properties` dengan key `General.<header>`.
+- Validasi: regresi `TestAssetService_ImportAssetsFromXLSX_AcceptsFlatEquipmentMasterSheet` dan `TestAssetService_ImportAssetsFromCSV_AcceptsFlatHeaderRow`, import nyata `datatester/Equipment_Master_01102026_125743.xlsx` (2141 aset, 0 error, parent tautan benar, import ulang idempoten).
+
 ## Unreleased — 30 September 2026
 
 ### Equipment Master Excel import data sanitization (9999 and N/A dummy values)
