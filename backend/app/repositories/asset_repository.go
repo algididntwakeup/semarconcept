@@ -340,6 +340,9 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 // here are restricted to Level 1 and group classes case-insensitively, because
 // the same class is imported with inconsistent capitalisation
 // ("Pressure Vessels" vs "Pressure vessels").
+//
+// Equipment is the super-class of every Level 1 row that is not Piping or
+// Piping Line, so Equipment + Piping + Piping Line always equals Total.
 func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error) {
 	stats := AssetStats{Classes: make([]AssetClassCount, 0)}
 	db, err := r.getGormDB()
@@ -348,10 +351,16 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	}
 	// parentEquipmentExpr keeps rows whose hierarchy level is missing or "1".
 	const parentEquipmentExpr = `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1') = '1'`
+	// normalizedClass is the canonical class label shown on the cards.
+	const normalizedClass = `INITCAP(LOWER(BTRIM(asset_class)))`
+	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. It works
+	// on the raw value so the grouping stays correct regardless of the exact
+	// casing in the workbook ("Pipeline" and "PIPING LINE" both count as piping).
+	const pipingClassesExpr = `LOWER(BTRIM(asset_class)) IN ('piping', 'piping line', 'pipeline')`
 	err = db.WithContext(ctx).Model(&models.Asset{}).
-		Select("INITCAP(LOWER(BTRIM(asset_class))) AS class, COUNT(*) AS count").
+		Select(normalizedClass+" AS class, COUNT(*) AS count").
 		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL AND "+parentEquipmentExpr, tenantID).
-		Group("INITCAP(LOWER(BTRIM(asset_class)))").Order("INITCAP(LOWER(BTRIM(asset_class)))").Scan(&stats.Classes).Error
+		Group(normalizedClass).Order(normalizedClass).Scan(&stats.Classes).Error
 	if err != nil {
 		return stats, fmt.Errorf("aggregate equipment class statistics: %w", err)
 	}
@@ -366,7 +375,7 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	var row summaryRow
 	err = db.WithContext(ctx).Model(&models.Asset{}).
 		Select(`COUNT(*) AS total,
-			COUNT(*) FILTER (WHERE INITCAP(LOWER(BTRIM(asset_class))) NOT IN ('Piping', 'Piping Line')) AS equipment,
+			COUNT(*) FILTER (WHERE NOT (`+pipingClassesExpr+`)) AS equipment,
 			COUNT(*) FILTER (WHERE status = 'Installed') AS installed,
 			COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc,
 			COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc`).
