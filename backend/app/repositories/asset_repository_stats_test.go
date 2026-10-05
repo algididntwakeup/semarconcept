@@ -20,12 +20,13 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT BTRIM\(asset_class\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL GROUP BY BTRIM\(asset_class\) ORDER BY BTRIM\(asset_class\)`).
+	mock.ExpectQuery(`SELECT INITCAP\(LOWER\(BTRIM\(asset_class\)\)\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL AND COALESCE\(NULLIF\(BTRIM\(rbi_properties->>'General\.Hierarchy Level'\), ''\), '1'\) = '1' GROUP BY INITCAP\(LOWER\(BTRIM\(asset_class\)\)\) ORDER BY INITCAP\(LOWER\(BTRIM\(asset_class\)\)\)`).
 		WithArgs(42).
 		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping", int64(12)).AddRow("Storage Tanks", int64(7)))
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FILTER \(WHERE has_funcloc\) AS with_funcloc, COUNT\(\*\) FILTER \(WHERE NOT has_funcloc\) AS without_funcloc FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted'`).
+	mock.ExpectQuery(`SELECT COUNT\(\*\) AS total,`).
 		WithArgs(42).
-		WillReturnRows(sqlmock.NewRows([]string{"with_funcloc", "without_funcloc"}).AddRow(int64(1500), int64(200)))
+		WillReturnRows(sqlmock.NewRows([]string{"total", "equipment", "installed", "with_funcloc", "without_funcloc"}).
+			AddRow(int64(1777), int64(240), int64(404), int64(400), int64(1377)))
 	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
 	require.NoError(t, err)
 	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
@@ -35,7 +36,10 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 		{Class: "Piping", Count: 12},
 		{Class: "Storage Tanks", Count: 7},
 	}, stats.Classes)
-	require.Equal(t, AssetFunclocStats{With: 1500, Without: 200}, stats.Funcloc)
+	require.Equal(t, int64(1777), stats.Total)
+	require.Equal(t, int64(240), stats.Equipment)
+	require.Equal(t, int64(404), stats.Installed)
+	require.Equal(t, AssetFunclocStats{With: 400, Without: 1377}, stats.Funcloc)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

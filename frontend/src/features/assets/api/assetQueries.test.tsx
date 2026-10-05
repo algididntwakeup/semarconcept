@@ -119,6 +119,9 @@ describe('Asset Query Hooks', () => {
           { class: 'Storage Tanks', count: 2 },
         ],
         funcloc: { with: 5, without: 1 },
+        total: 6,
+        equipment: 5,
+        installed: 3,
       };
       vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue(stats);
 

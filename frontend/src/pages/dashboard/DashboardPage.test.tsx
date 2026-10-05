@@ -61,6 +61,9 @@ describe('Dashboard Equipment Master overview', () => {
         { class: 'Storage Tanks', count: 4 },
       ],
       funcloc: { with: 10, without: 2 },
+      total: 12,
+      equipment: 4,
+      installed: 9,
     });
 
     renderDashboard();
@@ -86,7 +89,7 @@ describe('Dashboard Equipment Master overview', () => {
   it('shows an error with a retry action when the stats request fails', async () => {
     vi.mocked(assetService.getEquipmentAssetStats)
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce({ classes: [{ class: 'Piping', count: 2 }], funcloc: { with: 1, without: 1 } });
+      .mockResolvedValueOnce({ classes: [{ class: 'Piping', count: 2 }], funcloc: { with: 1, without: 1 }, total: 2, equipment: 1, installed: 1 });
 
     renderDashboard();
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load Equipment Master overview.');
@@ -97,7 +100,7 @@ describe('Dashboard Equipment Master overview', () => {
   });
 
   it('navigates to Equipment Master from either dashboard action', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     renderDashboard();
 
     fireEvent.click(await screen.findByRole('button', { name: /open equipment master/i }));

@@ -330,34 +330,54 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 	return assets, total, nil
 }
 
-// GetAssetStats aggregates non-deleted assets by their imported equipment class
-// and by functional-location presence for the dashboard summary.
+// GetAssetStats aggregates non-deleted parent equipment (Hierarchy Level 1) by
+// their imported equipment class, plus functional-location coverage and totals
+// for the dashboard summary.
+//
+// Imported workbooks mark parent equipment as Hierarchy Level 1 and their
+// sub-components as Level 2+ (for example "PV-101 SHELL"). Counting every row
+// inflated the class cards (Storage Tanks 114 instead of 40), so all aggregates
+// here are restricted to Level 1 and group classes case-insensitively, because
+// the same class is imported with inconsistent capitalisation
+// ("Pressure Vessels" vs "Pressure vessels").
 func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error) {
 	stats := AssetStats{Classes: make([]AssetClassCount, 0)}
 	db, err := r.getGormDB()
 	if err != nil {
 		return stats, err
 	}
+	// parentEquipmentExpr keeps rows whose hierarchy level is missing or "1".
+	const parentEquipmentExpr = `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1') = '1'`
 	err = db.WithContext(ctx).Model(&models.Asset{}).
-		Select("BTRIM(asset_class) AS class, COUNT(*) AS count").
-		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL", tenantID).
-		Group("BTRIM(asset_class)").Order("BTRIM(asset_class)").Scan(&stats.Classes).Error
+		Select("INITCAP(LOWER(BTRIM(asset_class))) AS class, COUNT(*) AS count").
+		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL AND "+parentEquipmentExpr, tenantID).
+		Group("INITCAP(LOWER(BTRIM(asset_class)))").Order("INITCAP(LOWER(BTRIM(asset_class)))").Scan(&stats.Classes).Error
 	if err != nil {
 		return stats, fmt.Errorf("aggregate equipment class statistics: %w", err)
 	}
 
-	type funclocRow struct {
-		With    int64 `gorm:"column:with_funcloc"`
-		Without int64 `gorm:"column:without_funcloc"`
+	type summaryRow struct {
+		Total     int64 `gorm:"column:total"`
+		Equipment int64 `gorm:"column:equipment"`
+		Installed int64 `gorm:"column:installed"`
+		With      int64 `gorm:"column:with_funcloc"`
+		Without   int64 `gorm:"column:without_funcloc"`
 	}
-	var row funclocRow
+	var row summaryRow
 	err = db.WithContext(ctx).Model(&models.Asset{}).
-		Select("COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc, COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc").
-		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted'", tenantID).
+		Select(`COUNT(*) AS total,
+			COUNT(*) FILTER (WHERE INITCAP(LOWER(BTRIM(asset_class))) NOT IN ('Piping', 'Piping Line')) AS equipment,
+			COUNT(*) FILTER (WHERE status = 'Installed') AS installed,
+			COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc,
+			COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc`).
+		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND "+parentEquipmentExpr, tenantID).
 		Scan(&row).Error
 	if err != nil {
-		return stats, fmt.Errorf("aggregate functional location statistics: %w", err)
+		return stats, fmt.Errorf("aggregate equipment summary statistics: %w", err)
 	}
+	stats.Total = row.Total
+	stats.Equipment = row.Equipment
+	stats.Installed = row.Installed
 	stats.Funcloc = AssetFunclocStats{With: row.With, Without: row.Without}
 	return stats, nil
 }

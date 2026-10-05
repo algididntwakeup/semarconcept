@@ -27,6 +27,12 @@ export interface EquipmentAssetFunclocStats {
 export interface EquipmentAssetStats {
   classes: EquipmentAssetStat[];
   funcloc: EquipmentAssetFunclocStats;
+  /** Every parent-equipment (Hierarchy Level 1) row for the tenant. */
+  total: number;
+  /** Parent equipment excluding Piping and Piping Line. */
+  equipment: number;
+  /** Parent equipment whose status is Installed. */
+  installed: number;
 }
 
 export interface EquipmentAsset {
@@ -194,7 +200,13 @@ class AssetService {
   async getEquipmentAssetStats(): Promise<EquipmentAssetStats> {
     const response = await apiClient.get(`${this.baseUrl}/stats`);
     const payload = unwrapApiData<unknown>(response.data);
-    const empty: EquipmentAssetStats = { classes: [], funcloc: { with: 0, without: 0 } };
+    const empty: EquipmentAssetStats = {
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+      total: 0,
+      equipment: 0,
+      installed: 0,
+    };
     if (!payload || typeof payload !== 'object') {
       return empty;
     }
@@ -205,6 +217,9 @@ class AssetService {
         with: Number(candidate.funcloc?.with) || 0,
         without: Number(candidate.funcloc?.without) || 0,
       },
+      total: Number(candidate.total) || 0,
+      equipment: Number(candidate.equipment) || 0,
+      installed: Number(candidate.installed) || 0,
     };
   }
 

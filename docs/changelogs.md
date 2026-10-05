@@ -4,6 +4,16 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master stat card accuracy and dynamic icons
+
+- Memperbaiki akar masalah angka kartu yang terlalu besar: import menyimpan **equipment induk sebagai Hierarchy Level 1** dan **sub-komponen sebagai Level 2** (mis. `PV-101 SHELL`), tetapi agregasi lama menghitung semua baris. Storage Tanks tampil 114 (seharusnya 40) dan Pressure Vessels 216 (seharusnya 89). `GetAssetStats` kini membatasi semua agregat ke `COALESCE(rbi_properties->>'General.Hierarchy Level','1') = '1'`.
+- Menggabungkan variasi kapital kelas yang diimpor tidak konsisten (`Pressure Vessels` 89 + `Pressure vessels` 7, `Heat Exchangers` 56 + `Heat exchangers` 8) lewat `INITCAP(LOWER(BTRIM(asset_class)))`, sehingga satu kelas logis tampil sebagai satu kartu.
+- `AssetStats` diperluas dengan `total`, `equipment`, dan `installed`. Semua dihitung pada Level 1: `total` = seluruh equipment induk (1777), `equipment` = equipment induk di luar Piping & Piping Line (240), `installed` = equipment induk berstatus `Installed` (404), dan `funcloc.with` = equipment induk ber-FLOC (400).
+- Frontend: kartu **`Without Funcloc` dihapus** dan diganti kartu **`Installed`**; ditambahkan kartu **`Total`** dan **`Equipment`**; kartu `With Funcloc` dinamai ulang menjadi `Has Funcloc`. Perubahan yang sama diterapkan pada Dashboard (`Equipment Status & Location`).
+- Ikon kartu kini dinamis (`frontend/src/features/assets/components/statCardIcons.ts`): `Total` → Layers3, `Equipment` → Cog, `Piping` → Cable, `Piping Line` → Route, `Installed` → PackageCheck, `Has Funcloc` → MapPin; kelas lain (Storage Tanks, Pressure Vessels, Heat Exchangers, Filters & Strainers, Heaters & Boilers) tetap memakai Boxes.
+- Validasi: unit test repository (`TestAssetRepository_GetAssetStatsAggregatesTenantRows`) dan handler (`TestGetAssetStatsReturnsExactTenantAggregate`) diperbarui untuk query Level 1 + field baru; test frontend kartu (`Total`, `Equipment`, `Installed`, `Has Funcloc`, dan absennya `Without Funcloc`) serta test pemetaan ikon. Verifikasi live-DB: Storage Tanks 40, Pressure Vessels 96, Total 1777, Equipment 240, Installed 404, Has Funcloc 400.
+- Catatan: legacy menampilkan Pressure Vessels 89 karena memisahkan `Pressure vessels` (7) sebagai kelas terpisah; setelah penggabungan case, angka menjadi 96.
+
 ### ISO 14224 functional-location & lifecycle schema (models + migration only)
 
 - Menambahkan model `FunctionalLocation` (`backend/app/models/functional_location.go`) dengan pola **adjacency list**: `ID`, `TenantID`, `ParentID` (self-reference), `Code`, `Description`, `Level` (ISO 14224, 1–8), `IsActive`, timestamps, dan relasi `Parent`/`Children`. Validasi `Validate()` menolak tenant/code kosong, level di luar 1–8, dan node yang menjadi parent dirinya sendiri.

@@ -281,11 +281,19 @@ type AssetFunclocStats struct {
 }
 
 // AssetStats is the dashboard summary payload: equipment-class aggregates plus
-// functional-location coverage. The object shape keeps room for future metric
-// blocks (for example availability) without adding new endpoints.
+// functional-location coverage and top-level totals. The object shape keeps room
+// for future metric blocks (for example availability) without adding new
+// endpoints. Every aggregate counts only Hierarchy Level 1 rows (parent
+// equipment); Level 2+ rows are sub-components that surface in the data grid.
 type AssetStats struct {
 	Classes []AssetClassCount `json:"classes"`
 	Funcloc AssetFunclocStats `json:"funcloc"`
+	// Total is every parent-equipment row for the tenant.
+	Total int64 `json:"total"`
+	// Equipment excludes Piping and Piping Line, which dominate the registry.
+	Equipment int64 `json:"equipment"`
+	// Installed counts parent equipment whose status is "Installed".
+	Installed int64 `json:"installed"`
 }
 
 type DuplicateAssetTag struct {

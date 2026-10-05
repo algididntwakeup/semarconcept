@@ -53,6 +53,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping', count: 2 }],
       funcloc: { with: 1, without: 1 },
+      total: 5,
+      equipment: 3,
+      installed: 4,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
@@ -64,6 +67,13 @@ describe('EquipmentMasterPage API integration', () => {
     renderPage();
 
     const card = await screen.findByRole('button', { name: 'Piping: 2' });
+    // Summary cards reflect the API totals and replace the old "Without Funcloc".
+    expect(screen.getByRole('button', { name: 'Total: 5' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Equipment: 3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Installed: 4' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Has Funcloc: 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Without Funcloc/ })).not.toBeInTheDocument();
+
     const registers = screen.getAllByRole('region', { name: 'Equipment register' });
     const register = registers[registers.length - 1];
     expect(card.compareDocumentPosition(register) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -75,7 +85,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('downloads selected XLSX and CSV formats from the Data Transfer dropdown', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -118,7 +128,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('closes the Data Transfer menu without exporting when dismissed', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -145,6 +155,9 @@ describe('EquipmentMasterPage API integration', () => {
         { class: 'Storage Tanks', count: 3 },
       ],
       funcloc: { with: 4, without: 1 },
+      total: 5,
+      equipment: 3,
+      installed: 4,
     });
     vi.mocked(assetService.getEquipmentAssets).mockImplementation(async (params = {}) => ({
       assets:
@@ -173,7 +186,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('runs maintenance utilities from the Maintenance dropdown and shows toasts', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -224,6 +237,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [
@@ -267,6 +283,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
@@ -288,6 +307,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
@@ -304,7 +326,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('shows file preview with name and size and allows clearing with the X button', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -331,7 +353,7 @@ describe('EquipmentMasterPage API integration', () => {
   });
 
   it('accepts a CSV file through the hidden import input and uploads it', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -368,6 +390,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Pressure Vessels (VE)', count: 3 }],
       funcloc: { with: 2, without: 1 },
+      total: 3,
+      equipment: 3,
+      installed: 2,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
@@ -406,7 +431,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('rejects a file whose extension is neither XLSX nor CSV', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -429,7 +454,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('shows import failure details, automatically resets uploader, and imports on submit', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -481,7 +506,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('rejects files larger than 100 MB with an error notification', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -508,7 +533,7 @@ describe('EquipmentMasterPage API integration', () => {
   });
 
   it('triggers purgeAllEquipmentAssets from the Maintenance dropdown after user confirms', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,

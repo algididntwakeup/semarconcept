@@ -80,6 +80,14 @@ const EquipmentMasterPage = () => {
   const maintenance = useEquipmentMaintenanceActions();
 
   const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
+  const summary = useMemo(
+    () => ({
+      total: statsQuery.data?.total ?? 0,
+      equipment: statsQuery.data?.equipment ?? 0,
+      installed: statsQuery.data?.installed ?? 0,
+    }),
+    [statsQuery.data]
+  );
   const cards = useMemo(() => {
     return (statsQuery.data?.classes ?? []).filter((item) => item.count > 0)
       .map((item) => ({ title: item.class, count: item.count, equipmentClass: item.class }));
@@ -562,18 +570,32 @@ const EquipmentMasterPage = () => {
         {!statsQuery.isLoading && cards.length > 0 && (
           <>
             <StatCard
-              title="With Funcloc"
+              title="Total"
+              count={summary.total}
+              isLoading={false}
+              onClick={() => undefined}
+              description="All parent equipment (Hierarchy Level 1)"
+            />
+            <StatCard
+              title="Equipment"
+              count={summary.equipment}
+              isLoading={false}
+              onClick={() => undefined}
+              description="Parent equipment excluding Piping and Piping Line"
+            />
+            <StatCard
+              title="Installed"
+              count={summary.installed}
+              isLoading={false}
+              onClick={() => undefined}
+              description="Parent equipment with Installed status"
+            />
+            <StatCard
+              title="Has Funcloc"
               count={funcloc.with}
               isLoading={false}
               onClick={() => undefined}
-              description="Assets linked to a functional location"
-            />
-            <StatCard
-              title="Without Funcloc"
-              count={funcloc.without}
-              isLoading={false}
-              onClick={() => undefined}
-              description="Assets missing a functional location"
+              description="Parent equipment linked to a functional location"
             />
           </>
         )}

@@ -5,8 +5,22 @@ import AssetDataGrid from './AssetDataGrid';
 import LifecycleDropdown from './LifecycleDropdown';
 import RowActions from './RowActions';
 import StatCard from './StatCard';
+import { equipmentStatIcon } from './statCardIcons';
+import { Boxes, Cable, Cog, Layers3, MapPin, PackageCheck, Route } from 'lucide-react';
 
 describe('Equipment Master reusable components', () => {
+  it('maps stat card titles to their specific icons and falls back to Boxes', () => {
+    expect(equipmentStatIcon('Total')).toBe(Layers3);
+    expect(equipmentStatIcon('Equipment')).toBe(Cog);
+    expect(equipmentStatIcon('Piping')).toBe(Cable);
+    expect(equipmentStatIcon('Piping Line')).toBe(Route);
+    expect(equipmentStatIcon('Installed')).toBe(PackageCheck);
+    expect(equipmentStatIcon('Has Funcloc')).toBe(MapPin);
+    // Class cards without a dedicated icon keep the default.
+    expect(equipmentStatIcon('Storage Tanks')).toBe(Boxes);
+    expect(equipmentStatIcon('Pressure Vessels')).toBe(Boxes);
+  });
+
   it('shows dynamic metric values and invokes the card action', () => {
     const onClick = vi.fn();
     render(<StatCard title="Installed Assets" count={27} onClick={onClick} />);
