@@ -4,6 +4,17 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### ISO 14224 functional-location & lifecycle schema (models + migration only)
+
+- Menambahkan model `FunctionalLocation` (`backend/app/models/functional_location.go`) dengan pola **adjacency list**: `ID`, `TenantID`, `ParentID` (self-reference), `Code`, `Description`, `Level` (ISO 14224, 1–8), `IsActive`, timestamps, dan relasi `Parent`/`Children`. Validasi `Validate()` menolak tenant/code kosong, level di luar 1–8, dan node yang menjadi parent dirinya sendiri.
+- Menambahkan model `EquipmentLifecycleLog` (`backend/app/models/equipment_lifecycle_log.go`) sebagai audit trail lifecycle: `EquipmentID`, `Action`, `OldValue`, `NewValue`, `Remarks`, `TenantID`, `CreatedBy`, `CreatedAt`. Enum action dibatasi konstanta: `Relocate`, `Install`, `Uninstall`, `Repair`, `Retire`, `Condemn`, `Send to repair` (mengikuti menu UI Lifecycle, ditambah `Retire` & `Send to repair` sesuai keputusan).
+- **Rename kolom Asset**: `functional_location_id` → `installed_floc_id`, dengan relasi GORM `InstalledFloc *FunctionalLocation` (FK `InstalledFlocID`). Rename mengubah makna FK dari self-reference ke `assets` menjadi referensi ke tabel `functional_locations`; seluruh raw SQL repository (`Create`/`Update`/`List`/search/sort/`ValidateFLOCLinks`/upsert) diarahkan ulang ke tabel baru.
+- Migration (`backend/app/database/migration.go`): rename kolom dijalankan **sebelum** `AutoMigrate`; menambahkan tabel `functional_locations` & `equipment_lifecycle_logs`, `CHECK (level BETWEEN 1 AND 8)`, `CHECK (action IN (...))`, index unik `(tenant_id, code)`, index `installed_floc_id`, dan index timeline `(equipment_id, created_at DESC)`. Migrasi idempoten: membersihkan kolom legacy `functional_location_id` bila masih tertinggal (dan kosong), serta membangun ulang `idx_floc_tenant_code` sebagai UNIQUE bila sebelumnya non-unique.
+- Model request/response Asset diperbarui: `FunctionalLocationID` → `InstalledFlocID` (`json:"installed_floc_id"`); tipe frontend `EquipmentAsset` memakai `installed_floc_id`.
+- Validasi: unit test model (`TestFunctionalLocationValidate`, `TestFunctionalLocationRejectsSelfParent`, `TestIsValidEquipmentLifecycleAction`, `TestEquipmentLifecycleLogValidate`, `TestNewModelTableNames`), `gofmt`, `go build ./...`, `go vet`, `go test ./app/models/... ./app/repositories/... ./app/services/...`.
+- Verifikasi runtime (stack dev, backend restart menjalankan migrasi): kedua tabel terbentuk; `chk_floc_level_range` menolak level 9, `chk_lifecycle_action` menolak action `Explode`, unique `(tenant_id, code)` menolak duplikat, adjacency list menerima parent→child, dan kolom lama `functional_location_id` sudah tidak ada (hanya `installed_floc_id`). `/health` mengembalikan 200.
+- Catatan: sesuai permintaan, langkah ini **hanya** model + migration; belum ada service/handler/route untuk Relocate, View Timeline, atau CRUD FLOC.
+
 ### Equipment Master row ACTION column (Manage + Lifecycle dropdowns)
 
 - Menambahkan kolom `ACTION` di posisi paling kanan tabel register Equipment Master.

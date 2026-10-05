@@ -13,7 +13,7 @@ type Asset struct {
 	TenantID                int        `gorm:"index;not null;index:idx_assets_tenant_status,priority:1;index:idx_assets_tenant_tag,priority:1;index:idx_assets_tenant_type,priority:1;index:idx_assets_tenant_lifecycle,priority:1" db:"tenant_id" json:"tenant_id"`
 	ParentID                *int       `gorm:"index" db:"parent_id" json:"parent_id,omitempty"`
 	UnitID                  *int       `gorm:"index" db:"unit_id" json:"unit_id,omitempty"`
-	FunctionalLocationID    *int       `gorm:"index;index:idx_assets_tenant_functional_location,priority:2" db:"functional_location_id" json:"functional_location_id,omitempty"`
+	InstalledFlocID         *int       `gorm:"index;index:idx_assets_tenant_installed_floc,priority:2" db:"installed_floc_id" json:"installed_floc_id,omitempty"`
 	ParentFLOC              string     `gorm:"-" db:"parent_floc" json:"-"`
 	HasFuncloc              bool       `gorm:"not null;default:false;index" db:"has_funcloc" json:"has_funcloc"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
@@ -51,12 +51,13 @@ type Asset struct {
 	UpdatedBy               *int       `gorm:"index" db:"updated_by" json:"updated_by,omitempty"`
 
 	// Relationships
-	Parent           *Asset            `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
-	Children         []Asset           `gorm:"foreignKey:ParentID" json:"children,omitempty"`
-	Tenant           *Tenant           `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
-	Unit             *Unit             `gorm:"foreignKey:UnitID" json:"unit,omitempty"`
-	TaxonomyCategory *TaxonomyCategory `gorm:"foreignKey:TaxonomyCategoryID" json:"taxonomy_category,omitempty"`
-	Components       []Component       `gorm:"foreignKey:AssetID" json:"components,omitempty"`
+	Parent           *Asset              `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	Children         []Asset             `gorm:"foreignKey:ParentID" json:"children,omitempty"`
+	Tenant           *Tenant             `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	InstalledFloc    *FunctionalLocation `gorm:"foreignKey:InstalledFlocID" json:"installed_floc,omitempty"`
+	Unit             *Unit               `gorm:"foreignKey:UnitID" json:"unit,omitempty"`
+	TaxonomyCategory *TaxonomyCategory   `gorm:"foreignKey:TaxonomyCategoryID" json:"taxonomy_category,omitempty"`
+	Components       []Component         `gorm:"foreignKey:AssetID" json:"components,omitempty"`
 }
 
 // Asset status constants
@@ -111,7 +112,7 @@ func (e *Asset) ToMap() map[string]interface{} {
 		"tenant_id":                e.TenantID,
 		"parent_id":                e.ParentID,
 		"unit_id":                  e.UnitID,
-		"functional_location_id":   e.FunctionalLocationID,
+		"installed_floc_id":        e.InstalledFlocID,
 		"name":                     e.Name,
 		"description":              e.Description,
 		"tag_number":               e.TagNumber,

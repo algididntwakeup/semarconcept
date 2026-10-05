@@ -97,7 +97,7 @@ type AssetResponse struct {
 	TenantID                int                    `json:"tenant_id"`
 	UnitID                  *int                   `json:"unit_id,omitempty"`
 	ParentID                *int                   `json:"parent_id,omitempty"`
-	FunctionalLocationID    *int                   `json:"functional_location_id,omitempty"`
+	InstalledFlocID         *int                   `json:"installed_floc_id,omitempty"`
 	Name                    string                 `json:"name"`
 	Description             string                 `json:"description,omitempty"`
 	TagNumber               string                 `json:"tag_number"`

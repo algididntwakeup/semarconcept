@@ -348,24 +348,24 @@ func (s *AssetService) CreateAsset(ctx context.Context, tenantID int, req *reque
 	}
 
 	asset := &models.Asset{
-		TenantID:             tenantID,
-		UnitID:               unitIDPtr,
-		ParentID:             req.ParentID,
-		FunctionalLocationID: req.FunctionalLocationID,
-		TaxonomyCategoryID:   req.TaxonomyCategoryID,
-		Name:                 req.Name,
-		Description:          req.Description,
-		TagNumber:            req.TagNumber,
-		AssetType:            req.AssetType,
-		AssetClass:           req.AssetClass,
-		Manufacturer:         req.Manufacturer,
-		Model:                req.Model,
-		SerialNumber:         req.SerialNumber,
-		ManufactureDate:      req.ManufactureDate,
-		InstallationDate:     req.InstallationDate,
-		CommissioningDate:    req.CommissioningDate,
-		WarrantyExpiry:       req.WarrantyExpiry,
-		DesignLifeYears:      req.DesignLifeYears,
+		TenantID:           tenantID,
+		UnitID:             unitIDPtr,
+		ParentID:           req.ParentID,
+		InstalledFlocID:    req.InstalledFlocID,
+		TaxonomyCategoryID: req.TaxonomyCategoryID,
+		Name:               req.Name,
+		Description:        req.Description,
+		TagNumber:          req.TagNumber,
+		AssetType:          req.AssetType,
+		AssetClass:         req.AssetClass,
+		Manufacturer:       req.Manufacturer,
+		Model:              req.Model,
+		SerialNumber:       req.SerialNumber,
+		ManufactureDate:    req.ManufactureDate,
+		InstallationDate:   req.InstallationDate,
+		CommissioningDate:  req.CommissioningDate,
+		WarrantyExpiry:     req.WarrantyExpiry,
+		DesignLifeYears:    req.DesignLifeYears,
 		RemainingLifeYears: func() *float64 {
 			var rem float64
 			if req.DesignLifeYears != nil {
@@ -443,8 +443,8 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 		}
 		existingAsset.ParentID = req.ParentID
 	}
-	if req.FunctionalLocationID != nil {
-		existingAsset.FunctionalLocationID = req.FunctionalLocationID
+	if req.InstalledFlocID != nil {
+		existingAsset.InstalledFlocID = req.InstalledFlocID
 	}
 
 	if req.Name != nil {
@@ -1664,7 +1664,7 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 			if err != nil || id <= 0 {
 				return repositories.AssetImportRecord{}, fmt.Errorf("invalid Functional Location ID %q", value)
 			}
-			asset.FunctionalLocationID = &id
+			asset.InstalledFlocID = &id
 		case "lifecyclestatus":
 			asset.LifecycleStatus = &value
 		default:
@@ -2247,24 +2247,24 @@ func (s *AssetService) unitsToResponse(units []models.Unit) []response.UnitRespo
 
 func (s *AssetService) AssetToResponse(asset *models.Asset) *response.AssetResponse {
 	return &response.AssetResponse{
-		ID:                   asset.ID,
-		TenantID:             asset.TenantID,
-		UnitID:               asset.UnitID, // Pointers are the same
-		ParentID:             asset.ParentID,
-		FunctionalLocationID: asset.FunctionalLocationID,
-		Name:                 asset.Name,
-		Description:          s.derefToString(asset.Description),
-		TagNumber:            s.derefToString(asset.TagNumber),
-		AssetType:            s.derefToString(asset.AssetType),
-		AssetClass:           s.derefToString(asset.AssetClass),
-		LifecycleStatus:      s.derefToString(asset.LifecycleStatus),
-		Manufacturer:         s.derefToString(asset.Manufacturer),
-		Model:                s.derefToString(asset.Model),
-		SerialNumber:         s.derefToString(asset.SerialNumber),
-		ManufactureDate:      asset.ManufactureDate,
-		InstallationDate:     asset.InstallationDate,
-		CommissioningDate:    asset.CommissioningDate,
-		WarrantyExpiry:       asset.WarrantyExpiry,
+		ID:                asset.ID,
+		TenantID:          asset.TenantID,
+		UnitID:            asset.UnitID, // Pointers are the same
+		ParentID:          asset.ParentID,
+		InstalledFlocID:   asset.InstalledFlocID,
+		Name:              asset.Name,
+		Description:       s.derefToString(asset.Description),
+		TagNumber:         s.derefToString(asset.TagNumber),
+		AssetType:         s.derefToString(asset.AssetType),
+		AssetClass:        s.derefToString(asset.AssetClass),
+		LifecycleStatus:   s.derefToString(asset.LifecycleStatus),
+		Manufacturer:      s.derefToString(asset.Manufacturer),
+		Model:             s.derefToString(asset.Model),
+		SerialNumber:      s.derefToString(asset.SerialNumber),
+		ManufactureDate:   asset.ManufactureDate,
+		InstallationDate:  asset.InstallationDate,
+		CommissioningDate: asset.CommissioningDate,
+		WarrantyExpiry:    asset.WarrantyExpiry,
 		// Fixed: Asset fields are int and float64, not pointers
 		DesignLifeYears:         s.derefToInt(asset.DesignLifeYears),
 		RemainingLifeYears:      s.derefToFloat(asset.RemainingLifeYears),

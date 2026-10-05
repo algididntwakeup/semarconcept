@@ -69,7 +69,7 @@ func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error
 	}
 	query := `
 		INSERT INTO assets (
-			tenant_id, unit_id, taxonomy_category_id, parent_id, functional_location_id, name, description, tag_number,
+			tenant_id, unit_id, taxonomy_category_id, parent_id, installed_floc_id, name, description, tag_number,
 			asset_type, asset_class, manufacturer, model, serial_number,
 			manufacture_date, installation_date, commissioning_date, warranty_expiry,
 			design_life_years, remaining_life_years, specifications, rbi_properties,
@@ -77,7 +77,7 @@ func (r *assetRepository) Create(ctx context.Context, asset *models.Asset) error
 			maintenance_strategy, inspection_strategy, status, lifecycle_status, criticality,
 			safety_critical, environmentally_critical, metadata, created_by, updated_by
 		) VALUES (
-			:tenant_id, :unit_id, :taxonomy_category_id, :parent_id, :functional_location_id, :name, :description, :tag_number,
+			:tenant_id, :unit_id, :taxonomy_category_id, :parent_id, :installed_floc_id, :name, :description, :tag_number,
 			:asset_type, :asset_class, :manufacturer, :model, :serial_number,
 			:manufacture_date, :installation_date, :commissioning_date, :warranty_expiry,
 			:design_life_years, :remaining_life_years, :specifications, :rbi_properties,
@@ -139,7 +139,7 @@ func (r *assetRepository) Update(ctx context.Context, asset *models.Asset) error
 			unit_id = :unit_id,
 			taxonomy_category_id = :taxonomy_category_id,
 			parent_id = :parent_id,
-			functional_location_id = :functional_location_id,
+			installed_floc_id = :installed_floc_id,
 			name = :name,
 			description = :description,
 			tag_number = :tag_number,
@@ -236,7 +236,7 @@ func (r *assetRepository) FindByID(ctx context.Context, tenantID int, id int) (*
 
 // List retrieves assets with optional filtering
 func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.AssetListQuery) ([]models.Asset, int64, error) {
-	query := `SELECT assets.*, COALESCE((SELECT COALESCE(floc.tag_number, floc.name, '') FROM assets AS floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id), '') AS parent_floc FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
+	query := `SELECT assets.*, COALESCE((SELECT COALESCE(floc.code, floc.description, '') FROM functional_locations AS floc WHERE floc.id = assets.installed_floc_id AND floc.tenant_id = assets.tenant_id), '') AS parent_floc FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 	countQuery := `SELECT COUNT(*) FROM assets WHERE tenant_id = $1 AND status != 'deleted'`
 
 	args := []interface{}{tenantID}
@@ -259,7 +259,7 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 		case "material":
 			searchExpression = `COALESCE(materials::text, '') || ' ' || COALESCE(rbi_properties::text, '')`
 		case "parent_floc":
-			searchExpression = `COALESCE((SELECT floc.tag_number || ' ' || floc.name FROM assets floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id), '')`
+			searchExpression = `COALESCE((SELECT floc.code || ' ' || floc.description FROM functional_locations floc WHERE floc.id = assets.installed_floc_id AND floc.tenant_id = assets.tenant_id), '')`
 		case "status":
 			searchExpression = `COALESCE(lifecycle_status, status, '')`
 		}
@@ -305,7 +305,7 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 
 	sortColumns := map[string]string{
 		"tag_number": "tag_number", "class": "asset_class", "asset_class": "asset_class", "type": "asset_type", "asset_type": "asset_type",
-		"name": "name", "material": "materials", "materials": "materials", "parent_floc": "(SELECT COALESCE(floc.tag_number, floc.name, '') FROM assets floc WHERE floc.id = assets.functional_location_id AND floc.tenant_id = assets.tenant_id)", "status": "COALESCE(NULLIF(lifecycle_status, ''), status)", "created_at": "created_at",
+		"name": "name", "material": "materials", "materials": "materials", "parent_floc": "(SELECT COALESCE(floc.code, floc.description, '') FROM functional_locations floc WHERE floc.id = assets.installed_floc_id AND floc.tenant_id = assets.tenant_id)", "status": "COALESCE(NULLIF(lifecycle_status, ''), status)", "created_at": "created_at",
 	}
 	sortColumn, ok := sortColumns[req.SortBy]
 	if !ok {
@@ -445,20 +445,20 @@ func (r *assetRepository) ValidateFLOCLinks(ctx context.Context, tenantID, userI
 	}
 	const brokenFLOCQuery = `
 		SELECT COUNT(*) FROM assets AS asset
-		WHERE asset.tenant_id = $1 AND asset.functional_location_id IS NOT NULL
+		WHERE asset.tenant_id = $1 AND asset.installed_floc_id IS NOT NULL
 		  AND COALESCE(asset.status, '') <> 'deleted'
-		  AND NOT EXISTS (SELECT 1 FROM assets AS floc WHERE floc.id = asset.functional_location_id
-		    AND floc.tenant_id = asset.tenant_id AND COALESCE(floc.status, '') <> 'deleted')`
+		  AND NOT EXISTS (SELECT 1 FROM functional_locations AS floc WHERE floc.id = asset.installed_floc_id
+		    AND floc.tenant_id = asset.tenant_id AND floc.is_active)`
 	if err := r.db.GetContext(ctx, &result.BrokenFLOCLinks, brokenFLOCQuery, tenantID); err != nil {
 		return nil, fmt.Errorf("validate functional location links: %w", err)
 	}
 	if result.BrokenFLOCLinks > 0 && !dryRun {
 		const clearBrokenLinksQuery = `
-			UPDATE assets AS asset SET functional_location_id = NULL, updated_by = $2, updated_at = CURRENT_TIMESTAMP
-			WHERE asset.tenant_id = $1 AND asset.functional_location_id IS NOT NULL
+			UPDATE assets AS asset SET installed_floc_id = NULL, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+			WHERE asset.tenant_id = $1 AND asset.installed_floc_id IS NOT NULL
 			  AND COALESCE(asset.status, '') <> 'deleted'
-			  AND NOT EXISTS (SELECT 1 FROM assets AS floc WHERE floc.id = asset.functional_location_id
-			    AND floc.tenant_id = asset.tenant_id AND COALESCE(floc.status, '') <> 'deleted')`
+			  AND NOT EXISTS (SELECT 1 FROM functional_locations AS floc WHERE floc.id = asset.installed_floc_id
+			    AND floc.tenant_id = asset.tenant_id AND floc.is_active)`
 		updateResult, err := r.db.ExecContext(ctx, clearBrokenLinksQuery, tenantID, userID)
 		if err != nil {
 			return nil, fmt.Errorf("clear invalid functional location links: %w", err)
@@ -592,7 +592,7 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 				"asset_class",
 				"asset_type",
 				"parent_id",
-				"functional_location_id",
+				"installed_floc_id",
 				"lifecycle_status",
 				"status",
 				"has_funcloc",

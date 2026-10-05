@@ -170,7 +170,7 @@ func TestAssetRepository_ListLiveDBNullParentFLOC(t *testing.T) {
 	testTag := "TEST-LIST-NULL-FLOC-01"
 	_ = gormDB.Exec("DELETE FROM assets WHERE tag_number = ?", testTag).Error
 	insert := gormDB.Exec(
-		`INSERT INTO assets (tenant_id, tag_number, name, status, functional_location_id) VALUES (?, ?, ?, 'active', NULL)`,
+		`INSERT INTO assets (tenant_id, tag_number, name, status, installed_floc_id) VALUES (?, ?, ?, 'active', NULL)`,
 		tenantID, testTag, "Asset without parent FLOC")
 	require.NoError(t, insert.Error)
 	defer func() { _ = gormDB.Exec("DELETE FROM assets WHERE tag_number = ?", testTag).Error }()
@@ -186,5 +186,5 @@ func TestAssetRepository_ListLiveDBNullParentFLOC(t *testing.T) {
 			found = true
 		}
 	}
-	require.True(t, found, "listed assets must include the asset with a NULL functional_location_id")
+	require.True(t, found, "listed assets must include the asset with a NULL installed_floc_id")
 }

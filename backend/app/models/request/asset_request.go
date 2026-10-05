@@ -84,7 +84,7 @@ type UpdateUnitRequest struct {
 type CreateAssetRequest struct {
 	UnitID                  *int                   `json:"unit_id,omitempty" validate:"omitempty"`
 	ParentID                *int                   `json:"parent_id,omitempty" validate:"omitempty"`
-	FunctionalLocationID    *int                   `json:"functional_location_id,omitempty" validate:"omitempty"`
+	InstalledFlocID         *int                   `json:"installed_floc_id,omitempty" validate:"omitempty"`
 	TaxonomyCategoryID      *int                   `json:"taxonomy_category_id,omitempty" validate:"omitempty"`
 	Name                    string                 `json:"name" validate:"required,min=2,max=255"`
 	Description             *string                `json:"description,omitempty"`
@@ -117,7 +117,7 @@ type CreateAssetRequest struct {
 type UpdateAssetRequest struct {
 	UnitID                  *int                   `json:"unit_id,omitempty" validate:"omitempty"`
 	ParentID                *int                   `json:"parent_id,omitempty" validate:"omitempty"`
-	FunctionalLocationID    *int                   `json:"functional_location_id,omitempty" validate:"omitempty"`
+	InstalledFlocID         *int                   `json:"installed_floc_id,omitempty" validate:"omitempty"`
 	TaxonomyCategoryID      *int                   `json:"taxonomy_category_id,omitempty" validate:"omitempty"`
 	Name                    *string                `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
 	Description             *string                `json:"description,omitempty"`

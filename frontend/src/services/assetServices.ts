@@ -47,7 +47,7 @@ export interface EquipmentAsset {
   status?: string | null;
   materials?: Record<string, unknown> | null;
   rbi_properties?: Record<string, unknown> | null;
-  functional_location_id?: string | number | null;
+  installed_floc_id?: string | number | null;
   parent_floc?: string | null;
   has_funcloc?: boolean | null;
 }
