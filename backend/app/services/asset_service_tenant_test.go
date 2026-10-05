@@ -378,8 +378,8 @@ func TestAssetService_ImportAssetsFromXLSX_UsesCombinedIdentityColumn(t *testing
 		parent, child := records[0].Asset, records[1].Asset
 		return parent.ID == 0 && parent.TagNumber != nil && *parent.TagNumber == "PV-101" &&
 			parent.Name == "PV-101" && parent.RBIProperties["General.Hierarchy Level"] == "1" &&
-			parent.AssetClass != nil && *parent.AssetClass == "Pressure Vessels" &&
-			parent.AssetType != nil && *parent.AssetType == "Adsorber" &&
+			parent.AssetClass != nil && *parent.AssetClass == "Pressure Vessels (VE)" &&
+			parent.AssetType != nil && *parent.AssetType == "Adsorber (Ad) (AD)" &&
 			parent.RBIProperties["Equipment References.Asset ID"] == "REF-9" &&
 			child.TagNumber != nil && *child.TagNumber == "PV-101 SHELL" &&
 			records[1].ParentTag == "PV-101" &&
@@ -542,7 +542,7 @@ func TestAssetService_ImportAssetsFromXLSX_AcceptsFlatEquipmentMasterSheet(t *te
 		first, second := records[0].Asset, records[1].Asset
 		return first.TagNumber != nil && *first.TagNumber == `1"-AI-12001-1G1` &&
 			first.Name == `1"-AI-12001-1G1` && first.Description != nil && *first.Description == "First instrument" &&
-			first.AssetClass != nil && *first.AssetClass == "Piping" && first.AssetType != nil && *first.AssetType == "Carbon Steel" &&
+			first.AssetClass != nil && *first.AssetClass == "Piping (PI)" && first.AssetType != nil && *first.AssetType == "Carbon Steel (Ca) (CA)" &&
 			first.RBIProperties["General.Serial Number"] == "SN-1" &&
 			second.RBIProperties["General.Hierarchy Level"] == "2" &&
 			records[1].ParentTag == `1"-AI-12001-1G1` &&

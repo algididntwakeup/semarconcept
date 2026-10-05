@@ -4,6 +4,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master import data format correction (class/type/funcloc/status)
+
+- Format Class kini menyertakan kode dalam kurung, mis. `FS` → `Filters And Strainers (FS)`, `PI` → `Piping (PI)`, `HB` → `Heaters And Boilers (HB)`.
+- Format Type memakai pola `Nama (Kode) (KODE)`, mis. `CF` → `Cartridge Filter (Cf) (CF)`, `ST` → `Shell And Tube (St) (ST)`, `CA` → `Carbon Steel (Ca) (CA)`.
+- Memastikan pemetaan `CF` = `Cartridge Filter (Cf) (CF)` dan bukan `Coalescer/Contactor`; `CO` tetap `Coalescer Filter (Co) (CO)` dan `PF` tetap `Pressure Filter (Pf) (PF)`, sehingga tidak ada lagi kekaburan antar kode filter.
+- Menambahkan master FLOC dictionary terpisah (`equipmentFunclocMaster` di `backend/app/services/equipment_import_floc_master.go`) sebagai kerangka agile: deskripsi panjang diambil dari kamus ini, dan bila kode belum terdaftar, sistem memakai deskripsi inline dari worksheet, lalu fallback ke kode saja. Deskripsi master yang belum tersedia tidak memblokir proses import.
+- Ekstraksi Funcloc disimpan sebagai nilai terformat di `rbi_properties`: `parent_funcloc` = `CODE (DESCRIPTION)` (mis. `JI-JL-AG-11-PW (INLET SEPARATION & PRODUCED WATER SYSTEM PRODUCED WATER STORAGE TANK)`) dan `level6_funcloc` = `INSTALLED (TAG)` (mis. `11-W-1112 (11-W-1112)`).
+- Installation Status dibuat biner dan konsisten: `Active`/`In Service` → `Installed`; semua nilai lain termasuk kosong/`9999`/`N/A`/`NULL` → `Available`.
+- Frontend `StatDetailModal` membaca key baru `parent_funcloc` dan `level6_funcloc`, dengan fallback ke key lama (`parent_funcloc_code`, `installed_funcloc`, `General.Parent FunLoc`, `General.Installed FunLoc`) agar import lama tetap tampil.
+- Validasi: unit test dictionary/format (`TestTranslateEquipmentImportClass`, `TestTranslateEquipmentImportType`, `TestFormatParentFuncloc`, `TestFormatLevel6Funcloc`), regresi `TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc`, `StatDetailModal.test.tsx`, `pnpm typecheck`, dan `pnpm test:run`.
+- Catatan: belum di-rebuild/deploy ke Docker pada langkah ini karena masih ada perbaikan lanjutan; data lama perlu re-import setelah deploy agar nilai terformat terisi.
+
 ### Equipment Master detail modal table alignment
 
 - Menyelaraskan tabel di dalam modal `StatDetailModal` dengan referensi legacy:

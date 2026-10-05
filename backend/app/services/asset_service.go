@@ -1578,6 +1578,9 @@ func SanitizeValue(val string) interface{} {
 func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string) (repositories.AssetImportRecord, error) {
 	asset := models.Asset{TenantID: tenantID, RBIProperties: make(models.JSONBMap)}
 	parentTag := ""
+	parentFunclocCode := ""
+	parentFunclocInlineDesc := ""
+	installedFunclocRaw := ""
 	for index, column := range columns {
 		if column.normalized == "" || index >= len(row) {
 			continue
@@ -1597,17 +1600,15 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 			code, description, hasFuncloc := ParseEquipmentImportFuncloc(raw)
 			asset.HasFuncloc = hasFuncloc
 			if hasFuncloc {
-				asset.RBIProperties["parent_funcloc_code"] = code
-				if description != "" {
-					asset.RBIProperties["parent_funcloc_desc"] = description
-				}
+				parentFunclocCode = code
+				parentFunclocInlineDesc = description
 			}
 			continue
 		case "installedfunloc":
-			// Level-6 functional location of the asset itself, kept under a
-			// stable key so the UI can bind to it directly.
+			// Level-6 functional location of the asset itself; formatted after
+			// the loop once the asset tag is known.
 			if sanitized := sanitizeValue(raw); sanitized != nil {
-				asset.RBIProperties["installed_funcloc"] = sanitized.(string)
+				installedFunclocRaw = sanitized.(string)
 			}
 			continue
 		}
@@ -1693,6 +1694,24 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 	if asset.AssetType == nil || strings.TrimSpace(*asset.AssetType) == "" {
 		return repositories.AssetImportRecord{}, fmt.Errorf("Equipment Type or Equipment Class is required")
 	}
+
+	// Functional locations are formatted once the tag is known: the parent
+	// value is "CODE (DESCRIPTION)" resolved from the master FLOC dictionary
+	// (bare code when the description is unknown), and the level-6 value is
+	// "INSTALLED (TAG)".
+	if asset.HasFuncloc {
+		if formatted := FormatParentFuncloc(parentFunclocCode, parentFunclocInlineDesc); formatted != "" {
+			asset.RBIProperties["parent_funcloc"] = formatted
+		}
+	}
+	tagNumber := ""
+	if asset.TagNumber != nil {
+		tagNumber = *asset.TagNumber
+	}
+	if formatted := FormatLevel6Funcloc(installedFunclocRaw, tagNumber); formatted != "" {
+		asset.RBIProperties["level6_funcloc"] = formatted
+	}
+
 	asset.CreatedBy, asset.UpdatedBy = &userID, &userID
 	return repositories.AssetImportRecord{Asset: asset, ParentTag: parentTag}, nil
 }

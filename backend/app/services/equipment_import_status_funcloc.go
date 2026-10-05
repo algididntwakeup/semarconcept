@@ -17,22 +17,22 @@ const (
 )
 
 // NormalizeInstallationStatus maps the imported Equipment Status cell to the
-// installation status used across the application:
+// installation status used across the application. The result is always one of
+// two values so the frontend and statistics stay consistent:
 //
 //   - "Active" or "In Service" (case-insensitive, trimmed) becomes "Installed";
-//   - a blank or dummy value (9999, N/A, NULL, …) becomes "Available";
-//   - any other value is preserved verbatim.
+//   - every other value, including blank and dummy tokens (9999, N/A, NULL, …),
+//     becomes "Available".
 func NormalizeInstallationStatus(value string) string {
 	sanitized := sanitizeValue(value)
 	if sanitized == nil {
 		return InstallationStatusAvailable
 	}
-	trimmed := strings.TrimSpace(sanitized.(string))
-	switch strings.ToUpper(trimmed) {
+	switch strings.ToUpper(strings.TrimSpace(sanitized.(string))) {
 	case "ACTIVE", "IN SERVICE":
 		return InstallationStatusInstalled
 	default:
-		return trimmed
+		return InstallationStatusAvailable
 	}
 }
 

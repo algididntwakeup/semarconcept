@@ -33,9 +33,9 @@ func TestNormalizeInstallationStatus(t *testing.T) {
 		{"-9999 becomes available", "-9999", "Available"},
 		{"N/A becomes available", "N/A", "Available"},
 		{"NULL becomes available", "NULL", "Available"},
-		{"other value preserved", "Maintenance", "Maintenance"},
-		{"installed preserved", "Installed", "Installed"},
-		{"available preserved", "Available", "Available"},
+		{"unknown value becomes available", "Maintenance", "Available"},
+		{"already installed becomes available without active token", "Installed", "Available"},
+		{"already available stays available", "Available", "Available"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -72,9 +72,48 @@ func TestParseEquipmentImportFuncloc(t *testing.T) {
 	}
 }
 
+func TestFormatParentFuncloc(t *testing.T) {
+	cases := []struct {
+		name   string
+		code   string
+		inline string
+		want   string
+	}{
+		{"bare code without description", "JI-JL-AG-11-PW", "", "JI-JL-AG-11-PW"},
+		{"inline description fallback", "JI-JL-AG-11-PW", "INLET SEPARATION", "JI-JL-AG-11-PW (INLET SEPARATION)"},
+		{"empty code", "", "INLET", ""},
+		{"whitespace trimmed", "  68-FWS-68-T-1108  ", "  FIRE WATER  ", "68-FWS-68-T-1108 (FIRE WATER)"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, services.FormatParentFuncloc(tc.code, tc.inline))
+		})
+	}
+}
+
+func TestFormatLevel6Funcloc(t *testing.T) {
+	cases := []struct {
+		name      string
+		installed string
+		tag       string
+		want      string
+	}{
+		{"installed with tag", `11-W-1112`, `11-W-1112`, `11-W-1112 (11-W-1112)`},
+		{"distinct installed and tag", `11-IS-11-V-1101`, `11-V-1101`, `11-IS-11-V-1101 (11-V-1101)`},
+		{"missing installed omitted", "", "TAG-9", ""},
+		{"missing tag duplicates installed", "TAG-8", "", "TAG-8 (TAG-8)"},
+		{"both empty", "", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, services.FormatLevel6Funcloc(tc.installed, tc.tag))
+		})
+	}
+}
+
 // TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc proves
-// the import writes the normalized status, sets has_funcloc, and splits the
-// functional location code/description into rbi_properties.
+// the import writes the normalized status, sets has_funcloc, and stores the
+// formatted parent and level-6 functional locations in rbi_properties.
 func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *testing.T) {
 	book := excelize.NewFile()
 	assert.NoError(t, book.SetSheetName("Sheet1", "Equipment Master"))
@@ -109,40 +148,37 @@ func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *t
 		if first.Status == nil || *first.Status != "Installed" || !first.HasFuncloc {
 			return false
 		}
-		if first.RBIProperties["parent_funcloc_code"] != "JI-JL-AG-11-PW" || first.RBIProperties["parent_funcloc_desc"] != "INLET SEPARATION" {
+		if first.RBIProperties["parent_funcloc"] != "JI-JL-AG-11-PW (INLET SEPARATION)" {
 			return false
 		}
-		if first.RBIProperties["installed_funcloc"] != `10"-PG-12009-3C3-P` {
+		if first.RBIProperties["level6_funcloc"] != `10"-PG-12009-3C3-P (TAG-1)` {
 			return false
 		}
 		second := records[1].Asset
 		if second.Status == nil || *second.Status != "Installed" || !second.HasFuncloc {
 			return false
 		}
-		if second.RBIProperties["parent_funcloc_code"] != "68-FWS-68-T-1108" {
+		if second.RBIProperties["parent_funcloc"] != "68-FWS-68-T-1108" {
 			return false
 		}
-		if _, hasDesc := second.RBIProperties["parent_funcloc_desc"]; hasDesc {
-			return false
-		}
-		if second.RBIProperties["installed_funcloc"] != `1"-VH-11002-1C1` {
+		if second.RBIProperties["level6_funcloc"] != `1"-VH-11002-1C1 (TAG-2)` {
 			return false
 		}
 		third := records[2].Asset
 		if third.Status == nil || *third.Status != "Available" || third.HasFuncloc {
 			return false
 		}
-		if _, hasCode := third.RBIProperties["parent_funcloc_code"]; hasCode {
+		if _, hasParent := third.RBIProperties["parent_funcloc"]; hasParent {
 			return false
 		}
-		if _, hasInstalled := third.RBIProperties["installed_funcloc"]; hasInstalled {
+		if _, hasLevel6 := third.RBIProperties["level6_funcloc"]; hasLevel6 {
 			return false
 		}
 		fourth := records[3].Asset
 		if fourth.Status == nil || *fourth.Status != "Available" || fourth.HasFuncloc {
 			return false
 		}
-		if _, hasInstalled := fourth.RBIProperties["installed_funcloc"]; hasInstalled {
+		if _, hasLevel6 := fourth.RBIProperties["level6_funcloc"]; hasLevel6 {
 			return false
 		}
 		return true

@@ -7,8 +7,10 @@ const MODAL_PAGE_SIZE = 8;
 
 const DASH = '—';
 
-// The importer stores functional locations under stable rbi_properties keys.
-// Fall back to the legacy flattened key so older imports still render.
+// The importer stores formatted functional locations under stable
+// rbi_properties keys: parent_funcloc is "CODE (DESCRIPTION)" and
+// level6_funcloc is "INSTALLED (TAG)". Legacy flattened keys are kept as a
+// fallback so older imports still render.
 const readRbiString = (asset: EquipmentAssetRow, ...keys: string[]): string => {
   const properties = asset.rbi_properties ?? {};
   for (const key of keys) {
@@ -30,7 +32,7 @@ interface AssetDisplayRow {
 
 const toDisplayRow = (asset: EquipmentAssetRow): AssetDisplayRow => {
   const parentFuncloc =
-    readRbiString(asset, 'parent_funcloc_code', 'General.Parent FunLoc') ||
+    readRbiString(asset, 'parent_funcloc', 'parent_funcloc_code', 'General.Parent FunLoc') ||
     (typeof asset.parent_floc === 'string' ? asset.parent_floc.trim() : '');
   const installation = (asset.status ?? asset.lifecycle_status ?? asset.lifecycleStatus ?? '').trim();
   return {
@@ -39,7 +41,7 @@ const toDisplayRow = (asset: EquipmentAssetRow): AssetDisplayRow => {
     assetClass: asset.asset_class ?? asset.assetClass ?? DASH,
     assetType: asset.asset_type ?? asset.assetType ?? asset.type ?? DASH,
     parentFuncloc: parentFuncloc || DASH,
-    level6Funcloc: readRbiString(asset, 'installed_funcloc', 'General.Installed FunLoc') || DASH,
+    level6Funcloc: readRbiString(asset, 'level6_funcloc', 'installed_funcloc', 'General.Installed FunLoc') || DASH,
     installation: installation || DASH,
   };
 };
