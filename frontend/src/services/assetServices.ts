@@ -230,6 +230,47 @@ class AssetService {
     await apiClient.delete(`${this.baseUrl}/Asset/${assetId}`);
   }
 
+  /**
+   * Create a single equipment asset from the Equipment Master modal. The
+   * backend requires name and asset_type, so the tag number doubles as the
+   * display name and a generic "Equipment" type is used when none is chosen.
+   */
+  async createEquipmentAsset(payload: {
+    tag_number: string;
+    description?: string;
+    serial_number?: string;
+    manufacturer?: string;
+    asset_class: string;
+    asset_type?: string;
+    commissioning_date?: string;
+    installation_date?: string;
+    warranty_expiry?: string;
+    status?: string;
+    lifecycle_status?: string;
+    drawings_references?: Record<string, string>;
+    metadata?: Record<string, unknown>;
+  }): Promise<EquipmentAsset> {
+    const response = await apiClient.post(`${this.baseUrl}/Asset`, {
+      name: payload.tag_number,
+      tag_number: payload.tag_number,
+      description: payload.description,
+      serial_number: payload.serial_number,
+      manufacturer: payload.manufacturer,
+      asset_class: payload.asset_class,
+      asset_type: payload.asset_type ?? payload.asset_class,
+      commissioning_date: payload.commissioning_date,
+      installation_date: payload.installation_date,
+      warranty_expiry: payload.warranty_expiry,
+      status: payload.status ?? 'active',
+      lifecycle_status: payload.lifecycle_status,
+      drawings_references: payload.drawings_references,
+      metadata: payload.metadata,
+      safety_critical: false,
+      environmentally_critical: false,
+    });
+    return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
   async diagnoseEquipmentDuplicates(): Promise<EquipmentDuplicateDiagnosis> {
     const response = await apiClient.get(`${this.baseUrl}/diagnose-duplicates`);
     return unwrapApiData(response.data) as EquipmentDuplicateDiagnosis;

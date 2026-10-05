@@ -18,6 +18,8 @@ export interface AssetDataGridProps {
   lifecycleFilter?: string;
   onLifecycleFilterChange?: (status: string) => void;
   paginationSlot?: ReactNode;
+  toolbarSlot?: ReactNode;
+  bannerSlot?: ReactNode;
   emptyMessage?: string;
   onClearSearch?: () => void;
 }
@@ -39,6 +41,8 @@ const AssetDataGrid = memo(({
   lifecycleFilter = '',
   onLifecycleFilterChange,
   paginationSlot,
+  toolbarSlot,
+  bannerSlot,
   emptyMessage,
   onClearSearch,
 }: AssetDataGridProps) => (
@@ -46,41 +50,45 @@ const AssetDataGrid = memo(({
     className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
     aria-label="Equipment register"
   >
-    {(onSearchChange || onLifecycleFilterChange) && (
-      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row">
-        {onSearchChange && (
-          <label className="relative block max-w-md flex-1">
-            <span className="sr-only">Search equipment by tag number</span>
-            <Search
-              aria-hidden="true"
-              size={17}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              value={searchValue}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => onSearchChange(event.target.value)}
-              placeholder="Search tag number..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-            />
-          </label>
-        )}
-        {onLifecycleFilterChange && (
-          <label>
-            <span className="sr-only">Filter equipment by lifecycle</span>
-            <select
-              aria-label="Filter equipment by lifecycle"
-              value={lifecycleFilter}
-              onChange={(event: ChangeEvent<HTMLSelectElement>) => onLifecycleFilterChange(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500 sm:w-52"
-            >
-              <option value="">All lifecycle statuses</option>
-              <option value="Installed">Installed</option>
-              <option value="Sent to repair">Sent to repair</option>
-              <option value="Retired">Retired</option>
-              <option value="Condemned">Condemned</option>
-            </select>
-          </label>
-        )}
+    {bannerSlot && <div className="space-y-3 border-b border-slate-100 p-4">{bannerSlot}</div>}
+    {(onSearchChange || onLifecycleFilterChange || toolbarSlot) && (
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          {onSearchChange && (
+            <label className="relative block max-w-md flex-1">
+              <span className="sr-only">Search equipment by tag number</span>
+              <Search
+                aria-hidden="true"
+                size={17}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={searchValue}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => onSearchChange(event.target.value)}
+                placeholder="Search tag number..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+              />
+            </label>
+          )}
+          {onLifecycleFilterChange && (
+            <label>
+              <span className="sr-only">Filter equipment by lifecycle</span>
+              <select
+                aria-label="Filter equipment by lifecycle"
+                value={lifecycleFilter}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) => onLifecycleFilterChange(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500 sm:w-52"
+              >
+                <option value="">All lifecycle statuses</option>
+                <option value="Installed">Installed</option>
+                <option value="Sent to repair">Sent to repair</option>
+                <option value="Retired">Retired</option>
+                <option value="Condemned">Condemned</option>
+              </select>
+            </label>
+          )}
+        </div>
+        {toolbarSlot && <div className="flex flex-wrap items-center gap-2 lg:justify-end">{toolbarSlot}</div>}
       </div>
     )}
     <div className="overflow-x-auto">

@@ -4,6 +4,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master page layout rework (cards + unified table toolbar)
+
+- Halaman Equipment Master kini satu halaman terpadu: deretan kartu statistik di bagian atas, lalu tabel register tepat di bawahnya (urutan lama `Maintenance utilities` → `metrics` → `register` digantikan `metrics` → `register`).
+- Menghapus deretan tombol utilitas yang berdiri sendiri (`Diagnose duplicates`, `Fix component links`, `Sync components to FLOC`, `Import`, `Export`, `Clear All Equipment`) dan menggantinya dengan toolbar di header tabel, tepat di sebelah kanan kolom pencarian.
+- Toolbar baru berisi grup tombol dropdown: `Maintenance ▾` (`Diagnose duplicates`, `Fix component links`, `Sync components to FLOC`, `Clear All Equipment` berwarna merah) dan `Data Transfer ▾` (`Import`, `Export XLSX`, `Export CSV`), plus tombol primary `+ New Equipment` berwarna hijau solid. Komponen baru: `frontend/src/features/assets/components/EquipmentToolbar.tsx`.
+- Menambahkan modal `NewEquipmentModal` (`frontend/src/features/assets/components/NewEquipmentModal.tsx`) dengan empat seksi bergaris pemisah: `General Info` (Asset ID / Tag Number wajib, Description, Serial Number, Manufacturer), `Equipment Taxonomy` (Equipment Class wajib + Equipment Type yang bergantung pada Class), `Lifecycle & Status` (Commission Date, Lifecycle State, Installation Date, Warranty Expiry, Last Major Overhaul), dan `References` (P&ID Ref / Drawing No.), dengan footer `Close` dan `Save Equipment` (hijau).
+- Menambahkan katalog taxonomy frontend `frontend/src/features/assets/data/equipmentTaxonomy.ts` yang mencerminkan dictionary import backend (Class → daftar Type) dan menggabungkan class hasil statistik agar class spesifik tenant tetap bisa dipilih.
+- Menambahkan `assetService.createEquipmentAsset` (POST `/assets/Asset`) dan hook `useCreateEquipmentAsset`; field Lifecycle & Status dipetakan ke payload backend (`commissioning_date`, `installation_date`, `warranty_expiry`, `lifecycle_status`), sedangkan `Last Major Overhaul` disimpan sementara di `metadata.last_major_overhaul` sampai backend punya kolom khusus.
+- `AssetDataGrid` menerima slot `toolbarSlot` dan `bannerSlot`; header grid menata pencarian, filter lifecycle, dan toolbar dalam satu baris yang responsif, sedangkan banner impor (preview file, progress, hasil, error) dirender di dalam kartu tabel.
+- Validasi: test baru `EquipmentToolbar.test.tsx` (grup Maintenance, Data Transfer, tombol New Equipment, cascading class→type, validasi field wajib), pembaruan `EquipmentMasterPage.test.tsx` (cards di atas register, toolbar di dalam grid, export via Data Transfer, maintenance via dropdown, pembuatan equipment), `pnpm typecheck`, dan `pnpm test:run`.
+- Catatan: belum di-rebuild/deploy ke Docker pada langkah ini; perubahan masih frontend dan akan digabung dengan tahapan berikutnya.
+
 ### Equipment Master import data format correction (class/type/funcloc/status)
 
 - Format Class kini menyertakan kode dalam kurung, mis. `FS` → `Filters And Strainers (FS)`, `PI` → `Piping (PI)`, `HB` → `Heaters And Boilers (HB)`.

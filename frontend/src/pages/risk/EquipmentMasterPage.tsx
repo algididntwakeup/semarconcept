@@ -1,19 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, ClipboardList, FileUp, X } from 'lucide-react';
 import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  FileDown,
-  FileUp,
-  Link2,
-  RefreshCw,
-  ScanSearch,
-  Trash2,
-  X,
-} from 'lucide-react';
-import {
+  useCreateEquipmentAsset,
   useDeleteEquipmentAsset,
   useEquipmentMaintenanceActions,
   useEquipmentAssets,
@@ -23,6 +12,11 @@ import {
 import AssetDataGrid, {
   type EquipmentAssetRow,
 } from '../../features/assets/components/AssetDataGrid';
+import EquipmentToolbar from '../../features/assets/components/EquipmentToolbar';
+import NewEquipmentModal, {
+  type NewEquipmentPayload,
+} from '../../features/assets/components/NewEquipmentModal';
+import { withDiscoveredClasses } from '../../features/assets/data/equipmentTaxonomy';
 import type { AssetRowAction } from '../../features/assets/components/RowActions';
 import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
@@ -53,7 +47,7 @@ const EquipmentMasterPage = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 	const [lifecycleFilter, setLifecycleFilter] = useState('');
-	const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [newEquipmentOpen, setNewEquipmentOpen] = useState(false);
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
@@ -85,6 +79,7 @@ const EquipmentMasterPage = () => {
   const statsQuery = useEquipmentAssetStats();
   const updateLifecycle = useUpdateEquipmentLifecycle();
   const deleteAsset = useDeleteEquipmentAsset();
+  const createEquipment = useCreateEquipmentAsset();
   const updateLifecycleAsync = updateLifecycle.mutateAsync;
   const deleteAssetAsync = deleteAsset.mutateAsync;
   const maintenance = useEquipmentMaintenanceActions();
@@ -95,6 +90,10 @@ const EquipmentMasterPage = () => {
       .map((item) => ({ title: item.class, count: item.count, equipmentClass: item.class }));
   }, [statsQuery.data]);
   const funcloc = statsQuery.data?.funcloc ?? { with: 0, without: 0 };
+  const equipmentClasses = useMemo(
+    () => withDiscoveredClasses((statsQuery.data?.classes ?? []).map((item) => item.class)),
+    [statsQuery.data]
+  );
 
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const errorMessage = assetsQuery.error instanceof Error ? assetsQuery.error.message : null;
@@ -222,6 +221,34 @@ const EquipmentMasterPage = () => {
     }
   };
 
+  const handleNewEquipmentSubmit = async (payload: NewEquipmentPayload) => {
+    try {
+      await createEquipment.mutateAsync({
+        tag_number: payload.tag_number,
+        description: payload.description,
+        serial_number: payload.serial_number,
+        manufacturer: payload.manufacturer,
+        asset_class: payload.asset_class,
+        asset_type: payload.asset_type,
+        commissioning_date: payload.commissioning_date,
+        installation_date: payload.installation_date,
+        warranty_expiry: payload.warranty_expiry,
+        lifecycle_status: payload.lifecycle_status,
+        drawings_references: payload.drawings_references,
+        metadata: payload.last_major_overhaul
+          ? { last_major_overhaul: payload.last_major_overhaul }
+          : undefined,
+      });
+      showNotification(`Equipment ${payload.tag_number} created successfully.`, 'success');
+      setNewEquipmentOpen(false);
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Unable to create equipment.',
+        'error'
+      );
+    }
+  };
+
   const handleDiagnoseDuplicates = async () => {
     try {
       const result = await maintenance.diagnoseDuplicates.mutateAsync();
@@ -338,6 +365,156 @@ const EquipmentMasterPage = () => {
     </div>
   ), [list.assets.length, list.total, page, totalPages]);
 
+  const toolbarSlot = (
+    <EquipmentToolbar
+      onDiagnoseDuplicates={() => void handleDiagnoseDuplicates()}
+      onFixComponentLinks={() =>
+        void runUtility(
+          () => maintenance.fixComponentLinks.mutateAsync(false),
+          (result) => `Component links fixed: ${result.affected_links} link(s) updated.`
+        )
+      }
+      onSyncComponentsToFLOC={() =>
+        void runUtility(
+          () => maintenance.syncComponentsToFLOC.mutateAsync(false),
+          (result) =>
+            `FLOC sync complete: ${result.valid_components} valid, ${result.orphaned_components} orphaned components.`
+        )
+      }
+      onClearAllEquipment={() => void handlePurgeAll()}
+      onImport={() => importInputRef.current?.click()}
+      onExport={(format) => void handleExport(format)}
+      onNewEquipment={() => setNewEquipmentOpen(true)}
+      isMaintenancePending={
+        maintenance.diagnoseDuplicates.isPending ||
+        maintenance.fixComponentLinks.isPending ||
+        maintenance.syncComponentsToFLOC.isPending
+      }
+      isImportPending={maintenance.importAssets.isPending}
+      isExportPending={maintenance.exportAssets.isPending}
+      isPurging={isPurging}
+    />
+  );
+
+  const bannerSlot = (
+    <>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+        className="sr-only"
+        aria-label="Select XLSX or CSV asset import file"
+        disabled={maintenance.importAssets.isPending}
+        onChange={(event) => handleSelectFile(event.target.files?.[0])}
+      />
+      {file && (
+        <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900 shadow-sm">
+          <FileUp size={16} className="text-emerald-700 shrink-0" />
+          <span className="font-semibold truncate max-w-[200px]" title={file.name}>
+            {file.name}
+          </span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+            {formatFileSize(file.size)}
+          </span>
+          <button
+            type="button"
+            onClick={handleClearFile}
+            disabled={maintenance.importAssets.isPending}
+            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+            aria-label="Remove file"
+            title="Remove file"
+          >
+            <X size={14} />
+            <span>Clear</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleImportSubmit()}
+            disabled={maintenance.importAssets.isPending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+          >
+            <FileUp size={14} />
+            {maintenance.importAssets.isPending ? 'Importing…' : 'Submit Import'}
+          </button>
+        </div>
+      )}
+      {maintenance.importAssets.isPending && (
+        <div role="status" aria-live="polite" className="space-y-2 text-sm text-blue-700">
+          <p>
+            {importProgress !== null && importProgress < 100
+              ? `Uploading file… ${importProgress}%`
+              : 'Upload complete. Processing the workbook and updating equipment…'}
+            {' '}Keep this page open; large workbooks may take a moment.
+          </p>
+          <div
+            className="h-2 overflow-hidden rounded-full bg-blue-100"
+            role="progressbar"
+            aria-label="Import upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={importProgress ?? 100}
+          >
+            <div
+              className={`h-full rounded-full bg-blue-600 transition-all duration-300 ${importProgress === null || importProgress >= 100 ? 'w-full animate-pulse' : ''}`}
+              style={importProgress !== null && importProgress < 100 ? { width: `${importProgress}%` } : undefined}
+            />
+          </div>
+        </div>
+      )}
+      {importError && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-semibold">Import failed</p>
+          <p className="mt-1 break-words">{importError}</p>
+          <p className="mt-2 text-xs text-rose-600">
+            The uploader has been reset. You can select another file or retry directly.
+          </p>
+        </div>
+      )}
+      {importResult && (
+        <div
+          role="region"
+          aria-label="Import results"
+          className={`rounded-xl border p-4 text-sm ${importResult.errors.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}
+        >
+          <p className="font-semibold">
+            Import finished: {importResult.imported_count} of {importResult.total_count} rows imported
+            ({importResult.created_count} created, {importResult.updated_count} updated).
+          </p>
+          {importResult.errors.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer font-medium">
+                {importResult.errors.length} row issue(s) — show details
+              </summary>
+              <ul className="mt-2 max-h-48 list-inside list-disc space-y-1 overflow-auto">
+                {importResult.errors.map((issue, index) => <li key={`${index}-${issue}`}>{issue}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+      {duplicateDiagnosis && duplicateDiagnosis.duplicate_count > 0 && (
+        <div
+          role="region"
+          aria-label="Duplicate asset diagnosis results"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+        >
+          <p className="text-sm font-semibold text-amber-900">
+            {duplicateDiagnosis.duplicate_count} duplicate tag(s) detected
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-amber-800">
+            {duplicateDiagnosis.duplicates.map((duplicate) => (
+              <li key={duplicate.tag_number}>
+                <span className="font-medium">{duplicate.tag_number}</span> · {duplicate.count}{' '}
+                records
+                {duplicate.asset_ids.length > 0 && ` · IDs: ${duplicate.asset_ids.join(', ')}`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <main
       className="mx-auto w-full max-w-7xl space-y-7 px-4 py-6 sm:px-6 lg:px-8"
@@ -359,227 +536,6 @@ const EquipmentMasterPage = () => {
           </p>
         </div>
       </header>
-
-      <section aria-label="Equipment maintenance utilities" className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-700">Maintenance utilities</h2>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={maintenance.diagnoseDuplicates.isPending}
-            onClick={() => void handleDiagnoseDuplicates()}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <ScanSearch size={16} />
-            {maintenance.diagnoseDuplicates.isPending ? 'Diagnosing…' : 'Diagnose duplicates'}
-          </button>
-          <button
-            type="button"
-            disabled={maintenance.fixComponentLinks.isPending}
-            onClick={() =>
-              void runUtility(
-                () => maintenance.fixComponentLinks.mutateAsync(false),
-                (result) => `Component links fixed: ${result.affected_links} link(s) updated.`
-              )
-            }
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <Link2 size={16} />
-            {maintenance.fixComponentLinks.isPending ? 'Fixing links…' : 'Fix component links'}
-          </button>
-          <button
-            type="button"
-            disabled={maintenance.syncComponentsToFLOC.isPending}
-            onClick={() =>
-              void runUtility(
-                () => maintenance.syncComponentsToFLOC.mutateAsync(false),
-                (result) =>
-                  `FLOC sync complete: ${result.valid_components} valid, ${result.orphaned_components} orphaned components.`
-              )
-            }
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <RefreshCw size={16} />
-            {maintenance.syncComponentsToFLOC.isPending ? 'Syncing…' : 'Sync components to FLOC'}
-          </button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-            className="sr-only"
-            aria-label="Select XLSX or CSV asset import file"
-            disabled={maintenance.importAssets.isPending}
-            onChange={(event) => handleSelectFile(event.target.files?.[0])}
-          />
-          {file ? (
-            <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-900 shadow-sm">
-              <FileUp size={16} className="text-emerald-700 shrink-0" />
-              <span className="font-semibold truncate max-w-[200px]" title={file.name}>
-                {file.name}
-              </span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                {formatFileSize(file.size)}
-              </span>
-              <button
-                type="button"
-                onClick={handleClearFile}
-                disabled={maintenance.importAssets.isPending}
-                className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
-                aria-label="Remove file"
-                title="Remove file"
-              >
-                <X size={14} />
-                <span>Clear</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleImportSubmit()}
-                disabled={maintenance.importAssets.isPending}
-                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-              >
-                <FileUp size={14} />
-                {maintenance.importAssets.isPending ? 'Importing…' : 'Submit Import'}
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={maintenance.importAssets.isPending}
-              onClick={() => importInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
-            >
-              <FileUp size={16} />
-              {maintenance.importAssets.isPending ? 'Importing…' : 'Import'}
-            </button>
-          )}
-          <div
-            className="relative inline-flex"
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                setExportMenuOpen(false);
-              }
-            }}
-          >
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={exportMenuOpen}
-              disabled={maintenance.exportAssets.isPending}
-              onClick={() => setExportMenuOpen((open) => !open)}
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-60"
-            >
-              <FileDown size={16} />
-              {maintenance.exportAssets.isPending ? 'Exporting…' : 'Export'}
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
-            {exportMenuOpen && (
-              <div
-                role="menu"
-                aria-label="Export format"
-                className="absolute left-0 top-full z-30 mt-1 w-32 rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
-              >
-                {(['xlsx', 'csv'] as const).map((format) => (
-                  <button
-                    key={format}
-                    type="button"
-                    role="menuitem"
-                    disabled={maintenance.exportAssets.isPending}
-                    onClick={() => {
-                      setExportMenuOpen(false);
-                      void handleExport(format);
-                    }}
-                    className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-blue-50 hover:text-blue-800 disabled:opacity-50"
-                  >
-                    {format.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            disabled={isPurging || maintenance.importAssets.isPending}
-            onClick={() => void handlePurgeAll()}
-            className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 hover:bg-rose-100 disabled:opacity-60"
-          >
-            <Trash2 size={16} />
-            {isPurging ? 'Clearing…' : 'Clear All Equipment'}
-          </button>
-        </div>
-        {maintenance.importAssets.isPending && (
-          <div role="status" aria-live="polite" className="space-y-2 text-sm text-blue-700">
-            <p>
-              {importProgress !== null && importProgress < 100
-                ? `Uploading file… ${importProgress}%`
-                : 'Upload complete. Processing the workbook and updating equipment…'}
-              {' '}Keep this page open; large workbooks may take a moment.
-            </p>
-            <div
-              className="h-2 overflow-hidden rounded-full bg-blue-100"
-              role="progressbar"
-              aria-label="Import upload progress"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={importProgress ?? 100}
-            >
-              <div
-                className={`h-full rounded-full bg-blue-600 transition-all duration-300 ${importProgress === null || importProgress >= 100 ? 'w-full animate-pulse' : ''}`}
-                style={importProgress !== null && importProgress < 100 ? { width: `${importProgress}%` } : undefined}
-              />
-            </div>
-          </div>
-        )}
-        {importError && (
-          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-            <p className="font-semibold">Import failed</p>
-            <p className="mt-1 break-words">{importError}</p>
-            <p className="mt-2 text-xs text-rose-600">
-              The uploader has been reset. You can select another file or retry directly.
-            </p>
-          </div>
-        )}
-        {importResult && (
-          <div
-            role="region"
-            aria-label="Import results"
-            className={`rounded-xl border p-4 text-sm ${importResult.errors.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}
-          >
-            <p className="font-semibold">
-              Import finished: {importResult.imported_count} of {importResult.total_count} rows imported
-              ({importResult.created_count} created, {importResult.updated_count} updated).
-            </p>
-            {importResult.errors.length > 0 && (
-              <details className="mt-2">
-                <summary className="cursor-pointer font-medium">
-                  {importResult.errors.length} row issue(s) — show details
-                </summary>
-                <ul className="mt-2 max-h-48 list-inside list-disc space-y-1 overflow-auto">
-                  {importResult.errors.map((issue, index) => <li key={`${index}-${issue}`}>{issue}</li>)}
-                </ul>
-              </details>
-            )}
-          </div>
-        )}
-        {duplicateDiagnosis && duplicateDiagnosis.duplicate_count > 0 && (
-          <div
-            role="region"
-            aria-label="Duplicate asset diagnosis results"
-            className="rounded-xl border border-amber-200 bg-amber-50 p-4"
-          >
-            <p className="text-sm font-semibold text-amber-900">
-              {duplicateDiagnosis.duplicate_count} duplicate tag(s) detected
-            </p>
-            <ul className="mt-2 space-y-1 text-sm text-amber-800">
-              {duplicateDiagnosis.duplicates.map((duplicate) => (
-                <li key={duplicate.tag_number}>
-                  <span className="font-medium">{duplicate.tag_number}</span> · {duplicate.count}{' '}
-                  records
-                  {duplicate.asset_ids.length > 0 && ` · IDs: ${duplicate.asset_ids.join(', ')}`}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
 
       {statsQuery.isError && (
         <p
@@ -646,6 +602,8 @@ const EquipmentMasterPage = () => {
           onAction={handleRowAction}
           onLifecycleChange={handleLifecycleChange}
           paginationSlot={pagination}
+          toolbarSlot={toolbarSlot}
+          bannerSlot={bannerSlot}
         />
       </section>
 
@@ -756,6 +714,14 @@ const EquipmentMasterPage = () => {
           </section>
         </div>
       )}
+
+      <NewEquipmentModal
+        open={newEquipmentOpen}
+        classes={equipmentClasses}
+        onClose={() => setNewEquipmentOpen(false)}
+        onSubmit={handleNewEquipmentSubmit}
+        isSubmitting={createEquipment.isPending}
+      />
 
       <AssetFormModal
         isOpen={Boolean(editingAsset)}

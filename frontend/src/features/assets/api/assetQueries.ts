@@ -84,6 +84,19 @@ export const useUpdateEquipmentLifecycle = () => {
   });
 };
 
+export const useCreateEquipmentAsset = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof assetService.createEquipmentAsset>[0]) =>
+      assetService.createEquipmentAsset(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
+    },
+  });
+};
+
 export const useDeleteEquipmentAsset = () => {
   const queryClient = useQueryClient();
   return useMutation({
