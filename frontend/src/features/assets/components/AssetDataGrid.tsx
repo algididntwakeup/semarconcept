@@ -2,6 +2,7 @@ import { Search, X } from 'lucide-react';
 import { memo, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import type { EquipmentAsset } from '../../../services/assetServices';
 import { classWithCode, typeWithCode, typeWithDashCode } from '../data/equipmentDisplayCodes';
+import PageSizeSelect from './PageSizeSelect';
 import RowActions, {
   type AssetLifecycleMenuAction,
   type AssetRowAction,
@@ -28,6 +29,9 @@ export interface AssetDataGridProps {
   onDeleteSelected?: (assetIds: Array<string | number>) => void;
   isExportingSelected?: boolean;
   isDeletingSelected?: boolean;
+  /** Rows per page selector. */
+  pageSize?: number;
+  onPageSizeChange?: (value: number) => void;
   paginationSlot?: ReactNode;
   toolbarSlot?: ReactNode;
   bannerSlot?: ReactNode;
@@ -56,6 +60,8 @@ const AssetDataGrid = memo(({
   onDeleteSelected,
   isExportingSelected = false,
   isDeletingSelected = false,
+  pageSize,
+  onPageSizeChange,
   paginationSlot,
   toolbarSlot,
   bannerSlot,
@@ -169,7 +175,7 @@ const AssetDataGrid = memo(({
         </div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] border-collapse text-left">
+        <table className="w-full min-w-[1120px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/80">
               <th scope="col" className="w-12 px-5 py-4">
@@ -312,8 +318,17 @@ const AssetDataGrid = memo(({
           </tbody>
         </table>
       </div>
-      {paginationSlot && (
-        <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-3">{paginationSlot}</div>
+      {(paginationSlot || onPageSizeChange) && (
+        <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+          {pageSize !== undefined && onPageSizeChange && (
+            <PageSizeSelect
+              value={pageSize}
+              onChange={onPageSizeChange}
+              context="equipment register"
+            />
+          )}
+          {paginationSlot && <div className="sm:ml-auto">{paginationSlot}</div>}
+        </div>
       )}
     </section>
   );

@@ -64,6 +64,7 @@ export interface EquipmentAssetListParams {
   search?: string;
   lifecycle_status?: string;
   equipment_class?: string;
+  hierarchy_level?: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
   search_field?: 'tag_number' | 'class' | 'type' | 'material' | 'parent_floc' | 'status';
   sort_by?: 'tag_number' | 'asset_class' | 'asset_type' | 'materials' | 'parent_floc' | 'status';
   sort_order?: 'asc' | 'desc';

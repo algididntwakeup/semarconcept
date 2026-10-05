@@ -42,6 +42,7 @@ const formatFileSize = (bytes: number): string => {
 
 const EquipmentMasterPage = () => {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE);
   const [search, setSearch] = useState('');
 	const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [newEquipmentOpen, setNewEquipmentOpen] = useState(false);
@@ -49,7 +50,9 @@ const EquipmentMasterPage = () => {
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
-    equipmentClass: string;
+    equipmentClass?: string;
+    hierarchyLevel?: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
+    installedOnly?: boolean;
   } | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EquipmentAssetRow | null>(null);
   const [timeline, setTimeline] = useState<
@@ -69,7 +72,7 @@ const EquipmentMasterPage = () => {
   const { showNotification } = useNotification();
   const assetsQuery = useEquipmentAssets({
     page,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     search,
     lifecycle_status: lifecycleFilter || undefined,
   });
@@ -93,12 +96,24 @@ const EquipmentMasterPage = () => {
       .map((item) => ({ title: item.class, count: item.count, equipmentClass: item.class }));
   }, [statsQuery.data]);
   const funcloc = statsQuery.data?.funcloc ?? { with: 0, without: 0 };
+  // Summary cards lead the list, in the requested order: Total, Installed,
+  // Equipment, then Has Funcloc. Each opens the detail modal with a matching
+  // filter so the count on the card equals the rows in the table.
+  const summaryCards = useMemo(
+    () => [
+      { title: 'Total', count: summary.total, hierarchyLevel: '1' as const, installedOnly: false },
+      { title: 'Installed', count: summary.installed, hierarchyLevel: '1' as const, installedOnly: true },
+      { title: 'Equipment', count: summary.equipment, hierarchyLevel: '1' as const, installedOnly: false },
+      { title: 'Has Funcloc', count: funcloc.with, hierarchyLevel: '1' as const, installedOnly: false },
+    ],
+    [summary.total, summary.installed, summary.equipment, funcloc.with]
+  );
   const equipmentClasses = useMemo(
     () => withDiscoveredClasses((statsQuery.data?.classes ?? []).map((item) => item.class)),
     [statsQuery.data]
   );
 
-  const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(list.total / pageSize));
   const errorMessage = assetsQuery.error instanceof Error ? assetsQuery.error.message : null;
   const handleRowAction = useCallback(async (action: AssetRowAction, asset: EquipmentAssetRow) => {
     setActionError('');
@@ -166,6 +181,10 @@ const EquipmentMasterPage = () => {
   }, []);
   const handleLifecycleFilterChange = useCallback((status: string) => {
     setLifecycleFilter(status);
+    setPage(1);
+  }, []);
+  const handlePageSizeChange = useCallback((value: number) => {
+    setPageSize(value);
     setPage(1);
   }, []);
   const handleCloseStat = useCallback(() => setSelectedStat(null), []);
@@ -591,6 +610,41 @@ const EquipmentMasterPage = () => {
         aria-label="Equipment metrics"
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
+        {!statsQuery.isLoading && (
+          <>
+            {summaryCards.map((card) => (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                count={card.count}
+                isLoading={false}
+                isActive={selectedStat?.title === card.title}
+                onClick={() =>
+                  setSelectedStat({
+                    title: card.title,
+                    count: card.count,
+                    hierarchyLevel: card.hierarchyLevel,
+                    installedOnly: card.installedOnly,
+                  })
+                }
+                description="Click to view assets"
+              />
+            ))}
+          </>
+        )}
+        {statsQuery.isLoading && (
+          <>
+            {summaryCards.map((card) => (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                count={0}
+                isLoading
+                onClick={() => undefined}
+              />
+            ))}
+          </>
+        )}
         {cards.map((card) => (
           <StatCard
             key={card.title}
@@ -602,38 +656,6 @@ const EquipmentMasterPage = () => {
             description="Equipment class · click to view assets"
           />
         ))}
-        {!statsQuery.isLoading && cards.length > 0 && (
-          <>
-            <StatCard
-              title="Total"
-              count={summary.total}
-              isLoading={false}
-              onClick={() => undefined}
-              description="All parent equipment (Hierarchy Level 1)"
-            />
-            <StatCard
-              title="Equipment"
-              count={summary.equipment}
-              isLoading={false}
-              onClick={() => undefined}
-              description="Parent equipment excluding Piping and Piping Line"
-            />
-            <StatCard
-              title="Installed"
-              count={summary.installed}
-              isLoading={false}
-              onClick={() => undefined}
-              description="Parent equipment with Installed status"
-            />
-            <StatCard
-              title="Has Funcloc"
-              count={funcloc.with}
-              isLoading={false}
-              onClick={() => undefined}
-              description="Parent equipment linked to a functional location"
-            />
-          </>
-        )}
       </section>
 
       <section aria-labelledby="equipment-register-title" className="space-y-4">
@@ -660,6 +682,8 @@ const EquipmentMasterPage = () => {
           onDeleteSelected={(ids) => void handleDeleteSelected(ids)}
           isExportingSelected={maintenance.exportAssets.isPending}
           isDeletingSelected={maintenance.bulkDeleteAssets.isPending}
+          pageSize={pageSize}
+          onPageSizeChange={handlePageSizeChange}
           paginationSlot={pagination}
           toolbarSlot={toolbarSlot}
           bannerSlot={bannerSlot}
@@ -682,6 +706,8 @@ const EquipmentMasterPage = () => {
           title={selectedStat.title}
           count={selectedStat.count}
           equipmentClass={selectedStat.equipmentClass}
+          hierarchyLevel={selectedStat.hierarchyLevel}
+          installedOnly={selectedStat.installedOnly}
           onClose={handleCloseStat}
           onSelectAsset={handleSelectAsset}
         />

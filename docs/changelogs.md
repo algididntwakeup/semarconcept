@@ -4,6 +4,15 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master summary cards, rows-per-page, and wider tables
+
+- Kartu ringkasan (`Total`, `Installed`, `Equipment`, `Has Funcloc`) kini **dapat diklik** dan membuka `StatDetailModal` dengan filter yang cocok, sehingga angka kartu sama dengan baris tabel: keempatnya memfilter `hierarchy_level=1` (equipment induk), dan kartu `Installed` menambah filter status `Installed`.
+- Urutan kartu: **Total → Installed → Equipment → Has Funcloc** di depan, baru diikuti kartu kelas (Piping, Pressure Vessels, dst).
+- Backend: `AssetListQuery` menerima `hierarchy_level` (1–8) dan repository memfilter `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1')` sehingga "level 7/komponen" hanya muncul saat difilter dan kartu ringkasan konsisten dengan `GetAssetStats`.
+- Ditambahkan pemilih **Rows per page** (10/25/50/100) pada Data Grid Equipment Master dan pada tabel `StatDetailModal`; mengubah nilai akan mereset ke halaman 1 dan memuat ulang dengan `limit` baru.
+- Tabel diperlebar agar tombol aksi muat: Data Grid `min-w-[860px]` → `min-w-[1120px]` (kolom checkbox + aksi), modal detail `max-w-5xl` → `max-w-[95rem]` dengan tabel `min-w-[1050px]` → `min-w-[1240px]`.
+- Validasi: test frontend baru (urutan kartu ringkasan, klik kartu `Installed` memfilter `hierarchy_level=1` + status, klik `Total` tanpa filter status, rows-per-page grid & modal), `pnpm typecheck`, `go build ./...`, `go test ./app/...`, dan `pnpm test:run`.
+
 ### Equipment Master grid columns, row selection, and Data Transfer scopes
 
 - Kolom Data Grid disusun ulang menjadi: **checkbox**, **Tag Number / Equipment** (sub-teks kode tipe, mis. `Carbon Steel - CA`, warna berbeda), **Description**, **Class / Type** (sub-teks tipe ber-kode, mis. `Carbon Steel (CA)`, warna grey), **Status** (badge hijau `Installed` / abu lainnya), dan **Action**. Kolom `Lifecycle` dihapus dari header grid (dropdown Lifecycle tetap ada di kolom Action).

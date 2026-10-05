@@ -75,6 +75,13 @@ describe('EquipmentMasterPage API integration', () => {
     expect(screen.getByRole('button', { name: 'Has Funcloc: 1' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Without Funcloc/ })).not.toBeInTheDocument();
 
+    // Summary cards lead the list in the requested order, before class cards.
+    const cardLabels = screen
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+      .filter((label): label is string => Boolean(label && /^[A-Za-z ].+: \d/.test(label)));
+    expect(cardLabels.slice(0, 4)).toEqual(['Total: 5', 'Installed: 4', 'Equipment: 3', 'Has Funcloc: 1']);
+
     const registers = screen.getAllByRole('region', { name: 'Equipment register' });
     const register = registers[registers.length - 1];
     expect(card.compareDocumentPosition(register) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -188,6 +195,74 @@ describe('EquipmentMasterPage API integration', () => {
       )
     );
     expect(screen.getAllByText('P-101')).toHaveLength(2);
+  }, 15000);
+
+  it('opens the detail modal filtered to parent equipment when a summary card is clicked', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping', count: 2 }],
+      funcloc: { with: 1, without: 1 },
+      total: 5,
+      equipment: 3,
+      installed: 4,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [{ id: 1, tag_number: 'P-101', name: 'Installed pump', lifecycle_status: 'Installed' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Installed: 4' }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    // Installed card must restrict to parent equipment AND Installed status.
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ hierarchy_level: '1', lifecycle_status: 'Installed', page: 1 })
+      )
+    );
+
+    // Total card only restricts the hierarchy level.
+    fireEvent.click(screen.getByRole('button', { name: 'Close asset details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Total: 5' }));
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ hierarchy_level: '1', lifecycle_status: undefined })
+      )
+    );
+  }, 15000);
+
+  it('changes the rows per page for the register and refetches with the new limit', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+      total: 0,
+      equipment: 0,
+      installed: 0,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    const pageSizeSelect = await screen.findByRole('combobox', {
+      name: 'Rows per page for equipment register',
+    });
+    expect(pageSizeSelect).toHaveValue('10');
+
+    fireEvent.change(pageSizeSelect, { target: { value: '50' } });
+
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 50, page: 1 })
+      )
+    );
   }, 15000);
 
   it('runs maintenance utilities from the Maintenance dropdown and shows toasts', async () => {

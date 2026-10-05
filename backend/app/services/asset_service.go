@@ -560,6 +560,7 @@ func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *reque
 		AssetType:       query.AssetType,
 		EquipmentClass:  query.EquipmentClass,
 		Type:            query.Type,
+		HierarchyLevel:  query.HierarchyLevel,
 		LifecycleStatus: query.LifecycleStatus,
 		Status:          query.Status,
 		SortBy:          query.SortBy,

@@ -267,6 +267,7 @@ type AssetListQuery struct {
 	AssetType          string `json:"asset_type" form:"asset_type"`
 	EquipmentClass     string `json:"equipment_class" form:"equipment_class"`
 	Type               string `json:"type" form:"type"`
+	HierarchyLevel     string `json:"hierarchy_level" form:"hierarchy_level" validate:"omitempty,oneof=1 2 3 4 5 6 7 8"`
 	LifecycleStatus    string `json:"lifecycle_status" form:"lifecycle_status"`
 	Status             string `json:"status" form:"status"`
 	Criticality        *int   `json:"criticality" form:"criticality" validate:"omitempty,min=1,max=5"`

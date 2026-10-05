@@ -1,9 +1,10 @@
 import { memo, useCallback, useMemo, useState, type ChangeEvent, type MouseEvent } from 'react';
 import { ChevronLeft, ChevronRight, LoaderCircle, Search, X } from 'lucide-react';
 import { useEquipmentAssets } from '../api/assetQueries';
+import PageSizeSelect from './PageSizeSelect';
 import type { EquipmentAssetRow } from './AssetDataGrid';
 
-const MODAL_PAGE_SIZE = 8;
+const DEFAULT_MODAL_PAGE_SIZE = 10;
 
 const DASH = '—';
 
@@ -59,6 +60,10 @@ interface StatDetailModalProps {
   count: number;
   lifecycleStatus?: string;
   equipmentClass?: string;
+  /** Restrict to parent equipment ("1") or sub-components ("2"+). */
+  hierarchyLevel?: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
+  /** Summary cards (Installed, Has Funcloc) only list parent equipment. */
+  installedOnly?: boolean;
   onClose: () => void;
   onSelectAsset?: (asset: EquipmentAssetRow) => void;
 }
@@ -87,23 +92,27 @@ const StatDetailModal = memo(({
   count,
   lifecycleStatus,
   equipmentClass,
+  hierarchyLevel,
+  installedOnly = false,
   onClose,
   onSelectAsset,
 }: StatDetailModalProps) => {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState(lifecycleStatus ?? '');
+  const [statusFilter, setStatusFilter] = useState(installedOnly ? 'Installed' : lifecycleStatus ?? '');
   const [sortBy, setSortBy] = useState<'tag_number' | 'asset_class' | 'asset_type' | 'parent_floc' | 'status'>('tag_number');
   const [searchField, setSearchField] = useState<'tag_number' | 'class' | 'type' | 'parent_floc' | 'status'>('tag_number');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_MODAL_PAGE_SIZE);
   const assetsQuery = useEquipmentAssets(
     {
       page,
-      limit: MODAL_PAGE_SIZE,
+      limit: pageSize,
       search,
       search_field: searchField,
       lifecycle_status: statusFilter || undefined,
       equipment_class: equipmentClass || undefined,
+      hierarchy_level: hierarchyLevel,
       sort_by: sortBy,
       sort_order: sortDirection,
     },
@@ -111,7 +120,7 @@ const StatDetailModal = memo(({
   );
   const result = useMemo(() => unpackAssets(assetsQuery.data), [assetsQuery.data]);
   const assets = result.assets;
-  const totalPages = Math.max(1, Math.ceil(result.total / MODAL_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
   const handleBackdropMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) onClose();
   }, [onClose]);
@@ -137,6 +146,10 @@ const StatDetailModal = memo(({
   const handleNextPage = useCallback(() => {
     setPage((current) => Math.min(totalPages, current + 1));
   }, [totalPages]);
+  const handlePageSizeChange = useCallback((value: number) => {
+    setPageSize(value);
+    setPage(1);
+  }, []);
   const handleSelectAsset = useCallback((asset: EquipmentAssetRow) => {
     onSelectAsset?.(asset);
   }, [onSelectAsset]);
@@ -153,7 +166,7 @@ const StatDetailModal = memo(({
         role="dialog"
         aria-modal="true"
         aria-labelledby="stat-detail-title"
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-[95rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-8">
           <div>
@@ -235,7 +248,7 @@ const StatDetailModal = memo(({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[1050px] text-left">
+          <table className="w-full min-w-[1240px] text-left">
             <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <tr>
                 {['Tag Number', 'Class', 'Type', 'Parent Funcloc', 'Level 6 Funcloc', 'Installation'].map(
@@ -307,32 +320,39 @@ const StatDetailModal = memo(({
           </table>
         </div>
 
-        <footer className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-3 sm:px-8">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-3 sm:px-8">
           <span className="text-xs text-slate-500">
             Showing {assets.length} of {result.total}
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Previous modal page"
-              disabled={page <= 1}
-              onClick={handlePreviousPage}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-xs font-medium text-slate-600">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              type="button"
-              aria-label="Next modal page"
-              disabled={page >= totalPages}
-              onClick={handleNextPage}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
-            >
-              <ChevronRight size={16} />
-            </button>
+          <div className="flex items-center gap-3">
+            <PageSizeSelect
+              value={pageSize}
+              onChange={handlePageSizeChange}
+              context="equipment detail"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Previous modal page"
+                disabled={page <= 1}
+                onClick={handlePreviousPage}
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-xs font-medium text-slate-600">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="Next modal page"
+                disabled={page >= totalPages}
+                onClick={handleNextPage}
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </footer>
       </section>

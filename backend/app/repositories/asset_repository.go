@@ -319,6 +319,16 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 		argIdx++
 	}
 
+	// HierarchyLevel filters parent equipment ("1") versus sub-components ("2"
+	// and deeper). A missing level is treated as "1", matching GetAssetStats.
+	if req.HierarchyLevel != "" {
+		levelExpr := `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1')`
+		query += fmt.Sprintf(` AND %s = $%d`, levelExpr, argIdx)
+		countQuery += fmt.Sprintf(` AND %s = $%d`, levelExpr, argIdx)
+		args = append(args, req.HierarchyLevel)
+		argIdx++
+	}
+
 	var total int64
 	if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
 		return nil, 0, fmt.Errorf("count query: %w", err)
