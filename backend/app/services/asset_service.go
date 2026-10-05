@@ -1603,6 +1603,13 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 				}
 			}
 			continue
+		case "installedfunloc":
+			// Level-6 functional location of the asset itself, kept under a
+			// stable key so the UI can bind to it directly.
+			if sanitized := sanitizeValue(raw); sanitized != nil {
+				asset.RBIProperties["installed_funcloc"] = sanitized.(string)
+			}
+			continue
 		}
 
 		if raw == "" {

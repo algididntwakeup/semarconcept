@@ -49,6 +49,7 @@ export interface EquipmentAsset {
   rbi_properties?: Record<string, unknown> | null;
   functional_location_id?: string | number | null;
   parent_floc?: string | null;
+  has_funcloc?: boolean | null;
 }
 
 export interface EquipmentAssetListParams {

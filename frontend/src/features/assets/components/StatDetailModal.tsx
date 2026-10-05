@@ -5,11 +5,50 @@ import type { EquipmentAssetRow } from './AssetDataGrid';
 
 const MODAL_PAGE_SIZE = 8;
 
-const getMaterialProperties = (asset: EquipmentAssetRow) => {
-  const properties = { ...(asset.rbi_properties ?? {}), ...(asset.materials ?? {}) };
-  const materialEntries = Object.entries(properties).filter(([key]) => /material|base metal/i.test(key));
-  const shown = materialEntries.length > 0 ? Object.fromEntries(materialEntries) : properties;
-  return Object.keys(shown).length > 0 ? JSON.stringify(shown) : '—';
+const DASH = '—';
+
+// The importer stores functional locations under stable rbi_properties keys.
+// Fall back to the legacy flattened key so older imports still render.
+const readRbiString = (asset: EquipmentAssetRow, ...keys: string[]): string => {
+  const properties = asset.rbi_properties ?? {};
+  for (const key of keys) {
+    const value = properties[key];
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+  return '';
+};
+
+interface AssetDisplayRow {
+  id: string | number;
+  tagNumber: string;
+  assetClass: string;
+  assetType: string;
+  parentFuncloc: string;
+  level6Funcloc: string;
+  installation: string;
+}
+
+const toDisplayRow = (asset: EquipmentAssetRow): AssetDisplayRow => {
+  const parentFuncloc =
+    readRbiString(asset, 'parent_funcloc_code', 'General.Parent FunLoc') ||
+    (typeof asset.parent_floc === 'string' ? asset.parent_floc.trim() : '');
+  const installation = (asset.status ?? asset.lifecycle_status ?? asset.lifecycleStatus ?? '').trim();
+  return {
+    id: asset.id,
+    tagNumber: asset.tag_number ?? asset.tagNumber ?? String(asset.id),
+    assetClass: asset.asset_class ?? asset.assetClass ?? DASH,
+    assetType: asset.asset_type ?? asset.assetType ?? asset.type ?? DASH,
+    parentFuncloc: parentFuncloc || DASH,
+    level6Funcloc: readRbiString(asset, 'installed_funcloc', 'General.Installed FunLoc') || DASH,
+    installation: installation || DASH,
+  };
+};
+
+const installationBadgeClass = (installation: string) => {
+  if (installation.toLowerCase() === 'installed') {
+    return 'bg-green-100 text-green-800';
+  }
+  return 'bg-slate-100 text-slate-600';
 };
 
 interface StatDetailModalProps {
@@ -51,8 +90,8 @@ const StatDetailModal = memo(({
 }: StatDetailModalProps) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(lifecycleStatus ?? '');
-  const [sortBy, setSortBy] = useState<'tag_number' | 'asset_class' | 'asset_type' | 'materials' | 'parent_floc' | 'status'>('tag_number');
-  const [searchField, setSearchField] = useState<'tag_number' | 'class' | 'type' | 'material' | 'parent_floc' | 'status'>('tag_number');
+  const [sortBy, setSortBy] = useState<'tag_number' | 'asset_class' | 'asset_type' | 'parent_floc' | 'status'>('tag_number');
+  const [searchField, setSearchField] = useState<'tag_number' | 'class' | 'type' | 'parent_floc' | 'status'>('tag_number');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
   const assetsQuery = useEquipmentAssets(
@@ -145,14 +184,14 @@ const StatDetailModal = memo(({
             <input
               value={search}
               onChange={handleSearchChange}
-              placeholder="Search tag, type, material, FLOC, status..."
+              placeholder="Search tag, type, FLOC, installation..."
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
             />
           </label>
           <label>
             <span className="sr-only">Search within column</span>
             <select value={searchField} onChange={handleSearchFieldChange} aria-label="Search within column" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500">
-              <option value="tag_number">Search: Tag Number</option><option value="class">Search: Class</option><option value="type">Search: Type</option><option value="material">Search: Material / Properties</option><option value="parent_floc">Search: Parent Funcloc</option><option value="status">Search: Status / Availability</option>
+              <option value="tag_number">Search: Tag Number</option><option value="class">Search: Class</option><option value="type">Search: Type</option><option value="parent_floc">Search: Parent Funcloc</option><option value="status">Search: Installation</option>
             </select>
           </label>
           <label>
@@ -162,11 +201,9 @@ const StatDetailModal = memo(({
               onChange={handleStatusChange}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-emerald-500"
             >
-              <option value="">All lifecycle statuses</option>
+              <option value="">All installation statuses</option>
               <option value="Installed">Installed</option>
-              <option value="Sent to repair">Sent to repair</option>
-              <option value="Retired">Retired</option>
-              <option value="Condemned">Condemned</option>
+              <option value="Available">Available</option>
             </select>
           </label>
           <div className="flex gap-2">
@@ -180,9 +217,8 @@ const StatDetailModal = memo(({
                 <option value="tag_number">Sort: Tag Number</option>
                 <option value="asset_class">Sort: Class</option>
                 <option value="asset_type">Sort: Type</option>
-                <option value="materials">Sort: Material / Properties</option>
                 <option value="parent_floc">Sort: Parent Funcloc</option>
-                <option value="status">Sort: Status</option>
+                <option value="status">Sort: Installation</option>
               </select>
             </label>
             <button
@@ -200,7 +236,7 @@ const StatDetailModal = memo(({
           <table className="w-full min-w-[1050px] text-left">
             <thead className="sticky top-0 bg-white shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <tr>
-                {['Tag Number', 'Class', 'Type', 'Material / Properties', 'Parent Funcloc', 'Status / Availability'].map(
+                {['Tag Number', 'Class', 'Type', 'Parent Funcloc', 'Level 6 Funcloc', 'Installation'].map(
                   (heading) => (
                     <th
                       key={heading}
@@ -241,20 +277,29 @@ const StatDetailModal = memo(({
                   </td>
                 </tr>
               ) : (
-                assets.map((asset) => (
-                  <tr
-                    key={asset.id}
-                    onClick={() => handleSelectAsset(asset)}
-                    className={`hover:bg-slate-50 ${onSelectAsset ? 'cursor-pointer' : ''}`}
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-800">{asset.tag_number ?? asset.tagNumber ?? asset.id}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{asset.asset_class ?? asset.assetClass ?? '—'}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{asset.asset_type ?? asset.assetType ?? asset.type ?? '—'}</td>
-                    <td className="max-w-64 px-6 py-4 text-sm text-slate-600">{getMaterialProperties(asset)}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{asset.parent_floc ?? asset.functional_location_id ?? '—'}</td>
-                    <td className="px-6 py-4 text-sm capitalize text-slate-600">{(asset.lifecycle_status ?? asset.lifecycleStatus ?? asset.status ?? '—').replace(/_/g, ' ')}</td>
-                  </tr>
-                ))
+                assets.map((asset) => {
+                  const row = toDisplayRow(asset);
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={() => handleSelectAsset(asset)}
+                      className={`hover:bg-slate-50 ${onSelectAsset ? 'cursor-pointer' : ''}`}
+                    >
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-800">{row.tagNumber}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{row.assetClass}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{row.assetType}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{row.parentFuncloc}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{row.level6Funcloc}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        <span
+                          className={`inline-block rounded px-2 py-1 text-xs font-bold ${installationBadgeClass(row.installation)}`}
+                        >
+                          {row.installation}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

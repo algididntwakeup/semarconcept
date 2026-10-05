@@ -78,16 +78,16 @@ func TestParseEquipmentImportFuncloc(t *testing.T) {
 func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *testing.T) {
 	book := excelize.NewFile()
 	assert.NoError(t, book.SetSheetName("Sheet1", "Equipment Master"))
-	fields := []string{"Asset ID/Tag Number", "Funcloc", "Equipment Status", "Equipment Class", "Equipment Type"}
+	fields := []string{"Asset ID/Tag Number", "Funcloc", "Installed FunLoc", "Equipment Status", "Equipment Class", "Equipment Type"}
 	for index, field := range fields {
 		cell, _ := excelize.CoordinatesToCellName(index+1, 1)
 		assert.NoError(t, book.SetCellValue("Equipment Master", cell, field))
 	}
 	rows := [][]interface{}{
-		{"TAG-1", "JI-JL-AG-11-PW (INLET SEPARATION)", "Active", "PI", "CA"},
-		{"TAG-2", "68-FWS-68-T-1108", "In Service", "VE", "SE"},
-		{"TAG-3", "9999", "", "HX", "ST"},
-		{"TAG-4", "", "Available", "TA", "FR"},
+		{"TAG-1", "JI-JL-AG-11-PW (INLET SEPARATION)", "10\"-PG-12009-3C3-P", "Active", "PI", "CA"},
+		{"TAG-2", "68-FWS-68-T-1108", "1\"-VH-11002-1C1", "In Service", "VE", "SE"},
+		{"TAG-3", "9999", "9999", "", "HX", "ST"},
+		{"TAG-4", "", "", "Available", "TA", "FR"},
 	}
 	for rowIndex, values := range rows {
 		for index, value := range values {
@@ -112,6 +112,9 @@ func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *t
 		if first.RBIProperties["parent_funcloc_code"] != "JI-JL-AG-11-PW" || first.RBIProperties["parent_funcloc_desc"] != "INLET SEPARATION" {
 			return false
 		}
+		if first.RBIProperties["installed_funcloc"] != `10"-PG-12009-3C3-P` {
+			return false
+		}
 		second := records[1].Asset
 		if second.Status == nil || *second.Status != "Installed" || !second.HasFuncloc {
 			return false
@@ -122,6 +125,9 @@ func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *t
 		if _, hasDesc := second.RBIProperties["parent_funcloc_desc"]; hasDesc {
 			return false
 		}
+		if second.RBIProperties["installed_funcloc"] != `1"-VH-11002-1C1` {
+			return false
+		}
 		third := records[2].Asset
 		if third.Status == nil || *third.Status != "Available" || third.HasFuncloc {
 			return false
@@ -129,8 +135,14 @@ func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *t
 		if _, hasCode := third.RBIProperties["parent_funcloc_code"]; hasCode {
 			return false
 		}
+		if _, hasInstalled := third.RBIProperties["installed_funcloc"]; hasInstalled {
+			return false
+		}
 		fourth := records[3].Asset
 		if fourth.Status == nil || *fourth.Status != "Available" || fourth.HasFuncloc {
+			return false
+		}
+		if _, hasInstalled := fourth.RBIProperties["installed_funcloc"]; hasInstalled {
 			return false
 		}
 		return true

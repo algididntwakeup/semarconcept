@@ -4,6 +4,17 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master detail modal table alignment
+
+- Menyelaraskan tabel di dalam modal `StatDetailModal` dengan referensi legacy:
+  - Menghapus kolom `Material / Properties` beserta helper `getMaterialProperties` yang merender objek JSON mentah; opsi search/sort terkait material ikut dihapus.
+  - Mengubah kolom `Status / Availability` menjadi `Installation` dengan custom render badge: nilai `Installed` memakai badge hijau (`bg-green-100 text-green-800 rounded px-2 py-1 text-xs font-bold`), nilai lain (mis. `Available`) memakai badge abu-abu (`bg-slate-100 text-slate-600`).
+  - Menambahkan kolom `Level 6 Funcloc` di sebelah kanan `Parent Funcloc`.
+  - Data binding: `Parent Funcloc` membaca `rbi_properties.parent_funcloc_code` (fallback `General.Parent FunLoc` lalu `parent_floc`), `Level 6 Funcloc` membaca `rbi_properties.installed_funcloc` (fallback `General.Installed FunLoc`), dan `Installation` membaca `status`. Nilai kosong/null dirender sebagai tanda strip `—`.
+- Importer kini menyimpan kolom `Installed FunLoc` ke key stabil `rbi_properties.installed_funcloc` (`parseEquipmentImportRow`), sehingga `Level 6 Funcloc` punya sumber data yang konsisten.
+- Filter status di modal disesuaikan dengan data nyata menjadi `All installation statuses` / `Installed` / `Available`.
+- Validasi: test baru `StatDetailModal.test.tsx` (kolom tanpa material, badge hijau Installed, badge abu Available + strip, fallback key legacy), regresi `TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc` untuk `installed_funcloc`, `pnpm typecheck`, dan `pnpm test:run` (104/104).
+
 ### Equipment Master import Installation Status and Functional Location transformation
 
 - Menambahkan normalisasi `Installation Status` pada import Equipment Master: `NormalizeInstallationStatus` (`backend/app/services/equipment_import_status_funcloc.go`) memetakan `Active`/`In Service` (case-insensitive, trim) menjadi `Installed`, nilai kosong atau dummy (`9999`, `N/A`, `NULL`, dst. via `sanitizeValue`) menjadi `Available`, dan nilai lain (mis. `Maintenance`) dipertahankan apa adanya. Hasil disimpan ke kolom `status`. Kolom `Equipment Status` (template `Data Source`) dan `Status` (flat `Equipment Master`) diperlakukan setara.
