@@ -15,6 +15,7 @@ type Asset struct {
 	UnitID                  *int       `gorm:"index" db:"unit_id" json:"unit_id,omitempty"`
 	FunctionalLocationID    *int       `gorm:"index;index:idx_assets_tenant_functional_location,priority:2" db:"functional_location_id" json:"functional_location_id,omitempty"`
 	ParentFLOC              string     `gorm:"-" db:"parent_floc" json:"-"`
+	HasFuncloc              bool       `gorm:"not null;default:false;index" db:"has_funcloc" json:"has_funcloc"`
 	Name                    string     `gorm:"not null;size:255" db:"name" json:"name"`
 	Description             *string    `gorm:"type:text" db:"description" json:"description,omitempty"`
 	TagNumber               *string    `gorm:"size:100;uniqueIndex:idx_assets_unique_tag_number;index:idx_assets_tag_number;index:idx_assets_tenant_tag,priority:2" db:"tag_number" json:"tag_number"`

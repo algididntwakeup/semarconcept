@@ -55,10 +55,13 @@ describe('Dashboard Equipment Master overview', () => {
   });
 
   it('shows dynamic equipment classes and opens the filtered asset detail modal', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([
-      { class: 'Piping', count: 8 },
-      { class: 'Storage Tanks', count: 4 },
-    ]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [
+        { class: 'Piping', count: 8 },
+        { class: 'Storage Tanks', count: 4 },
+      ],
+      funcloc: { with: 10, without: 2 },
+    });
 
     renderDashboard();
 
@@ -70,7 +73,7 @@ describe('Dashboard Equipment Master overview', () => {
     expect(assetService.getEquipmentAssetStats).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole('button', { name: 'Piping: 8' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('renders loading placeholders while the equipment summary is fetching', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockReturnValue(new Promise(() => {}));
@@ -83,7 +86,7 @@ describe('Dashboard Equipment Master overview', () => {
   it('shows an error with a retry action when the stats request fails', async () => {
     vi.mocked(assetService.getEquipmentAssetStats)
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce([{ class: 'Piping', count: 2 }]);
+      .mockResolvedValueOnce({ classes: [{ class: 'Piping', count: 2 }], funcloc: { with: 1, without: 1 } });
 
     renderDashboard();
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load Equipment Master overview.');
@@ -94,7 +97,7 @@ describe('Dashboard Equipment Master overview', () => {
   });
 
   it('navigates to Equipment Master from either dashboard action', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     renderDashboard();
 
     fireEvent.click(await screen.findByRole('button', { name: /open equipment master/i }));

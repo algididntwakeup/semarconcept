@@ -330,20 +330,35 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 	return assets, total, nil
 }
 
-// GetAssetStats aggregates non-deleted assets by their imported equipment class.
-func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) ([]AssetClassCount, error) {
-	stats := make([]AssetClassCount, 0)
+// GetAssetStats aggregates non-deleted assets by their imported equipment class
+// and by functional-location presence for the dashboard summary.
+func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error) {
+	stats := AssetStats{Classes: make([]AssetClassCount, 0)}
 	db, err := r.getGormDB()
 	if err != nil {
-		return nil, err
+		return stats, err
 	}
 	err = db.WithContext(ctx).Model(&models.Asset{}).
 		Select("BTRIM(asset_class) AS class, COUNT(*) AS count").
 		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL", tenantID).
-		Group("BTRIM(asset_class)").Order("BTRIM(asset_class)").Scan(&stats).Error
+		Group("BTRIM(asset_class)").Order("BTRIM(asset_class)").Scan(&stats.Classes).Error
 	if err != nil {
-		return nil, fmt.Errorf("aggregate equipment class statistics: %w", err)
+		return stats, fmt.Errorf("aggregate equipment class statistics: %w", err)
 	}
+
+	type funclocRow struct {
+		With    int64 `gorm:"column:with_funcloc"`
+		Without int64 `gorm:"column:without_funcloc"`
+	}
+	var row funclocRow
+	err = db.WithContext(ctx).Model(&models.Asset{}).
+		Select("COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc, COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc").
+		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted'", tenantID).
+		Scan(&row).Error
+	if err != nil {
+		return stats, fmt.Errorf("aggregate functional location statistics: %w", err)
+	}
+	stats.Funcloc = AssetFunclocStats{With: row.With, Without: row.Without}
 	return stats, nil
 }
 
@@ -580,6 +595,7 @@ func (r *assetRepository) UpsertAssetsFromImport(ctx context.Context, tenantID i
 				"functional_location_id",
 				"lifecycle_status",
 				"status",
+				"has_funcloc",
 				"rbi_properties",
 				"updated_by",
 				"updated_at",

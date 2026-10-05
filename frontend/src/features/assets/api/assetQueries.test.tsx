@@ -113,10 +113,13 @@ describe('Asset Query Hooks', () => {
 
   describe('Equipment Master queries', () => {
     it('loads grouped lifecycle statistics', async () => {
-      const stats = [
-        { class: 'Piping', count: 4 },
-        { class: 'Storage Tanks', count: 2 },
-      ];
+      const stats = {
+        classes: [
+          { class: 'Piping', count: 4 },
+          { class: 'Storage Tanks', count: 2 },
+        ],
+        funcloc: { with: 5, without: 1 },
+      };
       vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue(stats);
 
       const { result } = renderHook(() => useEquipmentAssetStats(), {

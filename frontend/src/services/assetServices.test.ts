@@ -10,13 +10,22 @@ describe('Equipment Master asset service', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('fetches lifecycle statistics from the assets stats endpoint', async () => {
-    const stats = [{ class: 'Piping', count: 3 }];
+    const stats = { classes: [{ class: 'Piping', count: 3 }], funcloc: { with: 2, without: 1 } };
     vi.mocked(apiClient.get).mockResolvedValue({
       data: { success: true, message: 'ok', data: stats },
     });
 
     await expect(assetService.getEquipmentAssetStats()).resolves.toEqual(stats);
     expect(apiClient.get).toHaveBeenCalledWith('/assets/stats');
+  });
+
+  it('falls back to an empty stats payload when the response is malformed', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { success: true, message: 'ok', data: null } });
+
+    await expect(assetService.getEquipmentAssetStats()).resolves.toEqual({
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+    });
   });
 
   it('requests paginated, searched, lifecycle-filtered assets and unwraps the API envelope', async () => {

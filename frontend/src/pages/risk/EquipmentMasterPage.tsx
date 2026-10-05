@@ -91,9 +91,10 @@ const EquipmentMasterPage = () => {
 
   const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
   const cards = useMemo(() => {
-    return (statsQuery.data ?? []).filter((item) => item.count > 0)
+    return (statsQuery.data?.classes ?? []).filter((item) => item.count > 0)
       .map((item) => ({ title: item.class, count: item.count, equipmentClass: item.class }));
   }, [statsQuery.data]);
+  const funcloc = statsQuery.data?.funcloc ?? { with: 0, without: 0 };
 
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const errorMessage = assetsQuery.error instanceof Error ? assetsQuery.error.message : null;
@@ -603,6 +604,24 @@ const EquipmentMasterPage = () => {
             description="Equipment class · click to view assets"
           />
         ))}
+        {!statsQuery.isLoading && cards.length > 0 && (
+          <>
+            <StatCard
+              title="With Funcloc"
+              count={funcloc.with}
+              isLoading={false}
+              onClick={() => undefined}
+              description="Assets linked to a functional location"
+            />
+            <StatCard
+              title="Without Funcloc"
+              count={funcloc.without}
+              isLoading={false}
+              onClick={() => undefined}
+              description="Assets missing a functional location"
+            />
+          </>
+        )}
       </section>
 
       <section aria-labelledby="equipment-register-title" className="space-y-4">

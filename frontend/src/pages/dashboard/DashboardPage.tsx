@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Activity, ClipboardList, RefreshCw, ShieldAlert } from 'lucide-react';
+import { Activity, ClipboardList, MapPin, RefreshCw, ShieldAlert } from 'lucide-react';
 import { useEquipmentAssetStats } from '../../features/assets/api/assetQueries';
 import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
@@ -14,9 +14,10 @@ const DashboardPage = () => {
   const statsQuery = useEquipmentAssetStats();
   const [selectedClass, setSelectedClass] = useState<{ class: string; count: number } | null>(null);
   const stats = useMemo(
-    () => (statsQuery.data ?? []).filter((item) => item.count > 0),
+    () => (statsQuery.data?.classes ?? []).filter((item) => item.count > 0),
     [statsQuery.data]
   );
+  const funcloc = statsQuery.data?.funcloc ?? { with: 0, without: 0 };
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 pb-12 sm:px-6 lg:px-8" aria-labelledby="dashboard-title">
@@ -58,6 +59,19 @@ const DashboardPage = () => {
           {!statsQuery.isLoading && !statsQuery.isError && stats.length === 0 && (
             <p className="rounded-xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">No equipment classes have been imported yet.</p>
           )}
+        </div>
+      </section>
+
+      <section aria-label="Functional location coverage">
+        <div className="mb-4 flex items-center gap-2">
+          <MapPin size={18} className="text-rose-600" aria-hidden="true" />
+          <h2 className="text-lg font-semibold text-slate-900">Functional Location Coverage</h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <StatCard title="With Funcloc" count={funcloc.with} isLoading={statsQuery.isLoading}
+            description="Assets linked to a functional location" onClick={() => undefined} />
+          <StatCard title="Without Funcloc" count={funcloc.without} isLoading={statsQuery.isLoading}
+            description="Assets missing a functional location" onClick={() => undefined} />
         </div>
       </section>
 

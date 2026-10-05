@@ -22,7 +22,7 @@ import (
 
 type assetStatsServiceMock struct {
 	services.AssetServiceInterface
-	stats    []repositories.AssetClassCount
+	stats    repositories.AssetStats
 	err      error
 	tenantID int
 }
@@ -54,16 +54,19 @@ func (m *assetExportServiceMock) ImportAssets(ctx context.Context, tenantID int,
 	return map[string]interface{}{"created_count": 1}, m.err
 }
 
-func (m *assetStatsServiceMock) GetAssetStats(_ context.Context, tenantID int) ([]repositories.AssetClassCount, error) {
+func (m *assetStatsServiceMock) GetAssetStats(_ context.Context, tenantID int) (repositories.AssetStats, error) {
 	m.tenantID = tenantID
 	return m.stats, m.err
 }
 
 func TestGetAssetStatsReturnsExactTenantAggregate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	service := &assetStatsServiceMock{stats: []repositories.AssetClassCount{
-		{Class: "Piping", Count: 12},
-		{Class: "Storage Tanks", Count: 7},
+	service := &assetStatsServiceMock{stats: repositories.AssetStats{
+		Classes: []repositories.AssetClassCount{
+			{Class: "Piping", Count: 12},
+			{Class: "Storage Tanks", Count: 7},
+		},
+		Funcloc: repositories.AssetFunclocStats{With: 1500, Without: 200},
 	}}
 	handler := handlers.NewAssetHandler(service, nil)
 	recorder := httptest.NewRecorder()
@@ -75,7 +78,7 @@ func TestGetAssetStatsReturnsExactTenantAggregate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, 42, service.tenantID)
-	require.JSONEq(t, `{"success":true,"message":"Asset statistics retrieved successfully","data":[{"class":"Piping","count":12},{"class":"Storage Tanks","count":7}]}`, recorder.Body.String())
+	require.JSONEq(t, `{"success":true,"message":"Asset statistics retrieved successfully","data":{"classes":[{"class":"Piping","count":12},{"class":"Storage Tanks","count":7}],"funcloc":{"with":1500,"without":200}}}`, recorder.Body.String())
 }
 
 func TestGetAssetStatsReturnsJSONInternalError(t *testing.T) {

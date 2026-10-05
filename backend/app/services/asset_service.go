@@ -579,8 +579,9 @@ func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *reque
 	}, nil
 }
 
-// GetAssetStats returns asset counts grouped by equipment class.
-func (s *AssetService) GetAssetStats(ctx context.Context, tenantID int) ([]repositories.AssetClassCount, error) {
+// GetAssetStats returns asset counts grouped by equipment class plus
+// functional-location coverage.
+func (s *AssetService) GetAssetStats(ctx context.Context, tenantID int) (repositories.AssetStats, error) {
 	return s.AssetRepo.GetAssetStats(ctx, tenantID)
 }
 
@@ -1582,6 +1583,28 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 			continue
 		}
 		raw := strings.TrimSpace(row[index])
+
+		// Installation status and functional location are derived from the raw
+		// cell before the blank/dummy skip: a blank Equipment Status means
+		// "Available", and a blank Funcloc means the asset has no functional
+		// location. Everything else still follows the sanitize-then-skip path.
+		switch column.normalized {
+		case "status", "equipmentstatus":
+			status := NormalizeInstallationStatus(raw)
+			asset.Status = &status
+			continue
+		case "funcloc", "parentfunloc":
+			code, description, hasFuncloc := ParseEquipmentImportFuncloc(raw)
+			asset.HasFuncloc = hasFuncloc
+			if hasFuncloc {
+				asset.RBIProperties["parent_funcloc_code"] = code
+				if description != "" {
+					asset.RBIProperties["parent_funcloc_desc"] = description
+				}
+			}
+			continue
+		}
+
 		if raw == "" {
 			continue
 		}
@@ -1613,9 +1636,11 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 		case "description", "equipmentdescription":
 			asset.Description = &value
 		case "assetclass", "equipmentclass", "class":
-			asset.AssetClass = &value
+			translated := TranslateEquipmentImportClass(value)
+			asset.AssetClass = &translated
 		case "assettype", "equipmenttype", "type":
-			asset.AssetType = &value
+			translated := TranslateEquipmentImportType(value)
+			asset.AssetType = &translated
 		case "name", "equipmentname":
 			asset.Name = value
 		case "parentid", "parentequipmentid":
@@ -1634,8 +1659,6 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 			asset.FunctionalLocationID = &id
 		case "lifecyclestatus":
 			asset.LifecycleStatus = &value
-		case "status":
-			asset.Status = &value
 		default:
 			asset.RBIProperties[column.key] = value
 		}
@@ -2225,6 +2248,7 @@ func (s *AssetService) AssetToResponse(asset *models.Asset) *response.AssetRespo
 		Materials:               map[string]interface{}(asset.Materials),
 		RBIProperties:           map[string]interface{}(asset.RBIProperties),
 		ParentFLOC:              asset.ParentFLOC,
+		HasFuncloc:              asset.HasFuncloc,
 		DrawingsReferences:      map[string]interface{}(asset.DrawingsReferences),
 		MaintenanceStrategy:     s.derefToString(asset.MaintenanceStrategy),
 		InspectionStrategy:      s.derefToString(asset.InspectionStrategy),

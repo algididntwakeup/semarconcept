@@ -29,7 +29,7 @@ describe('EquipmentMasterPage API integration', () => {
   });
 
   it('downloads selected XLSX and CSV formats with their response filenames', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -81,7 +81,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('closes the export menu without exporting when the chosen format is dismissed', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -111,10 +111,13 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('loads stats and fetches the matching equipment class when a stat card is clicked', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([
-      { class: 'Piping', count: 2 },
-      { class: 'Storage Tanks', count: 3 },
-    ]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [
+        { class: 'Piping', count: 2 },
+        { class: 'Storage Tanks', count: 3 },
+      ],
+      funcloc: { with: 4, without: 1 },
+    });
     vi.mocked(assetService.getEquipmentAssets).mockImplementation(async (params = {}) => ({
       assets:
         params.equipment_class === 'Piping'
@@ -152,7 +155,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('runs maintenance utilities and displays the success result as a toast', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -206,7 +209,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('shows file preview with name and size and allows clearing with the X button', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -242,7 +245,7 @@ describe('EquipmentMasterPage API integration', () => {
   });
 
   it('accepts a CSV file through the single import button and uploads it', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -285,7 +288,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('rejects a file whose extension is neither XLSX nor CSV', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -318,7 +321,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('shows import failure details, automatically resets uploader, and imports on submit', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -379,7 +382,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('rejects files larger than 100 MB with an error notification', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -415,7 +418,7 @@ describe('EquipmentMasterPage API integration', () => {
   });
 
   it('triggers purgeAllEquipmentAssets after user confirms clear all equipment dialog', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue([]);
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,

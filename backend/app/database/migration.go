@@ -37,6 +37,23 @@ func MigrateAll(db *gorm.DB) error {
 		utils.Errorf("Failed to ensure assets.rbi_properties JSONB column: %v", err)
 		return err
 	}
+	// has_funcloc is derived during import from the Funcloc column so the
+	// statistics endpoint can count assets with and without a functional
+	// location. AutoMigrate creates the column; this explicit statement keeps
+	// the migration reviewable and idempotent for existing deployments.
+	if err := db.Exec(`ALTER TABLE assets ADD COLUMN IF NOT EXISTS has_funcloc BOOLEAN NOT NULL DEFAULT FALSE`).Error; err != nil {
+		utils.Errorf("Failed to ensure assets.has_funcloc column: %v", err)
+		return err
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_assets_has_funcloc ON assets (has_funcloc)`).Error; err != nil {
+		utils.Errorf("Failed to create assets.has_funcloc index: %v", err)
+		return err
+	}
+	// Backfill rows imported before the flag existed: an asset has a functional
+	// location when its imported JSONB carries the parsed funcloc code.
+	if err := db.Exec(`UPDATE assets SET has_funcloc = TRUE WHERE has_funcloc = FALSE AND NULLIF(BTRIM(COALESCE(rbi_properties->>'parent_funcloc_code', '')), '') IS NOT NULL`).Error; err != nil {
+		utils.Warnf("Could not backfill assets.has_funcloc from rbi_properties: %v", err)
+	}
 	if err := db.Exec(`ALTER TABLE assets DROP COLUMN IF EXISTS rb_iproperties`).Error; err != nil {
 		utils.Warnf("Could not drop legacy assets.rb_iproperties column: %v", err)
 	}

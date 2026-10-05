@@ -12,7 +12,7 @@ import {
 import type {
   EquipmentAssetListParams,
   EquipmentAssetListResponse,
-  EquipmentAssetStat,
+  EquipmentAssetStats,
 } from '../../../services/assetServices';
 
 /**
@@ -58,7 +58,7 @@ export const useAssetStatistics = (filters?: AssetSearchParams) => {
 export const useEquipmentAssetStats = () => {
   return useQuery({
     queryKey: assetKeys.equipmentMaster.stats(),
-    queryFn: (): Promise<EquipmentAssetStat[]> => assetService.getEquipmentAssetStats(),
+    queryFn: (): Promise<EquipmentAssetStats> => assetService.getEquipmentAssetStats(),
   });
 };
 

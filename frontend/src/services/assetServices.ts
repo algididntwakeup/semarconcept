@@ -19,6 +19,16 @@ export interface EquipmentAssetStat {
   count: number;
 }
 
+export interface EquipmentAssetFunclocStats {
+  with: number;
+  without: number;
+}
+
+export interface EquipmentAssetStats {
+  classes: EquipmentAssetStat[];
+  funcloc: EquipmentAssetFunclocStats;
+}
+
 export interface EquipmentAsset {
   id: string | number;
   tag_number?: string | null;
@@ -180,10 +190,21 @@ class AssetService {
     return response.data;
   }
 
-  async getEquipmentAssetStats(): Promise<EquipmentAssetStat[]> {
+  async getEquipmentAssetStats(): Promise<EquipmentAssetStats> {
     const response = await apiClient.get(`${this.baseUrl}/stats`);
     const payload = unwrapApiData<unknown>(response.data);
-    return Array.isArray(payload) ? (payload as EquipmentAssetStat[]) : [];
+    const empty: EquipmentAssetStats = { classes: [], funcloc: { with: 0, without: 0 } };
+    if (!payload || typeof payload !== 'object') {
+      return empty;
+    }
+    const candidate = payload as Partial<EquipmentAssetStats>;
+    return {
+      classes: Array.isArray(candidate.classes) ? candidate.classes : [],
+      funcloc: {
+        with: Number(candidate.funcloc?.with) || 0,
+        without: Number(candidate.funcloc?.without) || 0,
+      },
+    };
   }
 
   async getEquipmentAssets(

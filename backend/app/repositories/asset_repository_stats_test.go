@@ -23,6 +23,9 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	mock.ExpectQuery(`SELECT BTRIM\(asset_class\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL GROUP BY BTRIM\(asset_class\) ORDER BY BTRIM\(asset_class\)`).
 		WithArgs(42).
 		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping", int64(12)).AddRow("Storage Tanks", int64(7)))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FILTER \(WHERE has_funcloc\) AS with_funcloc, COUNT\(\*\) FILTER \(WHERE NOT has_funcloc\) AS without_funcloc FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted'`).
+		WithArgs(42).
+		WillReturnRows(sqlmock.NewRows([]string{"with_funcloc", "without_funcloc"}).AddRow(int64(1500), int64(200)))
 	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
 	require.NoError(t, err)
 	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
@@ -31,7 +34,8 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	require.Equal(t, []AssetClassCount{
 		{Class: "Piping", Count: 12},
 		{Class: "Storage Tanks", Count: 7},
-	}, stats)
+	}, stats.Classes)
+	require.Equal(t, AssetFunclocStats{With: 1500, Without: 200}, stats.Funcloc)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

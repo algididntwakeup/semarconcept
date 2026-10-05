@@ -234,7 +234,7 @@ type AssetRepository interface {
 	Update(ctx context.Context, asset *models.Asset) error
 	Delete(ctx context.Context, tenantID int, id int) error
 	List(ctx context.Context, tenantID int, query *request.AssetListQuery) ([]models.Asset, int64, error)
-	GetAssetStats(ctx context.Context, tenantID int) ([]AssetClassCount, error)
+	GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error)
 	UpdateLifecycle(ctx context.Context, tenantID, assetID int, status string, userID int) error
 	DiagnoseDuplicateTags(ctx context.Context, tenantID int) ([]DuplicateAssetTag, error)
 	FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
@@ -272,6 +272,20 @@ type AssetImportRecord struct {
 type AssetClassCount struct {
 	Class string `gorm:"column:class" json:"class"`
 	Count int64  `gorm:"column:count" json:"count"`
+}
+
+// AssetFunclocStats counts assets that do and do not carry a functional location.
+type AssetFunclocStats struct {
+	With    int64 `gorm:"column:with_funcloc" json:"with"`
+	Without int64 `gorm:"column:without_funcloc" json:"without"`
+}
+
+// AssetStats is the dashboard summary payload: equipment-class aggregates plus
+// functional-location coverage. The object shape keeps room for future metric
+// blocks (for example availability) without adding new endpoints.
+type AssetStats struct {
+	Classes []AssetClassCount `json:"classes"`
+	Funcloc AssetFunclocStats `json:"funcloc"`
 }
 
 type DuplicateAssetTag struct {

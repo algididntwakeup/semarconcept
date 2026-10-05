@@ -39,7 +39,7 @@ type AssetServiceInterface interface {
 	UpdateAsset(ctx context.Context, tenantID int, AssetID int, req *request.UpdateAssetRequest, userID int) (*response.AssetResponse, error)
 	DeleteAsset(ctx context.Context, tenantID int, AssetID int, userID int) error
 	ListAsset(ctx context.Context, tenantID int, query *request.AssetListQuery) (*response.AssetListResponse, error)
-	GetAssetStats(ctx context.Context, tenantID int) ([]repositories.AssetClassCount, error)
+	GetAssetStats(ctx context.Context, tenantID int) (repositories.AssetStats, error)
 	UpdateAssetLifecycle(ctx context.Context, tenantID, assetID, userID int, lifecycle string) (*response.AssetResponse, error)
 	DiagnoseDuplicateAssetTags(ctx context.Context, tenantID int) ([]repositories.DuplicateAssetTag, error)
 	FixAssetLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)

@@ -119,6 +119,7 @@ type AssetResponse struct {
 	Materials               map[string]interface{} `json:"materials,omitempty"`
 	RBIProperties           map[string]interface{} `json:"rbi_properties,omitempty"`
 	ParentFLOC              string                 `json:"parent_floc,omitempty"`
+	HasFuncloc              bool                   `json:"has_funcloc"`
 	DrawingsReferences      map[string]interface{} `json:"drawings_references,omitempty"`
 	MaintenanceStrategy     string                 `json:"maintenance_strategy"`
 	InspectionStrategy      string                 `json:"inspection_strategy"`
