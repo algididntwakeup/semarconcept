@@ -384,10 +384,14 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	const parentEquipmentExpr = `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1') = '1'`
 	// normalizedClass is the canonical class label shown on the cards.
 	const normalizedClass = `INITCAP(LOWER(BTRIM(asset_class)))`
-	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. It works
-	// on the raw value so the grouping stays correct regardless of the exact
-	// casing in the workbook ("Pipeline" and "PIPING LINE" both count as piping).
-	const pipingClassesExpr = `LOWER(BTRIM(asset_class)) IN ('piping', 'piping line', 'pipeline')`
+	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. Imported
+	// classes are stored as "Name (CODE)" (for example "Piping (PI)"), so the
+	// match strips a trailing parenthesised code and compares the leading name;
+	// it also accepts bare names so pre-translation rows keep working.
+	const pipingClassesExpr = `LOWER(REGEXP_REPLACE(BTRIM(asset_class), '\s*\([^)]*\)\s*$', '')) IN ('piping', 'piping line', 'pipeline')`
+	// installedExpr reads the same status column as the list filter and the UI:
+	// the relational lifecycle_status first, then the legacy status column.
+	const installedExpr = `COALESCE(NULLIF(lifecycle_status, ''), status) = 'Installed'`
 	err = db.WithContext(ctx).Model(&models.Asset{}).
 		Select(normalizedClass+" AS class, COUNT(*) AS count").
 		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL AND "+parentEquipmentExpr, tenantID).
@@ -407,7 +411,7 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	err = db.WithContext(ctx).Model(&models.Asset{}).
 		Select(`COUNT(*) AS total,
 			COUNT(*) FILTER (WHERE NOT (`+pipingClassesExpr+`)) AS equipment,
-			COUNT(*) FILTER (WHERE status = 'Installed') AS installed,
+			COUNT(*) FILTER (WHERE `+installedExpr+`) AS installed,
 			COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc,
 			COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc`).
 		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND "+parentEquipmentExpr, tenantID).

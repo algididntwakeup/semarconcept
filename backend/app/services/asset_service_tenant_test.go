@@ -290,6 +290,80 @@ func mustExportStyleID(t *testing.T, workbook *excelize.File, cell string) int {
 	return styleID
 }
 
+// TestAssetService_ExportImportRoundTripKeepsStatusAndFuncloc guards the bug
+// where an exported workbook re-imported into a fresh database lost the
+// Installed status and Has Funcloc coverage: the export must write the Status
+// and Parent/Installed FunLoc columns the importer understands.
+func TestAssetService_ExportImportRoundTripKeepsStatusAndFuncloc(t *testing.T) {
+	ctx := context.Background()
+	installed := "Installed"
+	available := "Available"
+	assetClass := "Piping (PI)"
+	assetType := "Carbon Steel (Ca) (CA)"
+	parentTag := `1"-AI-12001-1G1`
+	childTag := `1"-AI-12002-1G1`
+	name := "Instrument"
+	exportAssets := []models.Asset{
+		{
+			ID: 101, TenantID: 42, TagNumber: &parentTag, Name: name, Status: &installed,
+			AssetClass: &assetClass, AssetType: &assetType,
+			HasFuncloc: true,
+			RBIProperties: models.JSONBMap{
+				"General.Hierarchy Level": "1",
+				"parent_funcloc":          "JI-JL-AG-11-PW (INLET SEPARATION)",
+				"level6_funcloc":          `1"-CI-66002-6S0 (1"-AI-12001-1G1)`,
+			},
+		},
+		{
+			ID: 102, TenantID: 42, TagNumber: &childTag, Name: name, Status: &available,
+			AssetClass: &assetClass, AssetType: &assetType,
+			RBIProperties: models.JSONBMap{"General.Hierarchy Level": "2"},
+		},
+	}
+
+	exportRepo := new(MockAssetRepository)
+	exportRepo.On("ListAssetsForExport", ctx, 42, "", "", []int(nil)).Return(exportAssets, nil)
+	exportService := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), exportRepo, new(MockComponentRepository))
+	data, _, err := exportService.ExportAssets(ctx, 42, &request.AssetExportRequest{})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	// The exported headers must line up with the importer's recognized fields.
+	book, err := excelize.OpenReader(bytes.NewReader(data))
+	assert.NoError(t, err)
+	statusColumn := mustExportColumn(t, book, "Status")
+	parentFunclocColumn := mustExportColumn(t, book, "Parent FunLoc")
+	installedFunclocColumn := mustExportColumn(t, book, "Installed FunLoc")
+	assert.Equal(t, "Installed", mustExportCell(t, book, statusColumn+"3"))
+	assert.Equal(t, "JI-JL-AG-11-PW", mustExportCell(t, book, parentFunclocColumn+"3"))
+	assert.Equal(t, `1"-CI-66002-6S0`, mustExportCell(t, book, installedFunclocColumn+"3"))
+	assert.NoError(t, book.Close())
+
+	// Re-importing the export must rebuild the same status and funcloc flags.
+	importRepo := new(MockAssetRepository)
+	importRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 2 {
+			return false
+		}
+		first, second := records[0].Asset, records[1].Asset
+		if first.Status == nil || *first.Status != "Installed" || !first.HasFuncloc {
+			return false
+		}
+		if first.RBIProperties["parent_funcloc"] != "JI-JL-AG-11-PW" {
+			return false
+		}
+		if first.RBIProperties["level6_funcloc"] != `1"-CI-66002-6S0 (1"-AI-12001-1G1)` {
+			return false
+		}
+		return second.Status != nil && *second.Status == "Available" && !second.HasFuncloc
+	}), 7).Return(2, 0, nil).Once()
+	importService := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), importRepo, new(MockComponentRepository))
+	result, err := importService.ImportAssets(ctx, 42, &request.AssetImportRequest{}, 7, data)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, result.(map[string]interface{})["imported_count"])
+	importRepo.AssertExpectations(t)
+}
+
 func findCSVExportColumn(t *testing.T, categories, headers []string, category, header string) int {
 	t.Helper()
 	currentCategory := ""

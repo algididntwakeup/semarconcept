@@ -2,7 +2,21 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
-## Unreleased — 1 October 2026
+## Unreleased — 5 October 2026
+
+### Equipment Master: fix Installed/Has Funcloc loss on import and export
+
+Gejala: setelah "remove all equipment" lalu import ulang file yang sama, kartu `Installed` dan `Has Funcloc` menjadi 0 (harusnya 397), padahal sebelumnya terbaca. Penyebabnya dua regresi terpisah:
+
+- **Status dipaksa `Available`.** `NormalizeInstallationStatus` (commit `a61f97e`) hanya mengenali `Active`/`In Service` sebagai Installed dan memaksa semua nilai lain menjadi `Available`. File Equipment Master justru berisi literal `Installed`, sehingga 397 baris Installed ikut menjadi `Available`. Aturan dikembalikan menjadi dua nilai saja: `Installed` (case-insensitive) → `Installed`, semua nilai lain (termasuk `Available`, kosong, `9999`, `N/A`) → `Available`. Alias `Active`/`In Service` dihapus agar tidak menutupi ketidakcocokan data.
+- **Export tidak bisa di-import ulang (round-trip).** Export menulis `lifecycle_status` sebagai `parent_funcloc`/`level6_funcloc` mentah dengan header `parent_funcloc`/`level6_funcloc`, sedangkan importer mengenali `Status`, `Parent FunLoc`, dan `Installed FunLoc`. Akibatnya export → purge → import menghapus status Installed dan seluruh cakupan Funcloc. Export kini menulis kolom `Status` (dari `lifecycle_status`, fallback `status`), `Parent FunLoc` (kode bare dari `parent_funcloc`), dan `Installed FunLoc` (kode bare dari `level6_funcloc`), dan tidak lagi menambahkan kolom duplikat `parent_funcloc`/`level6_funcloc`.
+
+Perbaikan statistik terkait:
+
+- `GetAssetStats` kini membaca status instalasi dari `COALESCE(NULLIF(lifecycle_status, ''), status)` (sama seperti filter list dan UI) alih-alih hanya kolom `status`.
+- Kartu `Equipment` menghitung ulang Piping/Piping Line dari label ber-kode, mis. `Piping (PI)`, `Piping Line (PL)`, sehingga `Equipment` = 233 (bukan 1767).
+
+Verifikasi: import ulang file sumber dan round-trip export → purge → import keduanya menghasilkan `total 1767, installed 397, funcloc 397, equipment 233`. Test baru `TestAssetService_ExportImportRoundTripKeepsStatusAndFuncloc` mengunci perilaku ini; `go build`, `go vet`, `go test ./app/...`, `pnpm typecheck`, dan `pnpm test:run` lulus.
 
 ### Equipment Master summary cards, rows-per-page, and wider tables
 

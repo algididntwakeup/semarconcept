@@ -23,7 +23,7 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	mock.ExpectQuery(`SELECT INITCAP\(LOWER\(BTRIM\(asset_class\)\)\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL AND COALESCE\(NULLIF\(BTRIM\(rbi_properties->>'General\.Hierarchy Level'\), ''\), '1'\) = '1' GROUP BY INITCAP\(LOWER\(BTRIM\(asset_class\)\)\) ORDER BY INITCAP\(LOWER\(BTRIM\(asset_class\)\)\)`).
 		WithArgs(42).
 		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping", int64(12)).AddRow("Storage Tanks", int64(7)))
-	mock.ExpectQuery(`SELECT COUNT\(\*\) AS total, COUNT\(\*\) FILTER \(WHERE NOT \(LOWER\(BTRIM\(asset_class\)\) IN \('piping', 'piping line', 'pipeline'\)\)\) AS equipment,`).
+	mock.ExpectQuery(`SELECT COUNT\(\*\) AS total, COUNT\(\*\) FILTER \(WHERE NOT \(LOWER\(REGEXP_REPLACE\(BTRIM\(asset_class\), '\\s\*\\\(\[\^\)\]\*\\\)\\s\*\$', ''\)\) IN \('piping', 'piping line', 'pipeline'\)\)\) AS equipment, COUNT\(\*\) FILTER \(WHERE COALESCE\(NULLIF\(lifecycle_status, ''\), status\) = 'Installed'\) AS installed, COUNT\(\*\) FILTER \(WHERE has_funcloc\) AS with_funcloc,`).
 		WithArgs(42).
 		WillReturnRows(sqlmock.NewRows([]string{"total", "equipment", "installed", "with_funcloc", "without_funcloc"}).
 			AddRow(int64(1777), int64(240), int64(404), int64(400), int64(1377)))

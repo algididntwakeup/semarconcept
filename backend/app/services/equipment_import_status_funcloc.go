@@ -16,24 +16,26 @@ const (
 	InstallationStatusAvailable = "Available"
 )
 
-// NormalizeInstallationStatus maps the imported Equipment Status cell to the
-// installation status used across the application. The result is always one of
-// two values so the frontend and statistics stay consistent:
+// NormalizeInstallationStatus maps the imported Equipment Status cell to the two
+// installation status values used across the application. The Equipment Master
+// workbook carries only "Installed" and "Available", so the rule stays binary:
 //
-//   - "Active" or "In Service" (case-insensitive, trimmed) becomes "Installed";
-//   - every other value, including blank and dummy tokens (9999, N/A, NULL, …),
-//     becomes "Available".
+//   - "Installed" (case-insensitive, trimmed) becomes "Installed";
+//   - every other value, including "Available", blank, and dummy tokens
+//     (9999, N/A, NULL, …), becomes "Available".
+//
+// "Active"/"In Service" are intentionally NOT treated as installed: the source
+// data uses the literal "Installed", and accepting extra aliases only hides
+// mismatches in the workbook.
 func NormalizeInstallationStatus(value string) string {
 	sanitized := sanitizeValue(value)
 	if sanitized == nil {
 		return InstallationStatusAvailable
 	}
-	switch strings.ToUpper(strings.TrimSpace(sanitized.(string))) {
-	case "ACTIVE", "IN SERVICE":
+	if strings.EqualFold(strings.TrimSpace(sanitized.(string)), InstallationStatusInstalled) {
 		return InstallationStatusInstalled
-	default:
-		return InstallationStatusAvailable
 	}
+	return InstallationStatusAvailable
 }
 
 // ParseEquipmentImportFuncloc splits a functional location cell into its code

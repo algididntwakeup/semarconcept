@@ -1767,10 +1767,14 @@ func (s *AssetService) loadEquipmentAssets(ctx context.Context, tenantID int, re
 }
 
 type equipmentExportColumn struct {
-	category    string
-	header      string
-	value       func(models.Asset) interface{}
+	category string
+	header   string
+	value    func(models.Asset) interface{}
+	// propertyKey is the JSONB fallback read when value is empty.
 	propertyKey string
+	// skipProperty names a JSONB key this column already renders, so the
+	// auto-appended extra columns do not duplicate it.
+	skipProperty string
 }
 
 var equipmentExportColumns = []equipmentExportColumn{
@@ -1793,6 +1797,17 @@ var equipmentExportColumns = []equipmentExportColumn{
 	{category: "General", header: "Remaining Life (Years)", value: func(a models.Asset) interface{} { return valueOrEmptyFloat(a.RemainingLifeYears) }},
 	{category: "General", header: "Maintenance Strategy", value: func(a models.Asset) interface{} { return valueOrEmpty(a.MaintenanceStrategy) }},
 	{category: "General", header: "Inspection Strategy", value: func(a models.Asset) interface{} { return valueOrEmpty(a.InspectionStrategy) }},
+	// Status and functional locations round-trip through the importer: the
+	// export writes the same columns the source workbook carries so that an
+	// export followed by an import reproduces the Installed and Has Funcloc
+	// statistics instead of clearing them.
+	{category: "General", header: "Status", value: func(a models.Asset) interface{} { return assetInstallationStatus(a) }},
+	{category: "General", header: "Parent FunLoc", skipProperty: "parent_funcloc", value: func(a models.Asset) interface{} {
+		return funclocCodeFromFormatted(jsonbString(a.RBIProperties, "parent_funcloc"))
+	}},
+	{category: "General", header: "Installed FunLoc", skipProperty: "level6_funcloc", value: func(a models.Asset) interface{} {
+		return funclocCodeFromFormatted(jsonbString(a.RBIProperties, "level6_funcloc"))
+	}},
 	{category: "Component Design", header: "Design Pressure", value: func(a models.Asset) interface{} {
 		return assetJSONValue([]string{"design_pressure", "design pressure"}, a.DesignConditions, a.Specifications)
 	}},
@@ -1999,12 +2014,19 @@ func createEquipmentExportWorkbook(assets []models.Asset, columns []equipmentExp
 func equipmentExportColumnsForAssets(assets []models.Asset) []equipmentExportColumn {
 	columns := append([]equipmentExportColumn(nil), equipmentExportColumns...)
 	seen := make(map[string]struct{}, len(columns))
+	skipProps := make(map[string]struct{})
 	for _, column := range columns {
 		seen[normalizeExportKey(column.category)+"\x00"+normalizeExportKey(column.header)] = struct{}{}
+		if column.skipProperty != "" {
+			skipProps[column.skipProperty] = struct{}{}
+		}
 	}
 	propertyKeys := make([]string, 0)
 	for _, asset := range assets {
 		for key := range asset.RBIProperties {
+			if _, skip := skipProps[key]; skip {
+				continue
+			}
 			propertyKeys = append(propertyKeys, key)
 		}
 	}
@@ -2056,6 +2078,53 @@ func exportValueIsEmpty(value interface{}) bool {
 	}
 	text, ok := value.(string)
 	return ok && text == ""
+}
+
+// assetInstallationStatus returns the status token the importer understands.
+// The list filter, statistics, and the UI all read lifecycle_status first and
+// fall back to the legacy status column, so the export does the same to keep an
+// export/import round-trip lossless.
+func assetInstallationStatus(asset models.Asset) string {
+	if asset.LifecycleStatus != nil {
+		if trimmed := strings.TrimSpace(*asset.LifecycleStatus); trimmed != "" {
+			return trimmed
+		}
+	}
+	if asset.Status != nil {
+		return strings.TrimSpace(*asset.Status)
+	}
+	return ""
+}
+
+// jsonbString reads a string property from a JSONB map, returning "" when the
+// key is absent or holds a non-string value.
+func jsonbString(properties models.JSONBMap, key string) string {
+	if properties == nil {
+		return ""
+	}
+	value, ok := properties[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return text
+}
+
+// funclocCodeFromFormatted extracts the bare code from a stored
+// "CODE (DESCRIPTION)" functional location so the export column matches the
+// importer's input shape.
+func funclocCodeFromFormatted(formatted string) string {
+	trimmed := strings.TrimSpace(formatted)
+	if trimmed == "" {
+		return ""
+	}
+	if open := strings.Index(trimmed, "("); open >= 0 {
+		return strings.TrimSpace(trimmed[:open])
+	}
+	return trimmed
 }
 
 func encodeExportJSONValue(value interface{}) interface{} {
