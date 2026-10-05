@@ -81,12 +81,18 @@ func (m *MockAssetRepository) FindByTag(ctx context.Context, tenantID, unitID in
 	return args.Get(0).(*models.Asset), args.Error(1)
 }
 
-func (m *MockAssetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error) {
-	args := m.Called(ctx, tenantID, assetType, status)
+func (m *MockAssetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string, assetIDs []int) ([]models.Asset, error) {
+	args := m.Called(ctx, tenantID, assetType, status, assetIDs)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]models.Asset), args.Error(1)
+}
+
+// DeleteMany mirrors the repository contract for bulk soft delete.
+func (m *MockAssetRepository) DeleteMany(ctx context.Context, tenantID int, ids []int) (int64, error) {
+	args := m.Called(ctx, tenantID, ids)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockAssetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
@@ -158,7 +164,7 @@ func TestAssetService_ExportAssetsToExcel_WritesTwoTierEquipmentWorkbook(t *test
 	pressure := 12.5
 	tag := "PV-101"
 	name := "Reactor"
-	assetRepo.On("ListAssetsForExport", ctx, 42, "", "").Return([]models.Asset{{
+	assetRepo.On("ListAssetsForExport", ctx, 42, "", "", []int(nil)).Return([]models.Asset{{
 		ID:                  101,
 		TenantID:            42,
 		TagNumber:           &tag,
@@ -795,5 +801,74 @@ func TestAssetService_PurgeAssets(t *testing.T) {
 	deleted, err := svc.PurgeAssets(ctx, tenantID)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1537), deleted)
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_BulkDeleteAssetsSoftDeletesAndDeduplicates(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	// Duplicate and invalid IDs are collapsed before hitting the repository.
+	assetRepo.On("DeleteMany", ctx, tenantID, []int{7, 8}).Return(int64(1), nil).Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := svc.BulkDeleteAssets(ctx, tenantID, &request.BulkAssetOperationRequest{
+		AssetIDs:  []int{7, 8, 7, 0, -3},
+		AssetType: "Asset",
+		Operation: "delete",
+		Reason:    "bulk cleanup of obsolete equipment",
+	}, 9)
+	assert.NoError(t, err)
+
+	payload, ok := result.(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), payload["deleted_count"])
+	assert.Equal(t, 5, payload["total_count"])
+	assert.Equal(t, int64(1), payload["skipped_count"])
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_BulkDeleteAssetsReportsSkippedRows(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("DeleteMany", ctx, tenantID, []int{11, 12}).Return(int64(2), nil).Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := svc.BulkDeleteAssets(ctx, tenantID, &request.BulkAssetOperationRequest{
+		AssetIDs:  []int{11, 12},
+		AssetType: "Asset",
+		Operation: "delete",
+		Reason:    "remove decommissioned equipment records",
+	}, 9)
+	assert.NoError(t, err)
+
+	payload, ok := result.(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, int64(2), payload["deleted_count"])
+	assert.Equal(t, int64(0), payload["skipped_count"])
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ExportAssetsForwardsSelectedIDs(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	// The selected IDs must reach the repository so "download selected" only
+	// exports the checked rows.
+	assetRepo.On("ListAssetsForExport", ctx, tenantID, "", "", []int{5, 6}).
+		Return([]models.Asset{{ID: 5, TenantID: tenantID, Name: "Row five"}, {ID: 6, TenantID: tenantID, Name: "Row six"}}, nil).
+		Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	data, filename, err := svc.ExportAssets(ctx, tenantID, &request.AssetExportRequest{
+		AssetType:  "Asset",
+		ExportType: "full",
+		Format:     "csv",
+		AssetIDs:   []int{5, 6},
+	})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+	assert.Contains(t, filename, ".csv")
 	assetRepo.AssertExpectations(t)
 }

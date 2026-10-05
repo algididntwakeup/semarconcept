@@ -350,7 +350,7 @@ type AssetImportRequest struct {
 type AssetExportRequest struct {
 	AssetType        string                 `json:"asset_type" form:"asset_type"`
 	ExportType       string                 `json:"export_type" form:"export_type"`
-	AssetIDs         []int                  `json:"asset_ids,omitempty"`
+	AssetIDs         []int                  `json:"asset_ids,omitempty" form:"asset_ids"`
 	AssetTypes       []string               `json:"asset_types,omitempty"`
 	SiteIDs          []int                  `json:"site_ids,omitempty"`
 	UnitIDs          []int                  `json:"unit_ids,omitempty"`

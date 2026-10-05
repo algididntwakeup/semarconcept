@@ -141,10 +141,19 @@ export const useEquipmentMaintenanceActions = () => {
     onSuccess: invalidateAssetData,
   });
 	const exportAssets = useMutation({
-		mutationFn: (format: 'xlsx' | 'csv' = 'xlsx') => assetService.exportEquipmentAssets(format),
+		mutationFn: ({
+			format = 'xlsx',
+			assetIds,
+		}: { format?: 'xlsx' | 'csv'; assetIds?: Array<string | number> } = {}) =>
+			assetService.exportEquipmentAssets(format, assetIds),
 	});
   const purgeAllAssets = useMutation({
     mutationFn: () => assetService.purgeAllEquipmentAssets(),
+    onSuccess: invalidateAssetData,
+  });
+  const bulkDeleteAssets = useMutation({
+    mutationFn: ({ assetIds, reason }: { assetIds: Array<string | number>; reason?: string }) =>
+      assetService.bulkDeleteEquipmentAssets(assetIds, reason),
     onSuccess: invalidateAssetData,
   });
 
@@ -155,6 +164,7 @@ export const useEquipmentMaintenanceActions = () => {
     importAssets,
     exportAssets,
     purgeAllAssets,
+    bulkDeleteAssets,
   };
 };
 

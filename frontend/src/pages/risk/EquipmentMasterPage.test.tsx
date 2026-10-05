@@ -20,6 +20,7 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       importEquipmentAssets: vi.fn(),
       exportEquipmentAssets: vi.fn(),
       purgeAllEquipmentAssets: vi.fn(),
+      bulkDeleteEquipmentAssets: vi.fn(),
       createEquipmentAsset: vi.fn(),
     },
   };
@@ -113,14 +114,18 @@ describe('EquipmentMasterPage API integration', () => {
     expect(transferButton).toHaveAttribute('aria-expanded', 'false');
 
     openDataTransferMenu();
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export XLSX' }));
-    await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(1, 'xlsx'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export Equipment XLSX' }));
+    await waitFor(() =>
+      expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(1, 'xlsx', undefined)
+    );
     expect(downloadedFilename).toBe('equipment-master.xlsx');
     expect(await screen.findByText('Equipment export downloaded.')).toBeInTheDocument();
 
     openDataTransferMenu();
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export CSV' }));
-    await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(2, 'csv'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export Equipment CSV' }));
+    await waitFor(() =>
+      expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(2, 'csv', undefined)
+    );
     expect(downloadedFilename).toBe('equipment-master.csv');
 
     clickSpy.mockRestore();
@@ -531,6 +536,66 @@ describe('EquipmentMasterPage API integration', () => {
     expect(await screen.findByText('Import files must be 100 MB or smaller.')).toBeInTheDocument();
     expect(assetService.importEquipmentAssets).not.toHaveBeenCalled();
   });
+
+  it('downloads and removes only the selected equipment rows', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+      total: 0,
+      equipment: 0,
+      installed: 0,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        { id: 41, tag_number: 'P-41', name: 'P-41', asset_class: 'Piping', status: 'Installed' },
+        { id: 42, tag_number: 'P-42', name: 'P-42', asset_class: 'Piping', status: 'Available' },
+      ],
+      total: 2,
+      page: 1,
+      limit: 10,
+    });
+    const blob = new Blob(['selected export']);
+    vi.mocked(assetService.exportEquipmentAssets).mockResolvedValue({
+      blob,
+      filename: 'selected.xlsx',
+    });
+    vi.mocked(assetService.bulkDeleteEquipmentAssets).mockResolvedValue({
+      deleted_count: 1,
+      total_count: 1,
+      skipped_count: 0,
+    });
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:selected'),
+      revokeObjectURL: vi.fn(),
+    });
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select P-41' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download selected' }));
+    await waitFor(() =>
+      expect(assetService.exportEquipmentAssets).toHaveBeenCalledWith('xlsx', ['41'])
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove selected' }));
+    await waitFor(() =>
+      expect(assetService.bulkDeleteEquipmentAssets).toHaveBeenCalledWith(
+        ['41'],
+        expect.any(String)
+      )
+    );
+    expect(await screen.findByText('Removed 1 equipment record(s).')).toBeInTheDocument();
+
+    clickSpy.mockRestore();
+    confirmSpy.mockRestore();
+    vi.unstubAllGlobals();
+  }, 15000);
 
   it('triggers purgeAllEquipmentAssets from the Maintenance dropdown after user confirms', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });

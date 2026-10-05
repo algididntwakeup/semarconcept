@@ -4,6 +4,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master grid columns, row selection, and Data Transfer scopes
+
+- Kolom Data Grid disusun ulang menjadi: **checkbox**, **Tag Number / Equipment** (sub-teks kode tipe, mis. `Carbon Steel - CA`, warna berbeda), **Description**, **Class / Type** (sub-teks tipe ber-kode, mis. `Carbon Steel (CA)`, warna grey), **Status** (badge hijau `Installed` / abu lainnya), dan **Action**. Kolom `Lifecycle` dihapus dari header grid (dropdown Lifecycle tetap ada di kolom Action).
+- Kode singkatan dipulihkan di frontend (`frontend/src/features/assets/data/equipmentDisplayCodes.ts`) karena DB menyimpan label polos hasil transformasi import (`PI` → `Piping`, `CA` → `Carbon Steel`). Catatan: label yang berasal dari beberapa kode (mis. `Carbon Steel` dari `CA`/`CS`) hanya menampilkan kode utama; penyimpanan kode mentah masuk daftar rework backend.
+- Checkbox per baris + checkbox "select all" di header, dengan selection bar berisi **Download selected** dan **Remove selected** (dengan konfirmasi), plus **Clear selection**. Seleksi dibatasi ke baris yang terlihat di halaman.
+- Filter status di header grid diganti menjadi `All statuses` / `Installed` / `Available` / `Sent to repair` / `Retired` / `Condemned` (label aksesibilitas: "Filter equipment by status").
+- Menu **Data Transfer** dibagi menjadi 4 kelompok: **Equipment**, **Component**, **All Asset**, dan **Data Source**. Baru **Equipment** yang terhubung penuh (Import Equipment, Export Equipment XLSX/CSV); tiga kelompok lain tampil sebagai placeholder `Feature [mode] [group] is under development`.
+- Backend: export kini memfilter `asset_ids` (`ListAssetsForExport` menerima daftar ID) sehingga "Download selected" hanya mengunduh baris tercentang; `BulkDeleteAssets` yang sebelumnya stub (hanya menghitung) kini melakukan **soft delete nyata** lewat `DeleteMany` (status `deleted`, tenant-scoped, dedup ID, melaporkan `skipped_count`).
+- Validasi: test backend baru (`TestAssetService_BulkDeleteAssetsSoftDeletesAndDeduplicates`, `TestAssetService_BulkDeleteAssetsReportsSkippedRows`, `TestAssetService_ExportAssetsForwardsSelectedIDs`), test frontend baru (pemetaan kode class/type, checkbox + selection actions, kolom Status menggantikan Lifecycle, 4 kelompok Data Transfer, download/remove selected di halaman), `pnpm typecheck`, `go test ./app/...`, dan `pnpm test:run`.
+- TODO (rework backend berikutnya): wire penuh 3 kelompok Data Transfer (Component, All Asset, Data Source) termasuk filter scope export/import dan format Data Source; simpan kode mentah equipment agar label ambigu tidak hilang.
+- Catatan operasional: perubahan sempat tidak tampak di browser karena Vite dev server menyajikan cache lama; solusinya `docker restart semar-frontend` lalu hard refresh.
+
 ### Equipment Master stat card accuracy and dynamic icons
 
 - Memperbaiki akar masalah angka kartu yang terlalu besar: import menyimpan **equipment induk sebagai Hierarchy Level 1** dan **sub-komponen sebagai Level 2** (mis. `PV-101 SHELL`), tetapi agregasi lama menghitung semua baris. Storage Tanks tampil 114 (seharusnya 40) dan Pressure Vessels 216 (seharusnya 89). `GetAssetStats` kini membatasi semua agregat ke `COALESCE(rbi_properties->>'General.Hierarchy Level','1') = '1'`.

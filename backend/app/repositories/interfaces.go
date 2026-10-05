@@ -233,13 +233,16 @@ type AssetRepository interface {
 	FindByName(ctx context.Context, tenantID int, unitID int, name string) (*models.Asset, error)
 	Update(ctx context.Context, asset *models.Asset) error
 	Delete(ctx context.Context, tenantID int, id int) error
+	// DeleteMany soft-deletes every asset in ids for the tenant and reports how
+	// many rows were affected.
+	DeleteMany(ctx context.Context, tenantID int, ids []int) (int64, error)
 	List(ctx context.Context, tenantID int, query *request.AssetListQuery) ([]models.Asset, int64, error)
 	GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error)
 	UpdateLifecycle(ctx context.Context, tenantID, assetID int, status string, userID int) error
 	DiagnoseDuplicateTags(ctx context.Context, tenantID int) ([]DuplicateAssetTag, error)
 	FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
 	ValidateFLOCLinks(ctx context.Context, tenantID, userID int, dryRun bool) (*FLOCSyncResult, error)
-	ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error)
+	ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string, assetIDs []int) ([]models.Asset, error)
 	UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []AssetImportRecord, userID int) (created, updated int, err error)
 	FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error)
 	HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error)

@@ -1106,23 +1106,40 @@ func (s *AssetService) BulkUpdateAssets(ctx context.Context, tenantID int, req *
 	}, nil
 }
 
-// BulkDeleteAssets performs bulk delete operations on assets -  FIXED: Removed unused variables
+// BulkDeleteAssets soft-deletes the requested assets for the tenant. Rows that
+// do not belong to the tenant (or are already deleted) are counted as skipped
+// so the caller can report a precise outcome instead of a fake success.
 func (s *AssetService) BulkDeleteAssets(ctx context.Context, tenantID int, req *request.BulkAssetOperationRequest, userID int) (interface{}, error) {
 	s.logger.Info(fmt.Sprintf("Bulk deleting assets for tenant %d", tenantID))
 
-	deletedCount := 0
-	errors := make([]string, 0)
+	unique := make([]int, 0, len(req.AssetIDs))
+	seen := make(map[int]struct{}, len(req.AssetIDs))
+	for _, id := range req.AssetIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
 
-	for _, _ = range req.AssetIDs {
-		// Determine asset type and perform deletion
-		// This is a simplified implementation
-		// Need to check for dependencies before deletion
-		deletedCount++
+	deletedCount, err := s.AssetRepo.DeleteMany(ctx, tenantID, unique)
+	if err != nil {
+		return nil, err
+	}
+
+	skipped := int64(len(unique)) - deletedCount
+	errors := make([]string, 0)
+	if skipped > 0 {
+		errors = append(errors, fmt.Sprintf("%d asset(s) were skipped because they were already deleted or belong to another tenant", skipped))
 	}
 
 	return map[string]interface{}{
 		"deleted_count": deletedCount,
 		"total_count":   len(req.AssetIDs),
+		"skipped_count": skipped,
 		"errors":        errors,
 	}, nil
 }
@@ -1741,7 +1758,7 @@ func (s *AssetService) loadEquipmentAssets(ctx context.Context, tenantID int, re
 	if status == "" && len(req.Statuses) == 1 {
 		status = req.Statuses[0]
 	}
-	assets, err := s.AssetRepo.ListAssetsForExport(ctx, tenantID, assetType, status)
+	assets, err := s.AssetRepo.ListAssetsForExport(ctx, tenantID, assetType, status, req.AssetIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load equipment assets for export: %w", err)
 	}

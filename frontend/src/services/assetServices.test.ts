@@ -145,6 +145,7 @@ describe('Equipment Master asset service', () => {
 	});
 	expect(apiClient.get).toHaveBeenCalledWith('/assets/export', {
 	  params: { asset_type: 'Asset', export_type: 'full', format: 'xlsx' },
+	  paramsSerializer: { indexes: null },
 	  responseType: 'blob',
 	});
 
@@ -158,6 +159,7 @@ describe('Equipment Master asset service', () => {
 	});
 	expect(apiClient.get).toHaveBeenLastCalledWith('/assets/export', {
 	  params: { asset_type: 'Asset', export_type: 'full', format: 'csv' },
+	  paramsSerializer: { indexes: null },
 	  responseType: 'blob',
 	});
 	vi.mocked(apiClient.get).mockResolvedValueOnce({ data: blob, headers: {} });

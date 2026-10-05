@@ -246,6 +246,37 @@ class AssetService {
   }
 
   /**
+   * Soft-deletes the selected equipment in one request. The backend marks the
+   * rows as deleted so they disappear from lists, stats, and exports.
+   */
+  async bulkDeleteEquipmentAssets(
+    assetIds: Array<string | number>,
+    reason = 'Removed from Equipment Master selection'
+  ): Promise<{ deleted_count: number; total_count: number; skipped_count: number }> {
+    const ids = assetIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const response = await apiClient.delete(`${this.baseUrl}/bulk-delete`, {
+      data: {
+        asset_ids: ids,
+        asset_type: 'Asset',
+        operation: 'delete',
+        reason: reason.trim().length >= 10 ? reason : 'Removed from Equipment Master selection',
+      },
+    });
+    const payload = unwrapApiData<{
+      deleted_count?: number;
+      total_count?: number;
+      skipped_count?: number;
+    }>(response.data);
+    return {
+      deleted_count: Number(payload?.deleted_count ?? 0),
+      total_count: Number(payload?.total_count ?? ids.length),
+      skipped_count: Number(payload?.skipped_count ?? 0),
+    };
+  }
+
+  /**
    * Create a single equipment asset from the Equipment Master modal. The
    * backend requires name and asset_type, so the tag number doubles as the
    * display name and a generic "Equipment" type is used when none is chosen.
@@ -338,9 +369,22 @@ class AssetService {
     }
   }
 
-  async exportEquipmentAssets(format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ blob: Blob; filename: string }> {
+  async exportEquipmentAssets(
+    format: 'xlsx' | 'csv' = 'xlsx',
+    assetIds?: Array<string | number>
+  ): Promise<{ blob: Blob; filename: string }> {
+    const ids = (assetIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
     const response = await apiClient.get(`${this.baseUrl}/export`, {
-      params: { asset_type: 'Asset', export_type: 'full', format },
+      params: {
+        asset_type: 'Asset',
+        export_type: 'full',
+        format,
+        ...(ids.length > 0 ? { asset_ids: ids } : {}),
+      },
+      // Repeat asset_ids as asset_ids=1&asset_ids=2 for the Gin query binder.
+      paramsSerializer: { indexes: null },
       responseType: 'blob',
     });
     const disposition = response.headers?.['content-disposition'] as string | undefined;

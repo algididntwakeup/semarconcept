@@ -186,9 +186,9 @@ const EquipmentMasterPage = () => {
     }
   };
 
-  const handleExport = async (format: 'xlsx' | 'csv') => {
+  const handleExport = async (format: 'xlsx' | 'csv', assetIds?: Array<string | number>) => {
     try {
-		const { blob, filename } = await maintenance.exportAssets.mutateAsync(format);
+      const { blob, filename } = await maintenance.exportAssets.mutateAsync({ format, assetIds });
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
@@ -197,7 +197,12 @@ const EquipmentMasterPage = () => {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(downloadUrl);
-		showNotification('Equipment export downloaded.', 'success');
+      showNotification(
+        assetIds && assetIds.length > 0
+          ? `Exported ${assetIds.length} selected equipment record(s).`
+          : 'Equipment export downloaded.',
+        'success'
+      );
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Unable to export assets.',
@@ -205,6 +210,35 @@ const EquipmentMasterPage = () => {
       );
     }
   };
+
+  const handleDeleteSelected = async (assetIds: Array<string | number>) => {
+    const confirmed = window.confirm(
+      `Remove ${assetIds.length} selected equipment record(s)? They will be hidden from the registry.`
+    );
+    if (!confirmed) return;
+    try {
+      const result = await maintenance.bulkDeleteAssets.mutateAsync({
+        assetIds,
+        reason: 'Removed from Equipment Master row selection',
+      });
+      showNotification(
+        `Removed ${result.deleted_count} equipment record(s).`,
+        'success'
+      );
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Unable to remove selected equipment.',
+        'error'
+      );
+    }
+  };
+
+  const handlePlaceholderAction = useCallback(
+    (label: string) => {
+      showNotification(`Feature ${label} is under development`, 'info');
+    },
+    [showNotification]
+  );
 
   const handlePurgeAll = async () => {
     const confirmed = window.confirm(
@@ -391,6 +425,7 @@ const EquipmentMasterPage = () => {
       onClearAllEquipment={() => void handlePurgeAll()}
       onImport={() => importInputRef.current?.click()}
       onExport={(format) => void handleExport(format)}
+      onPlaceholderAction={handlePlaceholderAction}
       onNewEquipment={() => setNewEquipmentOpen(true)}
       isMaintenancePending={
         maintenance.diagnoseDuplicates.isPending ||
@@ -621,6 +656,10 @@ const EquipmentMasterPage = () => {
           onLifecycleFilterChange={handleLifecycleFilterChange}
           onAction={handleRowAction}
           onLifecycleAction={handleLifecycleAction}
+          onExportSelected={(ids) => void handleExport('xlsx', ids)}
+          onDeleteSelected={(ids) => void handleDeleteSelected(ids)}
+          isExportingSelected={maintenance.exportAssets.isPending}
+          isDeletingSelected={maintenance.bulkDeleteAssets.isPending}
           paginationSlot={pagination}
           toolbarSlot={toolbarSlot}
           bannerSlot={bannerSlot}

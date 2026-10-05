@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	gormPostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -205,6 +206,26 @@ func (r *assetRepository) Delete(ctx context.Context, tenantID int, id int) erro
 		return utils.ErrAssetNotFound
 	}
 	return nil
+}
+
+// DeleteMany soft-deletes every listed asset in one statement, scoped to the
+// tenant. Soft delete (status = 'deleted') keeps the row for audit while
+// removing it from every list, stats, and export query.
+func (r *assetRepository) DeleteMany(ctx context.Context, tenantID int, ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	query := `UPDATE assets SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $1 AND id = ANY($2) AND COALESCE(status, '') <> 'deleted'`
+	result, err := r.db.ExecContext(ctx, query, tenantID, pq.Array(ids))
+	if err != nil {
+		return 0, fmt.Errorf("delete assets: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("delete assets rows affected: %w", err)
+	}
+	return rows, nil
 }
 
 // HasActiveComponents checks if the asset has related components
@@ -500,7 +521,7 @@ func (r *assetRepository) ValidateFLOCLinks(ctx context.Context, tenantID, userI
 	return result, nil
 }
 
-func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error) {
+func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string, assetIDs []int) ([]models.Asset, error) {
 	query := `SELECT * FROM assets WHERE tenant_id = $1 AND COALESCE(status, '') <> 'deleted'`
 	args := []interface{}{tenantID}
 	if assetType != "" {
@@ -510,6 +531,12 @@ func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int,
 	if status != "" {
 		args = append(args, status)
 		query += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, len(args))
+	}
+	// When explicit IDs are supplied (for example "download selected rows"),
+	// restrict the export to those rows.
+	if len(assetIDs) > 0 {
+		args = append(args, pq.Array(assetIDs))
+		query += fmt.Sprintf(` AND id = ANY($%d)`, len(args))
 	}
 	query += ` ORDER BY id`
 	assets := make([]models.Asset, 0)

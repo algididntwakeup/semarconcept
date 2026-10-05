@@ -43,6 +43,43 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAssetRepository_DeleteManySoftDeletesTenantRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Two ids are passed as a single pq.Array argument; the statement reports
+	// one affected row.
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE assets SET status = 'deleted', updated_at = CURRENT_TIMESTAMP`)).
+		WithArgs(42, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
+	require.NoError(t, err)
+	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
+
+	affected, err := repo.DeleteMany(context.Background(), 42, []int{7, 8})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), affected)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAssetRepository_DeleteManySkipsEmptyInput(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
+	require.NoError(t, err)
+	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
+
+	// No ids means no query at all.
+	affected, err := repo.DeleteMany(context.Background(), 42, nil)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), affected)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAssetRepository_UpsertAssetsFromImportPrioritizesTagAndCommitsAtomically(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
