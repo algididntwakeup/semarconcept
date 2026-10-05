@@ -1,8 +1,10 @@
-import { Eye, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { memo, type ChangeEvent, type ReactNode } from 'react';
 import type { EquipmentAsset } from '../../../services/assetServices';
-import LifecycleDropdown, { type LifecycleAction } from './LifecycleDropdown';
-import RowActions, { type AssetRowAction } from './RowActions';
+import RowActions, {
+  type AssetLifecycleMenuAction,
+  type AssetRowAction,
+} from './RowActions';
 
 export type EquipmentAssetRow = EquipmentAsset;
 
@@ -12,9 +14,11 @@ export interface AssetDataGridProps {
   error?: string | null;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
-  onView?: (asset: EquipmentAssetRow) => void;
   onAction?: (action: AssetRowAction, asset: EquipmentAssetRow) => void;
-  onLifecycleChange?: (asset: EquipmentAssetRow, action: LifecycleAction) => Promise<void> | void;
+  onLifecycleAction?: (
+    action: AssetLifecycleMenuAction,
+    asset: EquipmentAssetRow
+  ) => Promise<void> | void;
   lifecycleFilter?: string;
   onLifecycleFilterChange?: (status: string) => void;
   paginationSlot?: ReactNode;
@@ -35,9 +39,8 @@ const AssetDataGrid = memo(({
   error,
   searchValue = '',
   onSearchChange,
-  onView,
   onAction,
-  onLifecycleChange,
+  onLifecycleAction,
   lifecycleFilter = '',
   onLifecycleFilterChange,
   paginationSlot,
@@ -95,12 +98,12 @@ const AssetDataGrid = memo(({
       <table className="w-full min-w-[680px] border-collapse text-left">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50/80">
-            {['Tag Number / Equipment', 'Description', 'Class / Type', 'Lifecycle', 'Actions'].map(
+            {['Tag Number / Equipment', 'Description', 'Class / Type', 'Lifecycle', 'Action'].map(
               (column) => (
                 <th
                   key={column}
                   scope="col"
-                  className="px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  className={`px-5 py-4 text-xs font-semibold uppercase tracking-wide text-slate-500 ${column === 'Action' ? 'text-right' : ''}`}
                 >
                   {column}
                 </th>
@@ -180,37 +183,21 @@ const AssetDataGrid = memo(({
                     </span>
                   </td>
                   <td className="px-5 py-4">
-                    {onLifecycleChange ? (
-                      <LifecycleDropdown
-                        currentStatus={
-                          asset.lifecycle_status ?? asset.lifecycleStatus ?? asset.status
-                        }
-                        onChange={(action) => onLifecycleChange(asset, action)}
-                      />
-                    ) : (
-                      <span className="text-xs capitalize text-slate-500">
-                        {(
-                          asset.lifecycle_status ??
-                          asset.lifecycleStatus ??
-                          asset.status ??
-                          '—'
-                        ).replace(/_/g, ' ')}
-                      </span>
-                    )}
+                    <span className="text-xs capitalize text-slate-500">
+                      {(
+                        asset.lifecycle_status ??
+                        asset.lifecycleStatus ??
+                        asset.status ??
+                        '—'
+                      ).replace(/_/g, ' ')}
+                    </span>
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onView?.(asset)}
-                        disabled={!onView}
-                        aria-label={`View ${tag}`}
-                        className="rounded-lg p-2 text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-default disabled:opacity-50"
-                      >
-                        <Eye size={17} />
-                      </button>
-                      {onAction && <RowActions asset={asset} onAction={onAction} />}
-                    </div>
+                    <RowActions
+                      asset={asset}
+                      onManage={onAction}
+                      onLifecycle={onLifecycleAction}
+                    />
                   </td>
                 </tr>
               );

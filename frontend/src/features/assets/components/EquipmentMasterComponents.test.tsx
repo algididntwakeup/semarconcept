@@ -24,8 +24,8 @@ describe('Equipment Master reusable components', () => {
     expect(screen.getByRole('button').querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
-  it('renders equipment fields, action callbacks, and the pagination slot', () => {
-    const onView = vi.fn();
+  it('renders equipment fields, the ACTION column, and the pagination slot', () => {
+    const onAction = vi.fn();
     const asset = {
       id: 12,
       tag_number: 'P-101',
@@ -37,7 +37,7 @@ describe('Equipment Master reusable components', () => {
     render(
       <AssetDataGrid
         assets={[asset]}
-        onView={onView}
+        onAction={onAction}
         paginationSlot={<button type="button">Next page</button>}
       />
     );
@@ -45,8 +45,9 @@ describe('Equipment Master reusable components', () => {
     expect(screen.getByText('P-101')).toBeInTheDocument();
     expect(screen.getByText('Main process pump')).toBeInTheDocument();
     expect(screen.getByText('rotating equipment')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'View P-101' }));
-    expect(onView).toHaveBeenCalledWith(asset);
+    expect(screen.getByRole('columnheader', { name: 'Action' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Manage P-101' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lifecycle P-101' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
   });
 
@@ -91,18 +92,33 @@ describe('Equipment Master reusable components', () => {
     expect(screen.queryByText('No equipment registered yet')).not.toBeInTheDocument();
   });
 
-  it('shows the five row action menu choices and dispatches the selected action', () => {
-    const onAction = vi.fn();
+  it('lists the Manage actions and dispatches the selected one', () => {
+    const onManage = vi.fn();
     const asset = { id: 21, tag_number: 'E-210' };
-    render(<RowActions asset={asset} onAction={onAction} />);
+    render(<RowActions asset={asset} onManage={onManage} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Actions for E-210' }));
-    expect(screen.getByRole('menuitem', { name: 'Manage asset' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Add component' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'View timeline' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete asset' }));
-    expect(onAction).toHaveBeenCalledWith('delete', asset);
+    fireEvent.click(screen.getByRole('button', { name: 'Manage E-210' }));
+    expect(screen.getByRole('menuitem', { name: 'Manage Asset' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Add Component' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'View Timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Edit Asset' })).toBeInTheDocument();
+    const deleteItem = screen.getByRole('menuitem', { name: 'Delete' });
+    expect(deleteItem.className).toContain('text-rose-600');
+    fireEvent.click(deleteItem);
+    expect(onManage).toHaveBeenCalledWith('delete', asset);
+  });
+
+  it('lists the Lifecycle actions and dispatches the selected one', () => {
+    const onLifecycle = vi.fn();
+    const asset = { id: 21, tag_number: 'E-210' };
+    render(<RowActions asset={asset} onLifecycle={onLifecycle} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lifecycle E-210' }));
+    for (const label of ['Relocate', 'Uninstall', 'Send to repair', 'Retire', 'Condemn']) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Relocate' }));
+    expect(onLifecycle).toHaveBeenCalledWith('Relocate', asset);
   });
 
   it('sends lifecycle actions through the change callback', async () => {

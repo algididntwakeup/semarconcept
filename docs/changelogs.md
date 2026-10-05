@@ -4,6 +4,19 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 1 October 2026
 
+### Equipment Master row ACTION column (Manage + Lifecycle dropdowns)
+
+- Menambahkan kolom `ACTION` di posisi paling kanan tabel register Equipment Master.
+- Mengganti tombol View 👁 dan menu ⋯ lama dengan dua dropdown sekunder per baris (komponen `RowActions`):
+  - `Manage ▾` berisi `Manage Asset`, `Add Component`, `View Timeline`, `Edit Asset`, dan `Delete` (teks merah `text-rose-600`).
+  - `Lifecycle ▾` berisi `Relocate`, `Uninstall`, `Send to repair`, `Retire`, `Condemn`.
+- Sesuai keputusan: kolom `Lifecycle` kini hanya menampilkan teks status (dropdown lifecycle fungsional lama dihapus dari grid); `LifecycleDropdown` tetap ada untuk komponen lain.
+- Perilaku yang sudah berjalan dipertahankan: `Manage Asset` (buka detail), `Add Component` (navigasi ke `/assets/hierarchy`), `View Timeline` (muat timeline), dan `Delete` tetap berfungsi.
+- `Edit Asset` disiapkan untuk wiring: handler menyimpan id/tag baris (`editingEquipmentId`) dan `NewEquipmentModal` menerima prop `mode` (`create` | `edit`) serta `assetId`; saat ini klik hanya menampilkan toast placeholder `Feature Edit Asset is under development` (prefill/save belum diimplementasikan).
+- Semua opsi `Lifecycle ▾` diikat ke placeholder toast `Feature [Nama Menu] is under development`.
+- Membersihkan kode mati di halaman Equipment Master: blok `AssetFormModal` mode edit, state `editingAsset`, handler `handleLifecycleChange`, dan hook `useUpdateEquipmentLifecycle` yang tidak lagi dipakai (setelah tombol edit lama digantikan wiring modal baru).
+- Validasi: test `EquipmentMasterComponents.test.tsx` (kolom ACTION, isi menu Manage/Lifecycle, warna merah Delete), `EquipmentMasterPage.test.tsx` (Manage Asset & Add Component tetap jalan, toast placeholder Edit Asset dan Lifecycle), `pnpm typecheck`, dan `pnpm test:run`.
+
 ### Equipment Master page layout rework (cards + unified table toolbar)
 
 - Halaman Equipment Master kini satu halaman terpadu: deretan kartu statistik di bagian atas, lalu tabel register tepat di bawahnya (urutan lama `Maintenance utilities` → `metrics` → `register` digantikan `metrics` → `register`).

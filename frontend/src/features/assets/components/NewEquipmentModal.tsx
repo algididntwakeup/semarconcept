@@ -27,6 +27,14 @@ export interface NewEquipmentModalProps {
   onClose: () => void;
   onSubmit: (payload: NewEquipmentPayload) => Promise<void> | void;
   isSubmitting?: boolean;
+  /**
+   * `create` opens the blank form; `edit` is prepared to load an existing
+   * equipment by `assetId` once the update flow is wired. Prefilling and
+   * saving are intentionally not implemented yet.
+   */
+  mode?: 'create' | 'edit';
+  /** Asset ID or Tag Number to edit when `mode` is `edit`. */
+  assetId?: string | number | null;
 }
 
 interface FormState {
@@ -76,6 +84,8 @@ const NewEquipmentModal = ({
   onClose,
   onSubmit,
   isSubmitting = false,
+  mode = 'create',
+  assetId = null,
 }: NewEquipmentModalProps) => {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState('');
@@ -157,8 +167,13 @@ const NewEquipmentModal = ({
               Equipment Master
             </p>
             <h2 id="new-equipment-title" className="mt-1 text-xl font-bold text-slate-900">
-              New Equipment
+              {mode === 'edit' ? 'Edit Equipment' : 'New Equipment'}
             </h2>
+            {mode === 'edit' && assetId != null && (
+              <p className="mt-1 text-xs text-slate-500">
+                Preparing edit for asset <span className="font-medium">{assetId}</span>
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -343,7 +358,11 @@ const NewEquipmentModal = ({
               disabled={isSubmitting}
               className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
             >
-              {isSubmitting ? 'Saving…' : 'Save Equipment'}
+              {isSubmitting
+                ? 'Saving…'
+                : mode === 'edit'
+                  ? 'Save Changes'
+                  : 'Save Equipment'}
             </button>
           </footer>
         </form>

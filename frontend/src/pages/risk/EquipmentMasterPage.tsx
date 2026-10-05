@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, ClipboardList, FileUp, X } from 'lucide-react';
 import {
   useCreateEquipmentAsset,
@@ -7,7 +6,6 @@ import {
   useEquipmentMaintenanceActions,
   useEquipmentAssets,
   useEquipmentAssetStats,
-  useUpdateEquipmentLifecycle,
 } from '../../features/assets/api/assetQueries';
 import AssetDataGrid, {
   type EquipmentAssetRow,
@@ -17,14 +15,14 @@ import NewEquipmentModal, {
   type NewEquipmentPayload,
 } from '../../features/assets/components/NewEquipmentModal';
 import { withDiscoveredClasses } from '../../features/assets/data/equipmentTaxonomy';
-import type { AssetRowAction } from '../../features/assets/components/RowActions';
+import type {
+  AssetLifecycleMenuAction,
+  AssetRowAction,
+} from '../../features/assets/components/RowActions';
 import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
-import AssetFormModal from '../../components/AssetFormModal';
 import { assetService } from '../../services/assetServices';
 import type { EquipmentAssetImportResult } from '../../services/assetServices';
-import { assetKeys } from '../../shared/api/queryKeys';
-import type { Asset } from '../../types/asset';
 import { useNotification } from '../../hooks/useNotification';
 
 const PAGE_SIZE = 10;
@@ -43,18 +41,17 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const EquipmentMasterPage = () => {
-  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
 	const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [newEquipmentOpen, setNewEquipmentOpen] = useState(false);
+  const [editingEquipmentId, setEditingEquipmentId] = useState<string | number | null>(null);
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
     equipmentClass: string;
   } | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EquipmentAssetRow | null>(null);
-  const [editingAsset, setEditingAsset] = useState<EquipmentAssetRow | null>(null);
   const [timeline, setTimeline] = useState<
     { title: string; date: string; description: string }[] | null
   >(null);
@@ -77,10 +74,8 @@ const EquipmentMasterPage = () => {
     lifecycle_status: lifecycleFilter || undefined,
   });
   const statsQuery = useEquipmentAssetStats();
-  const updateLifecycle = useUpdateEquipmentLifecycle();
   const deleteAsset = useDeleteEquipmentAsset();
   const createEquipment = useCreateEquipmentAsset();
-  const updateLifecycleAsync = updateLifecycle.mutateAsync;
   const deleteAssetAsync = deleteAsset.mutateAsync;
   const maintenance = useEquipmentMaintenanceActions();
 
@@ -122,7 +117,11 @@ const EquipmentMasterPage = () => {
         }
         break;
       case 'edit':
-        setEditingAsset(asset);
+        // Wiring prepared: the row id/tag is captured so the shared
+        // NewEquipmentModal can be opened in edit mode once the update flow
+        // ships. For now the action only reports the placeholder state.
+        setEditingEquipmentId(asset.tag_number ?? asset.tagNumber ?? asset.id);
+        showNotification('Feature Edit Asset is under development', 'info');
         break;
       case 'delete':
         if (!window.confirm(`Delete asset ${asset.tag_number ?? asset.tagNumber ?? asset.id}?`))
@@ -140,6 +139,15 @@ const EquipmentMasterPage = () => {
     }
   }, [deleteAssetAsync, showNotification]);
 
+  const handleLifecycleAction = useCallback(
+    (action: AssetLifecycleMenuAction) => {
+      // Lifecycle transitions are staged UI for now; each option reports its
+      // placeholder state until the backend transitions are implemented.
+      showNotification(`Feature ${action} is under development`, 'info');
+    },
+    [showNotification]
+  );
+
   const handleGridSearchChange = useCallback((value: string) => {
     setSearch(value);
     setPage(1);
@@ -152,15 +160,6 @@ const EquipmentMasterPage = () => {
     setLifecycleFilter(status);
     setPage(1);
   }, []);
-  const handleLifecycleChange = useCallback(async (asset: EquipmentAssetRow, action: string) => {
-    try {
-      await updateLifecycleAsync({ assetId: asset.id, action });
-      showNotification(`Lifecycle updated: ${action}.`, 'success');
-    } catch (error) {
-      showNotification(error instanceof Error ? error.message : 'Unable to update lifecycle.', 'error');
-      throw error;
-    }
-  }, [showNotification, updateLifecycleAsync]);
   const handleCloseStat = useCallback(() => setSelectedStat(null), []);
   const handleSelectAsset = useCallback((asset: EquipmentAssetRow) => setSelectedAsset(asset), []);
 
@@ -598,9 +597,8 @@ const EquipmentMasterPage = () => {
           onClearSearch={handleClearSearch}
           lifecycleFilter={lifecycleFilter}
           onLifecycleFilterChange={handleLifecycleFilterChange}
-          onView={handleSelectAsset}
           onAction={handleRowAction}
-          onLifecycleChange={handleLifecycleChange}
+          onLifecycleAction={handleLifecycleAction}
           paginationSlot={pagination}
           toolbarSlot={toolbarSlot}
           bannerSlot={bannerSlot}
@@ -718,53 +716,14 @@ const EquipmentMasterPage = () => {
       <NewEquipmentModal
         open={newEquipmentOpen}
         classes={equipmentClasses}
-        onClose={() => setNewEquipmentOpen(false)}
+        mode={editingEquipmentId != null ? 'edit' : 'create'}
+        assetId={editingEquipmentId}
+        onClose={() => {
+          setNewEquipmentOpen(false);
+          setEditingEquipmentId(null);
+        }}
         onSubmit={handleNewEquipmentSubmit}
         isSubmitting={createEquipment.isPending}
-      />
-
-      <AssetFormModal
-        isOpen={Boolean(editingAsset)}
-        mode="edit"
-        editingAsset={
-          editingAsset
-            ? ({
-                ...editingAsset,
-                id: String(editingAsset.id),
-                tenantId: '',
-                name: editingAsset.name ?? '',
-                tagNumber: editingAsset.tagNumber ?? editingAsset.tag_number ?? '',
-                type: (editingAsset.type ??
-                  editingAsset.asset_type ??
-                  editingAsset.assetType ??
-                  editingAsset.asset_class ??
-                  editingAsset.assetClass ??
-                  'other') as Asset['type'],
-                hierarchyLevel: 'equipment',
-                status: (editingAsset.status ?? 'active') as Asset['status'],
-                parentId: String(editingAsset.parentId ?? ''),
-              } as unknown as Asset)
-            : null
-        }
-        allAssets={Object.fromEntries(
-          list.assets.map((asset) => [
-            String(asset.id),
-            {
-              id: String(asset.id),
-              name: asset.name ?? '',
-              type: String(asset.asset_type ?? asset.assetType ?? asset.type ?? ''),
-            },
-          ])
-        )}
-        onClose={() => setEditingAsset(null)}
-        onError={(message) => showNotification(message, 'error')}
-        onSaved={() => {
-          setEditingAsset(null);
-          showNotification('Asset updated successfully.', 'success');
-          queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
-          queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
-          queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
-        }}
       />
     </main>
   );

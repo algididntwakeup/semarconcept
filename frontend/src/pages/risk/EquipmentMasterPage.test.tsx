@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -218,6 +218,89 @@ describe('EquipmentMasterPage API integration', () => {
       await screen.findByText('FLOC sync complete: 2 valid, 0 orphaned components.')
     ).toBeInTheDocument();
     expect(assetService.syncEquipmentComponentsToFLOC).toHaveBeenCalledWith(false);
+  }, 15000);
+
+  it('keeps Manage Asset and Add Component working from the Manage dropdown', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        {
+          id: 7,
+          tag_number: 'P-101',
+          name: 'Feed Pump',
+          description: 'Main process pump',
+          asset_class: 'Piping (PI)',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+    const assignSpy = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, assign: assignSpy },
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Manage P-101' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Manage Asset' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Feed Pump')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Manage P-101' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Component' }));
+    expect(assignSpy).toHaveBeenCalledWith('/assets/hierarchy');
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    });
+  }, 15000);
+
+  it('shows a placeholder toast and captures the id for the Manage → Edit Asset wiring', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Manage P-101' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit Asset' }));
+    expect(
+      await screen.findByText('Feature Edit Asset is under development')
+    ).toBeInTheDocument();
+  }, 15000);
+
+  it('shows a placeholder toast for Lifecycle row actions', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Lifecycle P-101' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Relocate' }));
+    expect(await screen.findByText('Feature Relocate is under development')).toBeInTheDocument();
   }, 15000);
 
   it('shows file preview with name and size and allows clearing with the X button', async () => {
