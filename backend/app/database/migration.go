@@ -17,8 +17,21 @@ func MigrateAll(db *gorm.DB) error {
 	// points at functional_locations. Existing data is all NULL in current
 	// deployments, so the rename preserves the column's meaning as "the FLOC
 	// where this equipment is installed".
-	if err := db.Exec(`ALTER TABLE assets RENAME COLUMN functional_location_id TO installed_floc_id`).Error; err != nil {
-		utils.Warnf("Could not rename assets.functional_location_id (already renamed?): %v", err)
+	//
+	// The rename is guarded by an existence check so a database that already
+	// migrated does not emit a spurious driver error on every boot; the guard
+	// also handles a fresh database that has no assets table yet.
+	var legacyFlocColumnExists bool
+	row := db.Raw(`SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'assets' AND column_name = 'functional_location_id'
+	)`).Row()
+	if err := row.Scan(&legacyFlocColumnExists); err != nil {
+		utils.Warnf("Could not check for legacy assets.functional_location_id column: %v", err)
+	} else if legacyFlocColumnExists {
+		if err := db.Exec(`ALTER TABLE assets RENAME COLUMN functional_location_id TO installed_floc_id`).Error; err != nil {
+			utils.Warnf("Could not rename assets.functional_location_id: %v", err)
+		}
 	}
 
 	// Run all models in a single call to handle complex relationships and circular foreign keys
