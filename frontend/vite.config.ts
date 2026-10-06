@@ -15,7 +15,18 @@ export default defineConfig({
     watch: {
       usePolling: process.env.CHOKIDAR_USEPOLLING === 'true',
       interval: Number(process.env.CHOKIDAR_INTERVAL || 1000),
-      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/coverage/**'],
+      // Directory-level patterns (no trailing /**) matter: chokidar only skips
+      // descending into a directory when the directory itself matches. With
+      // polling enabled, a content-only glob like '**/node_modules/**' still
+      // makes the watcher stat all ~78k files under node_modules every tick.
+      ignored: [
+        '**/node_modules',
+        '**/.git',
+        '**/dist',
+        '**/coverage',
+        '**/.pnpm-store',
+        '**/.next',
+      ],
     },
     proxy: {
       '/api': {

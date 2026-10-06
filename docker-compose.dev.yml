@@ -78,9 +78,15 @@ services:
       VITE_DEV_PROXY_TARGET: http://backend:4072
       VITE_API_BASE_URL: /api/v1
       VITE_WS_BASE_URL: ws://localhost:3002/ws
-      # Bind mount Windows tidak selalu meneruskan inotify; polling menjaga HMR konsisten.
-      CHOKIDAR_USEPOLLING: "true"
-      CHOKIDAR_INTERVAL: "2000"
+      # Polling watcher default OFF (native inotify). On Windows bind mounts,
+      # polling makes chokidar stat every file through Docker Desktop's 9p
+      # filesystem each tick, which can hang Vite's event loop (measured:
+      # static requests went from ~0.03 s to 10-47 s). Opt in per developer
+      # via .env only when reliable HMR outweighs the I/O cost:
+      #   CHOKIDAR_USEPOLLING=true
+      #   CHOKIDAR_INTERVAL=2000
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-false}
+      CHOKIDAR_INTERVAL: ${CHOKIDAR_INTERVAL:-1000}
     ports:
       - "3002:3000"
     volumes:

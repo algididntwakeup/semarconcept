@@ -10,9 +10,10 @@ Audit tanpa fitur baru atas keluhan aplikasi berat/lambat saat load, termasuk sa
 
 **Docker & dev environment**
 
-- `backend/.air.toml`: `poll_interval` 1000 → 2000 ms dan `exclude_dir` diperluas (`keys`, `scripts`, `modules`, `cmd`). Air sebelumnya men-scan 258 file/detik melalui bind mount Windows dan membakar ±45% satu core tanpa request (load average container 15–22); setelah perubahan turun ke kisaran 8–17% (bervariasi mengikuti beban I/O host) dan load turun ke ±5. Deteksi rebuild tetap ≤2,5 dtk.
-- `docker-compose.dev.yml`: mengaktifkan `CHOKIDAR_USEPOLLING=true` dan `CHOKIDAR_INTERVAL=2000` untuk Vite. Sebelumnya env polling tidak pernah di-set sehingga watcher native bergantung inotify yang tidak menembus bind mount Windows (uji: 4/4 edit tidak terdeteksi). Setelah perubahan HMR terdeteksi ≤2 dtk (3/3 edit) dengan biaya kisaran 3–15% satu core (bervariasi mengikuti beban I/O host).
-- Catatan: pengukuran awal 1000 ms di A/B test sempat tercemar instance uji paralel; angka final diambil dari container nyata dengan counter CPU per-proses.
+- `backend/.air.toml`: polling dimatikan (`poll = false`) dan `exclude_dir` diperluas (`keys`, `scripts`, `modules`, `cmd`). Investigasi lanjutan menunjukkan polling Air (258 file/detik melalui bind mount Windows) menjenuhkan filesystem 9p Docker Desktop: `ls /app/src` dari dalam container memburuk dari 0,13 dtk (host) menjadi 20–75 dtk, dan Vite stuck di `D state` (`p9_client_rpc`) sehingga seluruh request lewat Vite (HTML, tabel via proxy `/api`) timeout 10–47 dtk. Setelah polling dimatikan: `ls /app/src` kembali ±2 dtk, Vite sehat (`S state`), dan request kembali 0,05–0,45 dtk.
+- `docker-compose.dev.yml`: `CHOKIDAR_USEPOLLING` default `false` (dapat di-override per developer via `.env`). Percobaan mengaktifkan polling Vite justru memperparah kondisi 9p karena chokidar men-stat ±78.310 file `node_modules` setiap interval; tanpa polling, Vite memakai inotify dan request stabil. Konsekuensi: HMR/rebuild otomatis bergantung pada inotify dan mungkin tidak terdeteksi pada sebagian bind mount Windows — lakukan refresh manual atau nyalakan polling sementara bila diperlukan.
+- `frontend/vite.config.ts`: pola `ignored` diperbaiki menjadi level direktori (`**/node_modules`, `**/.git`, `**/dist`, `**/coverage`, `**/.pnpm-store`, `**/.next`). Pola lama (`**/node_modules/**`) tidak mencegah watcher masuk ke direktori `node_modules`, sehingga chokidar tetap menelusuri ±78 ribu file saat polling aktif.
+- Catatan: pengukuran awal sempat tercemar instance uji paralel; angka final diambil dari container nyata dengan counter CPU per-proses dan pengukuran latensi end-to-end.
 
 **Backend**
 
