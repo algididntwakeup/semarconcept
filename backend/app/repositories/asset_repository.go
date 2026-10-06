@@ -390,11 +390,15 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	// "Piping (Pi)", which no longer matched the stored value and left every
 	// class card opening an empty table.
 	const classLabel = `BTRIM(asset_class)`
-	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. Imported
-	// classes are stored as "Name (CODE)" (for example "Piping (PI)"), so the
-	// match strips a trailing parenthesised code and compares the leading name;
-	// it also accepts bare names so pre-translation rows keep working.
-	const pipingClassesExpr = `LOWER(REGEXP_REPLACE(BTRIM(asset_class), '\s*\([^)]*\)\s*$', '')) IN ('piping', 'piping line', 'pipeline')`
+	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. The
+	// canonical code in the label (PI, PL) is authoritative, so renaming a class
+	// in the import dictionary ("Piping Line (PL)" -> "Onshore Pipelines (PL)")
+	// does not silently move those rows into Equipment. Bare names are still
+	// accepted so pre-translation rows keep working.
+	const pipingClassesExpr = `(
+		LOWER(REGEXP_REPLACE(BTRIM(asset_class), '\s*\([^)]*\)\s*$', '')) IN ('piping', 'piping line', 'pipeline')
+		OR UPPER(BTRIM(asset_class)) ~ '\((PI|PL)\)$'
+	)`
 	// installedExpr reads the same status column as the list filter and the UI:
 	// the relational lifecycle_status first, then the legacy status column.
 	const installedExpr = `COALESCE(NULLIF(lifecycle_status, ''), status) = 'Installed'`
@@ -826,6 +830,68 @@ func (r *assetRepository) DeleteEquipmentTaxonomyValue(ctx context.Context, tena
 		return utils.ErrAssetNotFound
 	}
 	return nil
+}
+
+// ListImportRawTaxonomy returns the raw import class/type values stored on the
+// tenant's assets. Only imported rows carry source_class/source_type, so this
+// naturally scopes a re-apply to imported equipment.
+func (r *assetRepository) ListImportRawTaxonomy(ctx context.Context, tenantID int) ([]AssetImportRawTaxonomy, error) {
+	rows := make([]AssetImportRawTaxonomy, 0)
+	err := r.db.SelectContext(ctx, &rows, `
+		SELECT id,
+		       asset_class,
+		       asset_type,
+		       COALESCE(rbi_properties->>'source_class', '') AS source_class,
+		       COALESCE(rbi_properties->>'source_type', '') AS source_type
+		FROM assets
+		WHERE tenant_id = $1
+		  AND COALESCE(status, '') <> 'deleted'
+		  AND (rbi_properties ? 'source_class' OR rbi_properties ? 'source_type')`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list import raw taxonomy for tenant %d: %w", tenantID, err)
+	}
+	return rows, nil
+}
+
+// ApplyImportTaxonomyLabels rewrites the canonical class/type labels of the
+// given assets. When dryRun is true it only counts the rows it would change.
+func (r *assetRepository) ApplyImportTaxonomyLabels(ctx context.Context, tenantID, userID int, updates map[int]AssetTaxonomyLabel, dryRun bool) (int64, error) {
+	if len(updates) == 0 {
+		return 0, nil
+	}
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin taxonomy re-apply transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var affected int64
+	for id, label := range updates {
+		var result sql.Result
+		if dryRun {
+			// Count only: a no-op UPDATE tells us whether the row exists.
+			result, err = tx.ExecContext(ctx, `
+				UPDATE assets SET asset_class = asset_class
+				WHERE tenant_id = $1 AND id = $2 AND COALESCE(status, '') <> 'deleted'`, tenantID, id)
+		} else {
+			result, err = tx.ExecContext(ctx, `
+				UPDATE assets SET asset_class = $1, asset_type = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
+				WHERE tenant_id = $4 AND id = $5 AND COALESCE(status, '') <> 'deleted'`,
+				label.AssetClass, label.AssetType, userID, tenantID, id)
+		}
+		if err != nil {
+			return 0, fmt.Errorf("apply taxonomy label to asset %d: %w", id, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("apply taxonomy label to asset %d rows affected: %w", id, err)
+		}
+		affected += rows
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit taxonomy re-apply: %w", err)
+	}
+	return affected, nil
 }
 
 func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {

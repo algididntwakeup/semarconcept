@@ -16,6 +16,7 @@ vi.mock('../../../services/assetServices', async () => {
       createEquipmentTaxonomyValue: vi.fn(),
       updateEquipmentTaxonomyValue: vi.fn(),
       deleteEquipmentTaxonomyValue: vi.fn(),
+      reapplyEquipmentTaxonomy: vi.fn(),
     },
   };
 });
@@ -34,6 +35,7 @@ describe('EquipmentTaxonomyModal', () => {
     vi.mocked(assetService.getEquipmentTaxonomy).mockReset();
     vi.mocked(assetService.createEquipmentTaxonomyValue).mockReset();
     vi.mocked(assetService.deleteEquipmentTaxonomyValue).mockReset();
+    vi.mocked(assetService.reapplyEquipmentTaxonomy).mockReset();
   });
 
   it('lists class and type mappings with their aliases', async () => {
@@ -115,6 +117,30 @@ describe('EquipmentTaxonomyModal', () => {
     expect(screen.getByLabelText('Canonical code')).toHaveValue('PG');
     expect(screen.getByLabelText('Aliases')).toHaveValue('PG');
   });
+
+  it('re-applies the dictionary to imported equipment after confirmation', async () => {
+    vi.mocked(assetService.getEquipmentTaxonomy).mockResolvedValue([]);
+    vi.mocked(assetService.reapplyEquipmentTaxonomy).mockResolvedValue({
+      checked_count: 2141,
+      updated_count: 2141,
+      unmapped_class: [],
+      unmapped_type: ['PG'],
+      dry_run: false,
+    });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onNotify = vi.fn();
+
+    renderModal({ onNotify });
+
+    await userEvent.click(await screen.findByRole('button', { name: /Apply to equipment/ }));
+
+    await waitFor(() => expect(assetService.reapplyEquipmentTaxonomy).toHaveBeenCalledWith(false));
+    expect(onNotify).toHaveBeenCalledWith(
+      expect.stringContaining('Dictionary re-applied to 2141 of 2141'),
+      'info'
+    );
+    confirmSpy.mockRestore();
+  }, 20000);
 
   it('deletes a mapping after confirmation', async () => {
     vi.mocked(assetService.getEquipmentTaxonomy).mockResolvedValue([

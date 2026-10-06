@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { LoaderCircle, Pencil, Plus, Tag, Trash2, X } from 'lucide-react';
+import { LoaderCircle, Pencil, Plus, RefreshCw, Tag, Trash2, X } from 'lucide-react';
 import {
   useCreateEquipmentTaxonomyValue,
   useDeleteEquipmentTaxonomyValue,
   useEquipmentTaxonomy,
+  useReapplyEquipmentTaxonomy,
   useUpdateEquipmentTaxonomyValue,
 } from '../api/assetQueries';
 import type { EquipmentTaxonomyValue } from '../../../services/assetServices';
@@ -61,6 +62,7 @@ const EquipmentTaxonomyModal = ({
   const createValue = useCreateEquipmentTaxonomyValue();
   const updateValue = useUpdateEquipmentTaxonomyValue();
   const deleteValue = useDeleteEquipmentTaxonomyValue();
+  const reapply = useReapplyEquipmentTaxonomy();
 
   const [activeKind, setActiveKind] = useState<Kind>('class');
   const [form, setForm] = useState<FormState>(emptyForm('class'));
@@ -173,6 +175,24 @@ const EquipmentTaxonomyModal = ({
 
   const saving = createValue.isPending || updateValue.isPending;
 
+  const handleReapply = async () => {
+    const confirmed = window.confirm(
+      'Re-apply the dictionary to imported equipment? Stored class and type labels will be recomputed from each asset’s original workbook value.'
+    );
+    if (!confirmed) return;
+    try {
+      const result = await reapply.mutateAsync(false);
+      const unmapped = result.unmapped_class.length + result.unmapped_type.length;
+      onNotify?.(
+        `Dictionary re-applied to ${result.updated_count} of ${result.checked_count} imported asset(s).` +
+          (unmapped > 0 ? ` ${unmapped} value(s) still unmapped.` : ''),
+        unmapped > 0 ? 'info' : 'success'
+      );
+    } catch (error) {
+      onNotify?.(error instanceof Error ? error.message : 'Unable to re-apply the dictionary.', 'error');
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
@@ -232,24 +252,40 @@ const EquipmentTaxonomyModal = ({
             </div>
           )}
 
-          <div className="mb-4 flex gap-2">
-            {(['class', 'type'] as const).map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                onClick={() => {
-                  setActiveKind(kind);
-                  setForm(emptyForm(kind));
-                }}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                  activeKind === kind
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {KIND_LABEL[kind]} ({(kind === 'class' ? classValues : typeValues).length})
-              </button>
-            ))}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-2">
+              {(['class', 'type'] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => {
+                    setActiveKind(kind);
+                    setForm(emptyForm(kind));
+                  }}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                    activeKind === kind
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {KIND_LABEL[kind]} ({(kind === 'class' ? classValues : typeValues).length})
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleReapply()}
+              disabled={reapply.isPending}
+              title="Recompute the class/type labels of imported equipment from their original workbook values"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              {reapply.isPending ? (
+                <LoaderCircle size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              Apply to equipment
+            </button>
           </div>
 
           {taxonomyQuery.isLoading ? (

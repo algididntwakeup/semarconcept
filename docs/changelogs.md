@@ -4,6 +4,20 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: apply dictionary changes to existing equipment
+
+Sebelumnya, mengedit kamus hanya berpengaruh pada import berikutnya — label yang sudah tersimpan di tabel aset tidak berubah, jadi tabel tetap menampilkan nama lama meskipun kamus sudah diganti.
+
+- Tombol **Apply to equipment** di modal Import dictionary: menghitung ulang `asset_class`/`asset_type` tiap aset hasil import dari nilai mentahnya (`rbi_properties.source_class` / `source_type`) memakai kamus terkini, tanpa import ulang. Ada pratinjau (`dry_run`) dan laporan jumlah baris yang berubah + nilai yang masih unmapped.
+- Endpoint `POST /api/v1/assets/taxonomy/reapply` (permission `asset:update`).
+- Cakupan aman: hanya aset yang punya nilai mentah hasil import yang disentuh, jadi aset buatan manual tidak ikut berubah.
+- Baris tanpa tipe di workbook tetap mewarisi class (mengikuti perilaku import) alih-alih dikosongkan.
+- Kartu **Equipment** kini memisahkan Piping/Piping Line berdasarkan **kode kanonik** (`PI`, `PL`) di label, bukan hanya nama kelas. Jadi mengganti nama kelas di kamus (mis. `Piping Line (PL)` → `Onshore Pipelines (PL)`) tidak lagi memindahkan baris tersebut ke Equipment.
+
+Bukti live: setelah kamus diubah (`PL` → Onshore Pipelines, plus tipe `PM`/`PG`), re-apply mengubah 9 aset PL — 5 baris yang tipe-nya kosong terisi kembali — dan kartu Equipment tetap 233 (bukan 242). Kartu `Onshore Pipelines (PL)` menampilkan 9 baris dengan tipe `Gas Pipelines (Onshore) (PG)` dan `Multiphase Pipelines (Onshore) (PM)`.
+
+Validasi: `go test ./app/...` (termasuk test re-apply: label berubah, fallback tipe, dry-run, unmapped), `pnpm typecheck`, `pnpm test:run`.
+
 ### Global performance & architecture audit (dev environment, backend, frontend)
 
 Audit tanpa fitur baru atas keluhan aplikasi berat/lambat saat load, termasuk saat belum ada data aset. Fokus pada tiga area dan perbaikan yang diverifikasi runtime.

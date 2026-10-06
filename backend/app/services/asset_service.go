@@ -1539,6 +1539,75 @@ func (s *AssetService) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantI
 	return s.AssetRepo.DeleteEquipmentTaxonomyValue(ctx, tenantID, id)
 }
 
+// EquipmentTaxonomyReapplyResult summarises a dictionary re-apply run.
+type EquipmentTaxonomyReapplyResult struct {
+	CheckedCount  int      `json:"checked_count"`
+	UpdatedCount  int64    `json:"updated_count"`
+	UnmappedClass []string `json:"unmapped_class"`
+	UnmappedType  []string `json:"unmapped_type"`
+	DryRun        bool     `json:"dry_run"`
+}
+
+// ReapplyEquipmentTaxonomy recomputes each imported asset's canonical class and
+// type from its stored raw values (source_class/source_type) using the current
+// tenant dictionary. It lets a dictionary edit reach existing equipment without
+// re-importing the workbook. Only assets carrying raw import values are touched.
+func (s *AssetService) ReapplyEquipmentTaxonomy(ctx context.Context, tenantID, userID int, dryRun bool) (*EquipmentTaxonomyReapplyResult, error) {
+	taxonomyValues, err := s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("load tenant equipment taxonomy: %w", err)
+	}
+	resolver := NewEquipmentTaxonomyResolver(taxonomyValues)
+
+	rows, err := s.AssetRepo.ListImportRawTaxonomy(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	updates := make(map[int]repositories.AssetTaxonomyLabel)
+	for _, row := range rows {
+		label := repositories.AssetTaxonomyLabel{}
+		changed := false
+		if row.SourceClass != "" {
+			translated := resolver.ResolveClass(row.SourceClass)
+			label.AssetClass = &translated
+			if row.AssetClass == nil || *row.AssetClass != translated {
+				changed = true
+			}
+		}
+		if row.SourceType != "" {
+			translated := resolver.ResolveType(row.SourceType)
+			label.AssetType = &translated
+			if row.AssetType == nil || *row.AssetType != translated {
+				changed = true
+			}
+		} else if label.AssetClass != nil {
+			// Mirror the import: a workbook row without a type falls back to its
+			// class, so re-applying must not blank the type on those rows.
+			label.AssetType = label.AssetClass
+			if row.AssetType == nil || *row.AssetType != *label.AssetClass {
+				changed = true
+			}
+		}
+		if changed {
+			updates[row.ID] = label
+		}
+	}
+
+	affected, err := s.AssetRepo.ApplyImportTaxonomyLabels(ctx, tenantID, userID, updates, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	unmapped := resolver.UnmappedValues()
+	return &EquipmentTaxonomyReapplyResult{
+		CheckedCount:  len(rows),
+		UpdatedCount:  affected,
+		UnmappedClass: unmapped[models.EquipmentTaxonomyKindClass],
+		UnmappedType:  unmapped[models.EquipmentTaxonomyKindType],
+		DryRun:        dryRun,
+	}, nil
+}
+
 // normalizeTaxonomyAliases trims, de-duplicates, and always includes the code
 // and name so a lookup never misses the obvious values.
 func normalizeTaxonomyAliases(aliases []string, code, name string) []string {

@@ -94,6 +94,7 @@ func RegisterAssetRoutesWithRBAC(router *gin.RouterGroup, h *handlers.AssetHandl
 	router.POST("/import", rbac("asset:import"), h.ImportAssets)
 	router.GET("/taxonomy", rbac("asset:view"), h.ListEquipmentTaxonomy)
 	router.POST("/taxonomy", rbac("asset:update"), h.CreateEquipmentTaxonomyValue)
+	router.POST("/taxonomy/reapply", rbac("asset:update"), h.ReapplyEquipmentTaxonomy)
 	router.PUT("/taxonomy/:id", rbac("asset:update"), h.UpdateEquipmentTaxonomyValue)
 	router.DELETE("/taxonomy/:id", rbac("asset:update"), h.DeleteEquipmentTaxonomyValue)
 

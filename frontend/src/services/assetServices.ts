@@ -132,6 +132,15 @@ export interface UpdateEquipmentTaxonomyValuePayload {
   is_active?: boolean;
 }
 
+/** Summary of a dictionary re-apply run against existing imported assets. */
+export interface EquipmentTaxonomyReapplyResult {
+  checked_count: number;
+  updated_count: number;
+  unmapped_class: string[];
+  unmapped_type: string[];
+  dry_run: boolean;
+}
+
 const unwrapApiData = <T,>(value: unknown): T => {
   if (value && typeof value === 'object' && 'data' in value) {
     return (value as { data: T }).data;
@@ -383,6 +392,15 @@ class AssetService {
 
   async deleteEquipmentTaxonomyValue(id: number): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/taxonomy/${id}`);
+  }
+
+  /**
+   * Recompute imported assets' canonical class/type labels from their raw
+   * values using the current dictionary. Pass dryRun to preview the count.
+   */
+  async reapplyEquipmentTaxonomy(dryRun = false): Promise<EquipmentTaxonomyReapplyResult> {
+    const response = await apiClient.post(`${this.baseUrl}/taxonomy/reapply`, { dry_run: dryRun });
+    return unwrapApiData<EquipmentTaxonomyReapplyResult>(response.data);
   }
 
   async importEquipmentAssets(

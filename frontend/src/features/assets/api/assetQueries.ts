@@ -151,6 +151,19 @@ export const useDeleteEquipmentTaxonomyValue = () => {
   });
 };
 
+export const useReapplyEquipmentTaxonomy = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dryRun: boolean) => assetService.reapplyEquipmentTaxonomy(dryRun),
+    onSuccess: () => {
+      // Re-applying rewrites stored labels, so refresh the register and stats.
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
+    },
+  });
+};
+
 export const useEquipmentMaintenanceActions = () => {
   const queryClient = useQueryClient();
   const invalidateAssetData = async () => {

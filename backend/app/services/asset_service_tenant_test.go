@@ -115,9 +115,19 @@ func (m *MockAssetRepository) PurgeAll(ctx context.Context, tenantID int) (int64
 
 // ListEquipmentTaxonomy mirrors the repository contract. Tests that do not care
 // about the tenant dictionary get an empty list, which makes the resolver fall
-// back to the built-in dictionary. Tests that need a dictionary embed this mock
-// in their own type and override the method.
+// back to the built-in dictionary; tests that set an expectation get its value.
 func (m *MockAssetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	if expectation := m.ExpectedCalls; expectation != nil {
+		for _, call := range expectation {
+			if call.Method == "ListEquipmentTaxonomy" {
+				args := m.Called(ctx, tenantID)
+				if args.Get(0) == nil {
+					return nil, args.Error(1)
+				}
+				return args.Get(0).([]models.EquipmentTaxonomyValue), args.Error(1)
+			}
+		}
+	}
 	return []models.EquipmentTaxonomyValue{}, nil
 }
 
@@ -134,6 +144,19 @@ func (m *MockAssetRepository) UpdateEquipmentTaxonomyValue(ctx context.Context, 
 func (m *MockAssetRepository) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
 	args := m.Called(ctx, tenantID, id)
 	return args.Error(0)
+}
+
+func (m *MockAssetRepository) ListImportRawTaxonomy(ctx context.Context, tenantID int) ([]repositories.AssetImportRawTaxonomy, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repositories.AssetImportRawTaxonomy), args.Error(1)
+}
+
+func (m *MockAssetRepository) ApplyImportTaxonomyLabels(ctx context.Context, tenantID, userID int, updates map[int]repositories.AssetTaxonomyLabel, dryRun bool) (int64, error) {
+	args := m.Called(ctx, tenantID, userID, updates, dryRun)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 // MockComponentRepository for boundary testing

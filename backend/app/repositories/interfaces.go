@@ -258,6 +258,13 @@ type AssetRepository interface {
 	UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error
 	// DeleteEquipmentTaxonomyValue removes one tenant value by id.
 	DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error
+	// ListImportRawTaxonomy returns the raw import class/type values currently
+	// stored on assets, so a dictionary change can be re-applied without
+	// re-importing the workbook.
+	ListImportRawTaxonomy(ctx context.Context, tenantID int) ([]AssetImportRawTaxonomy, error)
+	// ApplyImportTaxonomyLabels rewrites the canonical class/type label of the
+	// given assets using the supplied mapping (asset id -> new labels).
+	ApplyImportTaxonomyLabels(ctx context.Context, tenantID, userID int, updates map[int]AssetTaxonomyLabel, dryRun bool) (int64, error)
 
 	GetSiteByID(ctx context.Context, id int, tenantID int) (*models.Site, error)
 	GetUnitByID(ctx context.Context, id int, tenantID int) (*models.Unit, error)
@@ -280,6 +287,23 @@ type AssetRepository interface {
 type AssetImportRecord struct {
 	Asset     models.Asset
 	ParentTag string
+}
+
+// AssetImportRawTaxonomy is one asset's raw import class/type values together
+// with the currently stored canonical labels, used to re-apply a changed
+// dictionary without re-importing the workbook.
+type AssetImportRawTaxonomy struct {
+	ID          int     `db:"id"`
+	AssetClass  *string `db:"asset_class"`
+	AssetType   *string `db:"asset_type"`
+	SourceClass string  `db:"source_class"`
+	SourceType  string  `db:"source_type"`
+}
+
+// AssetTaxonomyLabel is the canonical class/type pair written back to an asset.
+type AssetTaxonomyLabel struct {
+	AssetClass *string
+	AssetType  *string
 }
 
 // AssetClassCount is one grouped equipment-class aggregate.

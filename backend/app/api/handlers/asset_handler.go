@@ -1458,6 +1458,34 @@ func (h *AssetHandler) DeleteEquipmentTaxonomyValue(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy value deleted successfully", gin.H{"id": id}))
 }
 
+// ReapplyEquipmentTaxonomy recomputes imported assets' canonical class/type
+// labels from their raw values using the current dictionary.
+func (h *AssetHandler) ReapplyEquipmentTaxonomy(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	userID := utils.GetUserID(c)
+
+	var req struct {
+		DryRun bool `json:"dry_run"`
+	}
+	// The body is optional; an empty body means "apply".
+	_ = c.ShouldBindJSON(&req)
+
+	result, err := h.assetService.ReapplyEquipmentTaxonomy(c.Request.Context(), tenantID, userID, req.DryRun)
+	if err != nil {
+		utils.LogErrorf("Failed to re-apply equipment taxonomy: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to re-apply equipment taxonomy", err.Error()))
+		return
+	}
+	message := "Equipment taxonomy re-applied successfully"
+	if req.DryRun {
+		message = "Equipment taxonomy re-apply preview"
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse(message, result))
+}
+
 // ImportAssets imports assets from file
 func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	tenantID, ok := h.requireTenantContext(c)

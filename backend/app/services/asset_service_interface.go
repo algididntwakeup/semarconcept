@@ -65,6 +65,9 @@ type AssetServiceInterface interface {
 	UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, req *request.UpdateEquipmentTaxonomyValueRequest) error
 	// DeleteEquipmentTaxonomyValue removes one dictionary entry.
 	DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error
+	// ReapplyEquipmentTaxonomy recomputes imported assets' canonical class/type
+	// labels from their raw values using the current dictionary.
+	ReapplyEquipmentTaxonomy(ctx context.Context, tenantID, userID int, dryRun bool) (*EquipmentTaxonomyReapplyResult, error)
 	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 	ExportAssetsToExcel(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 }
