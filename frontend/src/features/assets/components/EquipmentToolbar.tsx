@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, FileDown, FileUp, Plus, Trash2, Wrench } from 'lucide-react';
+import { BookMarked, ChevronDown, FileDown, FileUp, Plus, Trash2, Wrench } from 'lucide-react';
 
 export interface EquipmentToolbarProps {
   onDiagnoseDuplicates: () => void;
@@ -13,6 +13,8 @@ export interface EquipmentToolbarProps {
   /** Placeholder hook for the not-yet-wired data-transfer groups. */
   onPlaceholderAction?: (label: string) => void;
   onNewEquipment: () => void;
+  /** Opens the tenant import dictionary (class/type aliases). */
+  onManageDictionary: () => void;
   isMaintenancePending?: boolean;
   isImportPending?: boolean;
   isExportPending?: boolean;
@@ -104,6 +106,7 @@ const EquipmentToolbar = ({
   onExport,
   onPlaceholderAction,
   onNewEquipment,
+  onManageDictionary,
   isMaintenancePending = false,
   isImportPending = false,
   isExportPending = false,
@@ -255,6 +258,15 @@ const EquipmentToolbar = ({
         </>
       )}
     </DropdownMenu>
+
+    <button
+      type="button"
+      onClick={onManageDictionary}
+      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+    >
+      <BookMarked size={16} aria-hidden="true" />
+      Import dictionary
+    </button>
 
     <button
       type="button"

@@ -13,6 +13,9 @@ import type {
   EquipmentAssetListParams,
   EquipmentAssetListResponse,
   EquipmentAssetStats,
+  EquipmentTaxonomyValue,
+  CreateEquipmentTaxonomyValuePayload,
+  UpdateEquipmentTaxonomyValuePayload,
 } from '../../../services/assetServices';
 
 /**
@@ -105,6 +108,45 @@ export const useDeleteEquipmentAsset = () => {
       queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
       queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
+    },
+  });
+};
+
+export const useEquipmentTaxonomy = () => {
+  return useQuery({
+    queryKey: assetKeys.equipmentMaster.taxonomy(),
+    queryFn: (): Promise<EquipmentTaxonomyValue[]> => assetService.getEquipmentTaxonomy(),
+  });
+};
+
+export const useCreateEquipmentTaxonomyValue = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateEquipmentTaxonomyValuePayload) =>
+      assetService.createEquipmentTaxonomyValue(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.taxonomy() });
+    },
+  });
+};
+
+export const useUpdateEquipmentTaxonomyValue = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateEquipmentTaxonomyValuePayload }) =>
+      assetService.updateEquipmentTaxonomyValue(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.taxonomy() });
+    },
+  });
+};
+
+export const useDeleteEquipmentTaxonomyValue = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => assetService.deleteEquipmentTaxonomyValue(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.taxonomy() });
     },
   });
 };

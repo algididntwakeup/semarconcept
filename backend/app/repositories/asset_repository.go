@@ -776,6 +776,58 @@ func (r *assetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantID in
 	return values, nil
 }
 
+// CreateEquipmentTaxonomyValue inserts one canonical value with its aliases.
+func (r *assetRepository) CreateEquipmentTaxonomyValue(ctx context.Context, value *models.EquipmentTaxonomyValue) error {
+	if value == nil {
+		return fmt.Errorf("create equipment taxonomy value: %w", utils.ErrValidation)
+	}
+	err := r.db.GetContext(ctx, value, `
+		INSERT INTO equipment_taxonomy_values (tenant_id, kind, canonical_code, canonical_name, aliases, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		RETURNING id, created_at, updated_at`,
+		value.TenantID, value.Kind, value.CanonicalCode, value.CanonicalName, value.Aliases, value.IsActive)
+	if err != nil {
+		return fmt.Errorf("create equipment taxonomy value %q: %w", value.CanonicalCode, err)
+	}
+	return nil
+}
+
+// UpdateEquipmentTaxonomyValue updates the name, aliases, and active flag of one
+// tenant value identified by id.
+func (r *assetRepository) UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE equipment_taxonomy_values
+		SET canonical_name = $1, aliases = $2, is_active = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $4 AND id = $5`, name, aliases, isActive, tenantID, id)
+	if err != nil {
+		return fmt.Errorf("update equipment taxonomy value %d: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update equipment taxonomy value %d rows affected: %w", id, err)
+	}
+	if rows == 0 {
+		return utils.ErrAssetNotFound
+	}
+	return nil
+}
+
+// DeleteEquipmentTaxonomyValue removes one tenant value by id.
+func (r *assetRepository) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM equipment_taxonomy_values WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+	if err != nil {
+		return fmt.Errorf("delete equipment taxonomy value %d: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete equipment taxonomy value %d rows affected: %w", id, err)
+	}
+	if rows == 0 {
+		return utils.ErrAssetNotFound
+	}
+	return nil
+}
+
 func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, `SELECT * FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1`, tenantID, tagNumber)

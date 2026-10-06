@@ -499,3 +499,25 @@ type AssetAuditRequest struct {
 // NOTE: AssetDistributionRequest, CriticalAssetsRequest, SiteStatisticsRequest,
 // AssetDashboardRequest, AssetPathRequest, AssetCriticalityUpdateRequest,
 // AssetHierarchyValidationRequest are defined in asset_analytics_request.go to avoid duplication
+
+// ===== EQUIPMENT TAXONOMY (IMPORT DICTIONARY) REQUESTS =====
+
+// CreateEquipmentTaxonomyValueRequest adds one canonical Equipment Class/Type
+// value together with the raw inputs (aliases) that map to it.
+type CreateEquipmentTaxonomyValueRequest struct {
+	// Kind is "class" or "type".
+	Kind          string   `json:"kind" validate:"required,oneof=class type"`
+	CanonicalCode string   `json:"canonical_code" validate:"required,max=50"`
+	CanonicalName string   `json:"canonical_name" validate:"required,max=255"`
+	Aliases       []string `json:"aliases" validate:"omitempty,dive,max=255"`
+	IsActive      *bool    `json:"is_active"`
+}
+
+// UpdateEquipmentTaxonomyValueRequest edits the name, aliases, and active flag
+// of an existing value. Kind and code are immutable so stored assets keep their
+// canonical label.
+type UpdateEquipmentTaxonomyValueRequest struct {
+	CanonicalName string   `json:"canonical_name" validate:"required,max=255"`
+	Aliases       []string `json:"aliases" validate:"omitempty,dive,max=255"`
+	IsActive      *bool    `json:"is_active"`
+}

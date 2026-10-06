@@ -1392,6 +1392,72 @@ func (h *AssetHandler) ListEquipmentTaxonomy(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy retrieved successfully", values))
 }
 
+// CreateEquipmentTaxonomyValue adds one canonical Equipment Class/Type value
+// with its aliases to the tenant dictionary.
+func (h *AssetHandler) CreateEquipmentTaxonomyValue(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+
+	var req request.CreateEquipmentTaxonomyValueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", err.Error()))
+		return
+	}
+	value, err := h.assetService.CreateEquipmentTaxonomyValue(c.Request.Context(), tenantID, &req)
+	if err != nil {
+		utils.LogErrorf("Failed to create equipment taxonomy value: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to create equipment taxonomy value", err.Error()))
+		return
+	}
+	c.JSON(http.StatusCreated, utils.SuccessResponse("Equipment taxonomy value created successfully", value))
+}
+
+// UpdateEquipmentTaxonomyValue edits the name, aliases, and active flag.
+func (h *AssetHandler) UpdateEquipmentTaxonomyValue(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid taxonomy value id", ""))
+		return
+	}
+
+	var req request.UpdateEquipmentTaxonomyValueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", err.Error()))
+		return
+	}
+	if err := h.assetService.UpdateEquipmentTaxonomyValue(c.Request.Context(), tenantID, id, &req); err != nil {
+		utils.LogErrorf("Failed to update equipment taxonomy value: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to update equipment taxonomy value", err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy value updated successfully", gin.H{"id": id}))
+}
+
+// DeleteEquipmentTaxonomyValue removes one dictionary entry.
+func (h *AssetHandler) DeleteEquipmentTaxonomyValue(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid taxonomy value id", ""))
+		return
+	}
+	if err := h.assetService.DeleteEquipmentTaxonomyValue(c.Request.Context(), tenantID, id); err != nil {
+		utils.LogErrorf("Failed to delete equipment taxonomy value: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to delete equipment taxonomy value", err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy value deleted successfully", gin.H{"id": id}))
+}
+
 // ImportAssets imports assets from file
 func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	tenantID, ok := h.requireTenantContext(c)

@@ -1489,6 +1489,85 @@ func (s *AssetService) ListEquipmentTaxonomy(ctx context.Context, tenantID int) 
 	return s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
 }
 
+// CreateEquipmentTaxonomyValue adds one canonical value with its aliases to the
+// tenant dictionary. The code is upper-cased so lookups stay predictable.
+func (s *AssetService) CreateEquipmentTaxonomyValue(ctx context.Context, tenantID int, req *request.CreateEquipmentTaxonomyValueRequest) (*models.EquipmentTaxonomyValue, error) {
+	code := strings.ToUpper(strings.TrimSpace(req.CanonicalCode))
+	name := strings.TrimSpace(req.CanonicalName)
+	kind := strings.ToLower(strings.TrimSpace(req.Kind))
+	if code == "" || name == "" {
+		return nil, fmt.Errorf("canonical code and name are required: %w", utils.ErrValidation)
+	}
+	value := &models.EquipmentTaxonomyValue{
+		TenantID:      tenantID,
+		Kind:          kind,
+		CanonicalCode: code,
+		CanonicalName: name,
+		Aliases:       taxonomyAliasesJSONB(normalizeTaxonomyAliases(req.Aliases, code, name)),
+		IsActive:      req.IsActive == nil || *req.IsActive,
+	}
+	if err := s.AssetRepo.CreateEquipmentTaxonomyValue(ctx, value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+// UpdateEquipmentTaxonomyValue edits the name, aliases, and active flag of one
+// dictionary entry. Kind and code are immutable.
+func (s *AssetService) UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, req *request.UpdateEquipmentTaxonomyValueRequest) error {
+	name := strings.TrimSpace(req.CanonicalName)
+	if name == "" {
+		return fmt.Errorf("canonical name is required: %w", utils.ErrValidation)
+	}
+	isActive := req.IsActive == nil || *req.IsActive
+	aliases := taxonomyAliasesJSONB(normalizeTaxonomyAliases(req.Aliases, "", name))
+	return s.AssetRepo.UpdateEquipmentTaxonomyValue(ctx, tenantID, id, name, aliases, isActive)
+}
+
+// taxonomyAliasesJSONB converts plain alias strings to the JSONB array the
+// model stores.
+func taxonomyAliasesJSONB(aliases []string) models.JSONBArray {
+	result := make(models.JSONBArray, 0, len(aliases))
+	for _, alias := range aliases {
+		result = append(result, alias)
+	}
+	return result
+}
+
+// DeleteEquipmentTaxonomyValue removes one dictionary entry.
+func (s *AssetService) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
+	return s.AssetRepo.DeleteEquipmentTaxonomyValue(ctx, tenantID, id)
+}
+
+// normalizeTaxonomyAliases trims, de-duplicates, and always includes the code
+// and name so a lookup never misses the obvious values.
+func normalizeTaxonomyAliases(aliases []string, code, name string) []string {
+	seen := make(map[string]struct{}, len(aliases)+2)
+	result := make([]string, 0, len(aliases)+2)
+	add := func(value string) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		result = append(result, trimmed)
+	}
+	if code != "" {
+		add(code)
+	}
+	if name != "" {
+		add(name)
+	}
+	for _, alias := range aliases {
+		add(alias)
+	}
+	return result
+}
+
 type equipmentImportColumn struct {
 	key        string
 	normalized string

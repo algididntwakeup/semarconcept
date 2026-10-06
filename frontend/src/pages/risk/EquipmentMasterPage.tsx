@@ -21,6 +21,7 @@ import type {
 } from '../../features/assets/components/RowActions';
 import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
+import EquipmentTaxonomyModal from '../../features/assets/components/EquipmentTaxonomyModal';
 import { assetService } from '../../services/assetServices';
 import type { EquipmentAssetImportResult } from '../../services/assetServices';
 import { useNotification } from '../../hooks/useNotification';
@@ -67,6 +68,11 @@ const EquipmentMasterPage = () => {
   const [importResult, setImportResult] = useState<EquipmentAssetImportResult | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState<number | null>(null);
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
+  const [unmappedSuggestions, setUnmappedSuggestions] = useState<{
+    class: string[];
+    type: string[];
+  }>({ class: [], type: [] });
   const [isPurging, setIsPurging] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
@@ -371,7 +377,16 @@ const EquipmentMasterPage = () => {
       setFile(null);
       if (importInputRef.current) importInputRef.current.value = '';
       setImportResult(result);
-      if (result.errors?.length) {
+      const unmappedClass = result.unmapped_class ?? [];
+      const unmappedType = result.unmapped_type ?? [];
+      setUnmappedSuggestions({ class: unmappedClass, type: unmappedType });
+      if (unmappedClass.length > 0 || unmappedType.length > 0) {
+        showNotification(
+          `Import finished. ${unmappedClass.length + unmappedType.length} unmapped value(s) need a dictionary entry — open “Import dictionary” to map them.`,
+          'warning',
+          10000
+        );
+      } else if (result.errors?.length) {
         showNotification(
           `Import completed with ${result.errors.length} row issue(s): ${result.imported_count} of ${result.total_count} rows imported.`,
           'warning',
@@ -446,6 +461,7 @@ const EquipmentMasterPage = () => {
       onExport={(format) => void handleExport(format)}
       onPlaceholderAction={handlePlaceholderAction}
       onNewEquipment={() => setNewEquipmentOpen(true)}
+      onManageDictionary={() => setTaxonomyOpen(true)}
       isMaintenancePending={
         maintenance.diagnoseDuplicates.isPending ||
         maintenance.fixComponentLinks.isPending ||
@@ -697,6 +713,15 @@ const EquipmentMasterPage = () => {
         >
           {actionError}
         </p>
+      )}
+
+      {taxonomyOpen && (
+        <EquipmentTaxonomyModal
+          open
+          onClose={() => setTaxonomyOpen(false)}
+          suggestedUnmapped={unmappedSuggestions}
+          onNotify={(message, tone) => showNotification(message, tone)}
+        />
       )}
 
       {selectedStat && (

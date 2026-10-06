@@ -251,6 +251,13 @@ type AssetRepository interface {
 	// Equipment Class/Type values plus their aliases) used to translate workbook
 	// cells during import.
 	ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error)
+	// CreateEquipmentTaxonomyValue adds one canonical value with its aliases.
+	CreateEquipmentTaxonomyValue(ctx context.Context, value *models.EquipmentTaxonomyValue) error
+	// UpdateEquipmentTaxonomyValue updates the name, aliases, and active flag of
+	// one tenant value identified by id.
+	UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error
+	// DeleteEquipmentTaxonomyValue removes one tenant value by id.
+	DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error
 
 	GetSiteByID(ctx context.Context, id int, tenantID int) (*models.Site, error)
 	GetUnitByID(ctx context.Context, id int, tenantID int) (*models.Unit, error)

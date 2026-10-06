@@ -59,6 +59,12 @@ type AssetServiceInterface interface {
 	PurgeAssets(ctx context.Context, tenantID int) (int64, error)
 	// ListEquipmentTaxonomy returns the tenant-scoped import dictionary.
 	ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error)
+	// CreateEquipmentTaxonomyValue adds one canonical value with its aliases.
+	CreateEquipmentTaxonomyValue(ctx context.Context, tenantID int, req *request.CreateEquipmentTaxonomyValueRequest) (*models.EquipmentTaxonomyValue, error)
+	// UpdateEquipmentTaxonomyValue edits the name, aliases, and active flag.
+	UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, req *request.UpdateEquipmentTaxonomyValueRequest) error
+	// DeleteEquipmentTaxonomyValue removes one dictionary entry.
+	DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error
 	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 	ExportAssetsToExcel(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 }

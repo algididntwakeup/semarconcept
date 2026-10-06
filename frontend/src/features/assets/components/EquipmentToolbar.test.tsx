@@ -13,6 +13,7 @@ const toolbarProps = () => ({
   onImport: vi.fn(),
   onExport: vi.fn(),
   onNewEquipment: vi.fn(),
+  onManageDictionary: vi.fn(),
 });
 
 describe('EquipmentToolbar', () => {

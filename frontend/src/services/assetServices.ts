@@ -102,6 +102,34 @@ export interface EquipmentAssetImportResult {
   total_count: number;
   errors: string[];
   validate_only: boolean;
+  /** Raw workbook values that matched no dictionary entry (import dictionary). */
+  unmapped_class?: string[];
+  unmapped_type?: string[];
+}
+
+/** One canonical Equipment Class/Type value plus the aliases that map to it. */
+export interface EquipmentTaxonomyValue {
+  id: number;
+  tenant_id: number;
+  kind: 'class' | 'type';
+  canonical_code: string;
+  canonical_name: string;
+  aliases: string[];
+  is_active: boolean;
+}
+
+export interface CreateEquipmentTaxonomyValuePayload {
+  kind: 'class' | 'type';
+  canonical_code: string;
+  canonical_name: string;
+  aliases?: string[];
+  is_active?: boolean;
+}
+
+export interface UpdateEquipmentTaxonomyValuePayload {
+  canonical_name: string;
+  aliases?: string[];
+  is_active?: boolean;
 }
 
 const unwrapApiData = <T,>(value: unknown): T => {
@@ -331,6 +359,30 @@ class AssetService {
   async syncEquipmentComponentsToFLOC(dryRun = false): Promise<EquipmentFLOCSyncResult> {
     const response = await apiClient.post(`${this.baseUrl}/sync-floc`, { dry_run: dryRun });
     return unwrapApiData(response.data) as EquipmentFLOCSyncResult;
+  }
+
+  async getEquipmentTaxonomy(): Promise<EquipmentTaxonomyValue[]> {
+    const response = await apiClient.get(`${this.baseUrl}/taxonomy`);
+    const data = unwrapApiData<EquipmentTaxonomyValue[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  }
+
+  async createEquipmentTaxonomyValue(
+    payload: CreateEquipmentTaxonomyValuePayload
+  ): Promise<EquipmentTaxonomyValue> {
+    const response = await apiClient.post(`${this.baseUrl}/taxonomy`, payload);
+    return unwrapApiData<EquipmentTaxonomyValue>(response.data);
+  }
+
+  async updateEquipmentTaxonomyValue(
+    id: number,
+    payload: UpdateEquipmentTaxonomyValuePayload
+  ): Promise<void> {
+    await apiClient.put(`${this.baseUrl}/taxonomy/${id}`, payload);
+  }
+
+  async deleteEquipmentTaxonomyValue(id: number): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/taxonomy/${id}`);
   }
 
   async importEquipmentAssets(

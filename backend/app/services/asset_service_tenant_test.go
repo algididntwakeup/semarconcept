@@ -121,6 +121,21 @@ func (m *MockAssetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantI
 	return []models.EquipmentTaxonomyValue{}, nil
 }
 
+func (m *MockAssetRepository) CreateEquipmentTaxonomyValue(ctx context.Context, value *models.EquipmentTaxonomyValue) error {
+	args := m.Called(ctx, value)
+	return args.Error(0)
+}
+
+func (m *MockAssetRepository) UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error {
+	args := m.Called(ctx, tenantID, id, name, aliases, isActive)
+	return args.Error(0)
+}
+
+func (m *MockAssetRepository) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
+	args := m.Called(ctx, tenantID, id)
+	return args.Error(0)
+}
+
 // MockComponentRepository for boundary testing
 type MockComponentRepository struct {
 	repositories.ComponentRepository

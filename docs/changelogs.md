@@ -4,6 +4,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Import dictionary UI (manage class/type aliases)
+
+UI untuk mengelola kamus import per tenant, sehingga operator bisa memetakan kode workbook tanpa menyentuh database.
+
+- Tombol **Import dictionary** di toolbar Equipment Master membuka modal dengan tab Equipment Class / Equipment Type, daftar nilai kanonik beserta chip alias-nya.
+- Tambah/edit/hapus mapping dari UI (kode, nama kanonik, alias, aktif/nonaktif). Kode dikunci saat edit agar label aset yang tersimpan tidak berubah.
+- Setelah import, nilai yang tak terpetakan (`unmapped_class` / `unmapped_type`) ditampilkan sebagai saran sekali-klik di bagian atas modal: klik nilai → form terisi otomatis dengan kode mentahnya.
+- Service frontend baru: `getEquipmentTaxonomy`, `createEquipmentTaxonomyValue`, `updateEquipmentTaxonomyValue`, `deleteEquipmentTaxonomyValue` + hook TanStack Query (`useEquipmentTaxonomy`, `useCreate/Update/DeleteEquipmentTaxonomyValue`).
+- Backend: endpoint CRUD `POST/PUT/DELETE /api/v1/assets/taxonomy(/:id)` (permission `asset:update`), dengan normalisasi alias (trim, buang duplikat, selalu sertakan kode & nama).
+
+Validasi: `go test ./app/...`, `pnpm typecheck`, dan `pnpm test:run` lulus (termasuk `EquipmentTaxonomyModal.test.tsx` dan CRUD service backend).
+
 ### Equipment Master: tenant-scoped import dictionary (canonical + aliases)
 
 Sebelumnya kamus class/type import **hardcoded di Go** dan global untuk semua tenant, jadi tenant baru tidak bisa memakai kode workbook-nya sendiri tanpa mengubah kode. Sekarang import memakai **kamus per tenant** di database.
