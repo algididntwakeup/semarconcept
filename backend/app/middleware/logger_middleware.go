@@ -6,7 +6,6 @@ import (
 	"backend/app/utils"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -24,12 +23,14 @@ type LoggingConfig struct {
 	SkipPaths       []string
 }
 
-// DefaultLoggingConfig returns the default logging configuration
+// DefaultLoggingConfig returns the default logging configuration.
+// Header logging is opt-in because building and formatting a full header map
+// on every request is expensive at scale; enable with REKSOLINDO_LOG_HEADERS=true.
 func DefaultLoggingConfig() LoggingConfig {
 	return LoggingConfig{
 		LogRequestBody:  os.Getenv("REKSOLINDO_LOG_REQUEST_BODY") == "true",
 		LogResponseBody: os.Getenv("REKSOLINDO_LOG_RESPONSE_BODY") == "true",
-		LogHeaders:      true,
+		LogHeaders:      os.Getenv("REKSOLINDO_LOG_HEADERS") == "true",
 		SkipPaths:       []string{"/health", "/api/v1/health", "/swagger"},
 	}
 }
@@ -54,21 +55,15 @@ func LoggingMiddleware() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		method := c.Request.Method
 
-		// Special handling for OPTIONS requests to auth endpoints
-		if method == "OPTIONS" && strings.Contains(path, "/api/v1/auth/") {
-			// Print directly to console for immediate visibility
-			fmt.Printf("\n\n==== OPTIONS REQUEST TO AUTH ENDPOINT ====\n")
-			fmt.Printf("PATH: %s\n", path)
-			fmt.Printf("METHOD: %s\n", method)
-			fmt.Printf("HEADERS:\n")
-			for k, v := range c.Request.Header {
-				fmt.Printf("  %s: %s\n", k, strings.Join(v, ", "))
-			}
-			fmt.Printf("ORIGIN: %s\n", c.Request.Header.Get("Origin"))
-			fmt.Printf("ACCESS-CONTROL-REQUEST-METHOD: %s\n", c.Request.Header.Get("Access-Control-Request-Method"))
-			fmt.Printf("ACCESS-CONTROL-REQUEST-HEADERS: %s\n", c.Request.Header.Get("Access-Control-Request-Headers"))
-			fmt.Printf("CLIENT IP: %s\n", c.ClientIP())
-			fmt.Printf("==========================================\n\n")
+		// Debug aid for auth preflights only; never dumps raw headers (they may
+		// contain Authorization) and is skipped entirely when disabled.
+		if method == "OPTIONS" && strings.Contains(path, "/api/v1/auth/") && os.Getenv("DEBUG_CORS") == "true" {
+			utils.Debugf("CORS preflight: path=%s origin=%s request-method=%s client_ip=%s",
+				path,
+				c.Request.Header.Get("Origin"),
+				c.Request.Header.Get("Access-Control-Request-Method"),
+				c.ClientIP(),
+			)
 		}
 
 		// Skip logging for certain paths (except OPTIONS to auth)

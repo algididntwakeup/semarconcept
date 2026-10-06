@@ -33,7 +33,9 @@ Endpoint:
 - PostgreSQL host port: `5434`
 - Redis host port: `6381`
 
-Frontend dan backend memakai bind mount sehingga edit source terbaca container. Vite dan Air memakai polling untuk kompatibilitas bind mount Windows; Air rebuild binary Go. Anonymous volume `/app/node_modules` menjaga dependency dan cache Vite terisolasi dari sinkronisasi filesystem host, sementara `/app/.next` disediakan sebagai cache terisolasi bila Next.js digunakan. Named volume menjaga pnpm store, Go modules, dan Go build cache. Source `/app` tetap bind mount agar hot reload tetap aktif.
+Frontend dan backend memakai bind mount sehingga edit source terbaca container. Vite memakai polling (`CHOKIDAR_USEPOLLING=true`, interval 2000 ms) dan Air memakai polling (interval 2000 ms) untuk kompatibilitas bind mount Windows; Air rebuild binary Go. Anonymous volume `/app/node_modules` menjaga dependency dan cache Vite terisolasi dari sinkronisasi filesystem host. Named volume menjaga Go modules dan Go build cache. Source `/app` tetap bind mount agar hot reload tetap aktif.
+
+Catatan performa: polling Air dan Vite adalah biaya I/O yang nyata pada bind mount Windows (kisaran terukur 8–17% dan 3–15% satu core saat idle, bervariasi mengikuti beban I/O host). Jika HMR manual dirasa cukup, polling dapat dimatikan; detail pengukuran ada di changelog audit performa 6 Oktober 2026.
 
 Cold start pertama dapat lebih lama karena dependency install dan Go compilation. Reload berikutnya memakai cache.
 
@@ -70,6 +72,6 @@ Jangan gunakan `down -v` kecuali memang ingin menghapus database dan seluruh dep
 - Perubahan tidak terbaca: cek `docker compose ... logs`, lalu pastikan bind mount terlihat di `docker inspect`.
 - Frontend proxy `ECONNREFUSED` saat startup awal: tunggu backend healthy; compose dev menahan startup frontend sampai health backend lulus.
 - Port bentrok: hentikan stack lama sebelum menjalankan compose dev karena nama container dan port sama.
-- CPU Vite tinggi: polling interval sudah 1000 ms dan direktori dependency/build diabaikan; jangan mount host `node_modules`.
-- Transisi frontend lambat di Windows: pastikan volume `/app/node_modules` dan `/app/.next` tercantum setelah bind mount `./frontend:/app`; dependency/cache tidak boleh ikut dipantulkan ke host. Proyek saat ini menggunakan Vite (cache di `node_modules/.vite`), bukan Next.js.
-- Setelah perubahan `.air.toml` atau compose: recreate service terkait.
+- CPU Vite tinggi: polling interval 2000 ms; naikkan `CHOKIDAR_INTERVAL` (mis. 5000) bila CPU lebih penting daripada kecepatan HMR, dan jangan mount host `node_modules`.
+- Transisi frontend lambat di Windows: pastikan volume `/app/node_modules` tercantum setelah bind mount `./frontend:/app`; dependency/cache tidak boleh ikut dipantulkan ke host. Proyek saat ini menggunakan Vite (cache di `node_modules/.vite`), bukan Next.js.
+- Air rebuild tanpa berhenti / CPU backend tinggi: pastikan `exclude_dir` di `.air.toml` mencakup folder non-source, dan `tmp_dir` (`tmp/air`) tidak memicu polling; recreate service setelah mengubah `.air.toml`.

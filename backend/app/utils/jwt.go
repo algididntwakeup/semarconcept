@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -35,6 +36,7 @@ type JWTClaims struct {
 type JWTService struct {
 	secretKey       string
 	issuer          string
+	blacklistMu     sync.RWMutex
 	blacklistedJTIs map[string]time.Time
 }
 
@@ -159,10 +161,8 @@ func (j *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	// Check if token is blacklisted
-	if claims.JTI != "" {
-		if _, isBlacklisted := j.blacklistedJTIs[claims.JTI]; isBlacklisted {
-			return nil, errors.New("token has been revoked")
-		}
+	if claims.JTI != "" && j.IsTokenBlacklisted(claims.JTI) {
+		return nil, errors.New("token has been revoked")
 	}
 
 	return claims, nil
@@ -207,7 +207,9 @@ func (j *JWTService) RefreshToken(refreshTokenString string, userID int) (string
 
 	// Blacklist the old refresh token
 	if claims.JTI != "" {
+		j.blacklistMu.Lock()
 		j.blacklistedJTIs[claims.JTI] = claims.ExpiresAt.Time
+		j.blacklistMu.Unlock()
 	}
 
 	return accessToken, newRefreshToken, nil
@@ -219,7 +221,9 @@ func (j *JWTService) BlacklistToken(jti string, userID int, reason string, expir
 		return errors.New("JTI is required for blacklisting")
 	}
 
+	j.blacklistMu.Lock()
 	j.blacklistedJTIs[jti] = time.Now().Add(expiration)
+	j.blacklistMu.Unlock()
 	return nil
 }
 
@@ -258,6 +262,8 @@ func (j *JWTService) CanRefreshToken(tokenString string) (bool, time.Duration, e
 func (j *JWTService) GetBlacklistStats() (int, error) {
 	// Clean up expired blacklisted tokens first
 	j.cleanupBlacklist()
+	j.blacklistMu.RLock()
+	defer j.blacklistMu.RUnlock()
 	return len(j.blacklistedJTIs), nil
 }
 
@@ -270,6 +276,8 @@ func (j *JWTService) CleanupBlacklist() error {
 // cleanupBlacklist removes expired entries from the blacklist
 func (j *JWTService) cleanupBlacklist() {
 	now := time.Now()
+	j.blacklistMu.Lock()
+	defer j.blacklistMu.Unlock()
 	for jti, expiry := range j.blacklistedJTIs {
 		if now.After(expiry) {
 			delete(j.blacklistedJTIs, jti)
@@ -283,6 +291,8 @@ func (j *JWTService) IsTokenBlacklisted(jti string) bool {
 		return false
 	}
 
+	j.blacklistMu.RLock()
+	defer j.blacklistMu.RUnlock()
 	_, exists := j.blacklistedJTIs[jti]
 	return exists
 }

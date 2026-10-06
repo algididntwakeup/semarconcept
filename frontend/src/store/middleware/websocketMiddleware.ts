@@ -44,6 +44,11 @@ interface WebSocketMiddlewareOptions {
   maxReconnectAttempts?: number;
 }
 
+// The backend /ws route is not registered yet (SetupWebSocketRoutes is unused),
+// so the client must not open sockets or retry against a 404. Enable only after
+// the backend route ships, via VITE_WS_ENABLED=true.
+const wsEnabled = import.meta.env.VITE_WS_ENABLED === 'true';
+
 // WebSocket middleware factory
 export const createWebSocketMiddleware = (options: WebSocketMiddlewareOptions = {}): Middleware => {
   let socket: WebSocket | null = null;
@@ -54,13 +59,20 @@ export const createWebSocketMiddleware = (options: WebSocketMiddlewareOptions = 
   const defaultWsUrl = typeof window !== 'undefined' ? `${wsProtocol}//${window.location.host}/ws` : 'ws://localhost/ws';
 
   const {
-    // 🔥 FIXED: Use production WebSocket URL with secure protocol via relative path fallback
-    url = import.meta.env.VITE_WEBSOCKET_URL || defaultWsUrl,
+    // Keep the URL source aligned with the compose env (VITE_WS_BASE_URL) and the
+    // historical VITE_WEBSOCKET_URL, then fall back to same-origin /ws.
+    url = import.meta.env.VITE_WS_BASE_URL || import.meta.env.VITE_WEBSOCKET_URL || defaultWsUrl,
     reconnectInterval = 5000,
     maxReconnectAttempts = 10
   } = options;
 
   const connect = (store: any, wsUrl: string) => {
+    if (!wsEnabled) {
+      // Intentionally inert until the backend exposes /ws; prevents a 404
+      // connect/retry loop on every login.
+      return;
+    }
+
     if (socket && socket.readyState === WebSocket.OPEN) {
       return;
     }

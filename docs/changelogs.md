@@ -4,6 +4,31 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Global performance & architecture audit (dev environment, backend, frontend)
+
+Audit tanpa fitur baru atas keluhan aplikasi berat/lambat saat load, termasuk saat belum ada data aset. Fokus pada tiga area dan perbaikan yang diverifikasi runtime.
+
+**Docker & dev environment**
+
+- `backend/.air.toml`: `poll_interval` 1000 → 2000 ms dan `exclude_dir` diperluas (`keys`, `scripts`, `modules`, `cmd`). Air sebelumnya men-scan 258 file/detik melalui bind mount Windows dan membakar ±45% satu core tanpa request (load average container 15–22); setelah perubahan turun ke kisaran 8–17% (bervariasi mengikuti beban I/O host) dan load turun ke ±5. Deteksi rebuild tetap ≤2,5 dtk.
+- `docker-compose.dev.yml`: mengaktifkan `CHOKIDAR_USEPOLLING=true` dan `CHOKIDAR_INTERVAL=2000` untuk Vite. Sebelumnya env polling tidak pernah di-set sehingga watcher native bergantung inotify yang tidak menembus bind mount Windows (uji: 4/4 edit tidak terdeteksi). Setelah perubahan HMR terdeteksi ≤2 dtk (3/3 edit) dengan biaya kisaran 3–15% satu core (bervariasi mengikuti beban I/O host).
+- Catatan: pengukuran awal 1000 ms di A/B test sempat tercemar instance uji paralel; angka final diambil dari container nyata dengan counter CPU per-proses.
+
+**Backend**
+
+- `logger_middleware.go` (middleware global): `LogHeaders` menjadi opt-in (`REKSOLINDO_LOG_HEADERS=true`) karena membangun map seluruh header + format map bersarang di setiap request mahal; blok `fmt.Printf` dump seluruh header pada preflight auth dihapus (mengabaikan log level dan berpotensi membocorkan `Authorization`), diganti log `DEBUG` ringkas yang hanya aktif saat `DEBUG_CORS=true`.
+- `router.go` `CORSMiddleware`: header statis (allow-headers, methods, expose-headers, max-age) di-precompute sekali di closure, bukan dibangun ulang per request.
+- `utils/jwt.go`: `blacklistedJTIs` map kini dilindungi `sync.RWMutex` di semua akses (validate/blacklist/refresh/cleanup/stats), menghilangkan risiko concurrent map read-write panic pada jalur request.
+- Menghapus paket duplikat mati `backend/app/api/middleware/` (tidak diimpor siapa pun; router memakai `backend/app/middleware`).
+
+**Frontend**
+
+- `LoginPage`: grafik dekoratif recharts diekstrak ke `LoginPerformanceChart.tsx` dan dimuat `React.lazy` + `Suspense`, sehingga bundle login turun dari ±399 KB menjadi ±13 KB; recharts (±396 KB) menjadi chunk terpisah yang dimuat setelah form interaktif.
+- `websocketMiddleware`: auto-connect saat login/refresh dinonaktifkan selama route backend `/ws` belum terdaftar (sebelumnya setiap login memicu 404 beruntun dengan retry 10× @5 dtk). Dapat diaktifkan kembali dengan `VITE_WS_ENABLED=true`; URL juga diselaraskan dengan `VITE_WS_BASE_URL` dari compose.
+- `index.html`: dua stylesheet Google Fonts Material Icons dan script debug-nya dihapus (tidak ada pemakaian ligature `material-icons` di `src/`; ikon memakai komponen lucide/MUI), mengurangi render-blocking request eksternal.
+
+Validasi: `go build ./...`, `go vet ./...`, `go test ./...` lulus; `pnpm typecheck`, `pnpm test:run` (128 test, 19 file) dan `vite build` lulus; runtime health endpoint, HMR, dan pengukuran CPU dijalankan pada stack dev.
+
 ### Equipment Master: Import dictionary UI (manage class/type aliases)
 
 UI untuk mengelola kamus import per tenant, sehingga operator bisa memetakan kode workbook tanpa menyentuh database.
