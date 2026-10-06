@@ -141,9 +141,11 @@ func TestAssetService_ImportAssetsFromXLSX_TranslatesAbbreviationCodes(t *testin
 	assetRepo.AssertExpectations(t)
 }
 
-// TestAssetService_ImportAssetsFromXLSX_LeavesLongNamesUnchanged guards the
-// fallback: a workbook that already carries canonical names must not be altered.
-func TestAssetService_ImportAssetsFromXLSX_LeavesLongNamesUnchanged(t *testing.T) {
+// TestAssetService_ImportAssetsFromXLSX_CanonicalizesLongNames proves the
+// resolver maps a workbook that already carries long names to the tenant
+// canonical label, so "Pressure Vessels" and "Adsorber" no longer stay as
+// free-form strings. The raw cells are kept in rbi_properties for provenance.
+func TestAssetService_ImportAssetsFromXLSX_CanonicalizesLongNames(t *testing.T) {
 	book := excelize.NewFile()
 	assert.NoError(t, book.SetSheetName("Sheet1", "Equipment Master"))
 	fields := []string{"Asset ID/Tag Number", "Equipment Class", "Equipment Type"}
@@ -164,8 +166,10 @@ func TestAssetService_ImportAssetsFromXLSX_LeavesLongNamesUnchanged(t *testing.T
 	assetRepo := new(MockAssetRepository)
 	assetRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
 		return len(records) == 1 &&
-			records[0].Asset.AssetClass != nil && *records[0].Asset.AssetClass == "Pressure Vessels" &&
-			records[0].Asset.AssetType != nil && *records[0].Asset.AssetType == "Adsorber"
+			records[0].Asset.AssetClass != nil && *records[0].Asset.AssetClass == "Pressure Vessels (VE)" &&
+			records[0].Asset.AssetType != nil && *records[0].Asset.AssetType == "Adsorber (Ad) (AD)" &&
+			records[0].Asset.RBIProperties["source_class"] == "Pressure Vessels" &&
+			records[0].Asset.RBIProperties["source_type"] == "Adsorber"
 	}), 7).Return(1, 0, nil).Once()
 	service := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
 

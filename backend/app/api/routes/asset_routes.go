@@ -92,6 +92,7 @@ func RegisterAssetRoutesWithRBAC(router *gin.RouterGroup, h *handlers.AssetHandl
 	router.POST("/sync-floc", rbac("asset:update"), h.SyncAssetFLOC)
 	router.GET("/export", rbac("asset:export"), h.ExportAssets)
 	router.POST("/import", rbac("asset:import"), h.ImportAssets)
+	router.GET("/taxonomy", rbac("asset:view"), h.ListEquipmentTaxonomy)
 
 	Asset := router.Group("/Asset")
 	{

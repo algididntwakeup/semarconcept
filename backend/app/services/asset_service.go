@@ -1286,6 +1286,14 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 	fileTags := make(map[string]struct{})
 	lastAssetID, lastParentTag := "", ""
 	total := 0
+	// Load the tenant import dictionary once per file so every row resolves
+	// against the same vocabulary. A missing dictionary falls back to the
+	// built-in one, so the import still works before a tenant is seeded.
+	taxonomyValues, taxonomyErr := s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
+	if taxonomyErr != nil {
+		return nil, fmt.Errorf("load tenant equipment taxonomy: %w", taxonomyErr)
+	}
+	resolver := NewEquipmentTaxonomyResolver(taxonomyValues)
 	assetIDColumn, parentTagColumn, tagColumn := -1, -1, -1
 	for index, column := range columns {
 		if !column.identity {
@@ -1356,7 +1364,7 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 				lastParentTag = value
 			}
 		}
-		record, parseErr := parseEquipmentImportRow(columns, row, tenantID, userID, req.AssetType)
+		record, parseErr := parseEquipmentImportRow(columns, row, tenantID, userID, req.AssetType, resolver)
 		if parseErr != nil {
 			issues = append(issues, fmt.Sprintf("row %d: %v", rowNumber, parseErr))
 			if !req.SkipErrors {
@@ -1449,10 +1457,13 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 		validAssets = append(validAssets, record)
 	}
 	assets = validAssets
+	unmapped := resolver.UnmappedValues()
 	if req.ValidateOnly || req.DryRun {
 		return map[string]interface{}{
 			"created_count": 0, "updated_count": 0, "imported_count": len(assets),
 			"total_count": total, "errors": issues, "validate_only": true,
+			"unmapped_class": unmapped[models.EquipmentTaxonomyKindClass],
+			"unmapped_type":  unmapped[models.EquipmentTaxonomyKindType],
 		}, nil
 	}
 	created, updated, err := s.AssetRepo.UpsertAssetsFromImport(ctx, tenantID, assets, userID)
@@ -1462,12 +1473,20 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 	return map[string]interface{}{
 		"created_count": created, "updated_count": updated, "imported_count": created + updated,
 		"total_count": total, "errors": issues, "validate_only": false,
+		"unmapped_class": unmapped[models.EquipmentTaxonomyKindClass],
+		"unmapped_type":  unmapped[models.EquipmentTaxonomyKindType],
 	}, nil
 }
 
 // PurgeAssets permanently deletes all assets for a given tenant.
 func (s *AssetService) PurgeAssets(ctx context.Context, tenantID int) (int64, error) {
 	return s.AssetRepo.PurgeAll(ctx, tenantID)
+}
+
+// ListEquipmentTaxonomy returns the tenant-scoped import dictionary used to
+// translate Equipment Class/Type cells during import.
+func (s *AssetService) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	return s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
 }
 
 type equipmentImportColumn struct {
@@ -1593,8 +1612,11 @@ func SanitizeValue(val string) interface{} {
 	return sanitizeValue(val)
 }
 
-func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string) (repositories.AssetImportRecord, error) {
+func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string, resolver *EquipmentTaxonomyResolver) (repositories.AssetImportRecord, error) {
 	asset := models.Asset{TenantID: tenantID, RBIProperties: make(models.JSONBMap)}
+	if resolver == nil {
+		resolver = NewEquipmentTaxonomyResolver(nil)
+	}
 	parentTag := ""
 	parentFunclocCode := ""
 	parentFunclocInlineDesc := ""
@@ -1662,10 +1684,14 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 		case "description", "equipmentdescription":
 			asset.Description = &value
 		case "assetclass", "equipmentclass", "class":
-			translated := TranslateEquipmentImportClass(value)
+			// Keep the raw cell for provenance, then store the tenant-canonical
+			// label so filters, statistics, and the form all agree.
+			asset.RBIProperties["source_class"] = value
+			translated := resolver.ResolveClass(value)
 			asset.AssetClass = &translated
 		case "assettype", "equipmenttype", "type":
-			translated := TranslateEquipmentImportType(value)
+			asset.RBIProperties["source_type"] = value
+			translated := resolver.ResolveType(value)
 			asset.AssetType = &translated
 		case "name", "equipmentname":
 			asset.Name = value

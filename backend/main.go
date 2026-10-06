@@ -126,6 +126,12 @@ func main() {
 		if err := seeder.SeedMenuItems(); err != nil {
 			utils.Warnf("System menu synchronization encountered warning: %v", err)
 		}
+		// The import dictionary is tenant configuration: backfill the built-in
+		// vocabulary for existing tenants on every start so imports keep working
+		// after an upgrade, without reseeding users.
+		if err := seeder.SeedEquipmentTaxonomyForAllTenants(); err != nil {
+			utils.Warnf("Equipment taxonomy synchronization encountered warning: %v", err)
+		}
 	}
 
 	// Initialize Gin router using shared SQLX and GORM adapters

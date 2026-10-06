@@ -247,6 +247,10 @@ type AssetRepository interface {
 	FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error)
 	HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error)
 	PurgeAll(ctx context.Context, tenantID int) (int64, error)
+	// ListEquipmentTaxonomy returns the tenant-scoped import dictionary (canonical
+	// Equipment Class/Type values plus their aliases) used to translate workbook
+	// cells during import.
+	ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error)
 
 	GetSiteByID(ctx context.Context, id int, tenantID int) (*models.Site, error)
 	GetUnitByID(ctx context.Context, id int, tenantID int) (*models.Unit, error)

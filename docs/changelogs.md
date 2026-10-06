@@ -4,6 +4,20 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: tenant-scoped import dictionary (canonical + aliases)
+
+Sebelumnya kamus class/type import **hardcoded di Go** dan global untuk semua tenant, jadi tenant baru tidak bisa memakai kode workbook-nya sendiri tanpa mengubah kode. Sekarang import memakai **kamus per tenant** di database.
+
+- Model & tabel baru `equipment_taxonomy_values` (tenant-scoped): `kind` (`class`/`type`), `canonical_code`, `canonical_name`, dan `aliases` (JSONB). Unique per `(tenant_id, kind, canonical_code)` dengan constraint `kind IN ('class','type')`.
+- Seeder idempoten mengisi kamus bawaan untuk **setiap tenant** saat seeding maupun setiap startup (backfill), jadi tenant lama langsung bisa import. Entri tenant yang sudah ada tidak ditimpa.
+- Import memuat kamus tenant sekali per file lalu me-resolve tiap sel: cocok → label kanonik `Nama (KODE)`; tidak cocok → nilai asli dipertahankan **dan dilaporkan** di hasil import (`unmapped_class`, `unmapped_type`) untuk dipetakan menyusul. Fallback ke kamus bawaan bila tenant belum punya entri.
+- Provenance: nilai mentah sel disimpan di `rbi_properties.source_class` / `source_type` (bukan hanya hasil terjemahan), sehingga remap bisa dilakukan tanpa import ulang.
+- Endpoint baru `GET /api/v1/assets/taxonomy` mengembalikan kamus tenant untuk frontend.
+- Bukti multitenant: menambahkan alias `PG → Process Gas (PG)` hanya lewat satu baris di tabel tenant membuat baris `PG` pada file yang sama ter-resolve (sebelumnya muncul di `unmapped_type`), tanpa perubahan kode.
+- Catatan: nama panjang yang sudah ada di workbook kini dikanonikalisasi (mis. `Pressure Vessels` → `Pressure Vessels (VE)`); test lama yang mengunci perilaku "nama panjang dibiarkan apa adanya" diperbarui.
+
+Validasi: import ulang file sumber tetap menghasilkan `total 1767, installed 397, funcloc 397, equipment 233`; `go build`, `go vet`, `go test ./app/...` lulus (termasuk test resolver tenant, alias, dan pelaporan unmapped).
+
 ### Equipment Master: single-code type labels in the New Equipment form
 
 Label Equipment Type di modal "New Equipment" disederhanakan menjadi satu kode saja (`Carbon Steel (CA)`, `Separator (SE)`, `Shell And Tube (ST)`, `Fixed Roof (FR)`, dst) — sebelumnya kode tercetak dua kali (`Carbon Steel (Ca) (CA)`). Dua sisa yang belum ikut diseragamkan juga dirapikan: tipe Heat Exchangers (`Shell And Tube (St) (ST)` → `Shell And Tube (ST)`, dst) dan spasi ganda pada `Surge Drum  (SD)` → `Surge Drum (SD)`. Test yang membaca opsi dropdown (`EquipmentToolbar`, `EquipmentMasterPage`) diperbarui mengikuti label baru. Nilai `asset_type` hasil import dari Excel tidak diubah pada langkah ini.

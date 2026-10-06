@@ -3,6 +3,7 @@
 package services
 
 import (
+	"backend/app/models"
 	"backend/app/models/request"
 	"backend/app/models/response"
 	"backend/app/repositories"
@@ -56,6 +57,8 @@ type AssetServiceInterface interface {
 	ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error)
 	ImportAssetsFromExcel(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error)
 	PurgeAssets(ctx context.Context, tenantID int) (int64, error)
+	// ListEquipmentTaxonomy returns the tenant-scoped import dictionary.
+	ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error)
 	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 	ExportAssetsToExcel(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 }

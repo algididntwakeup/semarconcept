@@ -760,6 +760,22 @@ func (r *assetRepository) PurgeAll(ctx context.Context, tenantID int) (int64, er
 	return result.RowsAffected()
 }
 
+// ListEquipmentTaxonomy returns the tenant's import dictionary ordered by kind
+// and canonical code. The import resolves raw workbook cells against it so each
+// tenant can carry its own vocabulary.
+func (r *assetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	values := make([]models.EquipmentTaxonomyValue, 0)
+	err := r.db.SelectContext(ctx, &values, `
+		SELECT id, tenant_id, kind, canonical_code, canonical_name, aliases, is_active, created_at, updated_at
+		FROM equipment_taxonomy_values
+		WHERE tenant_id = $1 AND is_active = TRUE
+		ORDER BY kind, canonical_code`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list equipment taxonomy for tenant %d: %w", tenantID, err)
+	}
+	return values, nil
+}
+
 func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
 	var asset models.Asset
 	err := r.db.GetContext(ctx, &asset, `SELECT * FROM assets WHERE tenant_id = $1 AND tag_number = $2 AND COALESCE(status, '') <> 'deleted' ORDER BY id LIMIT 1`, tenantID, tagNumber)

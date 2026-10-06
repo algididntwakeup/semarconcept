@@ -1374,6 +1374,24 @@ func (h *AssetHandler) PurgeAssets(c *gin.Context) {
 	}))
 }
 
+// ListEquipmentTaxonomy returns the tenant-scoped import dictionary: the
+// canonical Equipment Class/Type values and the aliases that map to them.
+func (h *AssetHandler) ListEquipmentTaxonomy(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+
+	values, err := h.assetService.ListEquipmentTaxonomy(c.Request.Context(), tenantID)
+	if err != nil {
+		utils.LogErrorf("Failed to list equipment taxonomy: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to list equipment taxonomy", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy retrieved successfully", values))
+}
+
 // ImportAssets imports assets from file
 func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	tenantID, ok := h.requireTenantContext(c)

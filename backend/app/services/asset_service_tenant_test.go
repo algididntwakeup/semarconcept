@@ -113,6 +113,14 @@ func (m *MockAssetRepository) PurgeAll(ctx context.Context, tenantID int) (int64
 	return args.Get(0).(int64), args.Error(1)
 }
 
+// ListEquipmentTaxonomy mirrors the repository contract. Tests that do not care
+// about the tenant dictionary get an empty list, which makes the resolver fall
+// back to the built-in dictionary. Tests that need a dictionary embed this mock
+// in their own type and override the method.
+func (m *MockAssetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	return []models.EquipmentTaxonomyValue{}, nil
+}
+
 // MockComponentRepository for boundary testing
 type MockComponentRepository struct {
 	repositories.ComponentRepository
@@ -416,6 +424,7 @@ func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testi
 	assert.Equal(t, map[string]interface{}{
 		"created_count": 1, "updated_count": 0, "imported_count": 1, "total_count": 1,
 		"errors": []string{}, "validate_only": false,
+		"unmapped_class": []string{"Pressure Vessel"}, "unmapped_type": []string{"Vessel"},
 	}, result)
 	assetRepo.AssertExpectations(t)
 }

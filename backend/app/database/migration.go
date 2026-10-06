@@ -51,6 +51,7 @@ func MigrateAll(db *gorm.DB) error {
 		&models.AuditLog{},
 		&models.TaxonomyCategory{},
 		&models.TaxonomyAttribute{},
+		&models.EquipmentTaxonomyValue{},
 		&models.Menu{},
 		&models.MenuAccessLog{},
 	)
@@ -127,6 +128,15 @@ func MigrateAll(db *gorm.DB) error {
 	}
 	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_assets_has_funcloc ON assets (has_funcloc)`).Error; err != nil {
 		utils.Errorf("Failed to create assets.has_funcloc index: %v", err)
+		return err
+	}
+	// Tenant-scoped import dictionary: the kind is a closed set and every value
+	// resolves at most once per tenant, so the import mapping stays deterministic.
+	if err := db.Exec(`ALTER TABLE equipment_taxonomy_values DROP CONSTRAINT IF EXISTS chk_equipment_taxonomy_kind`).Error; err != nil {
+		utils.Warnf("Could not drop existing equipment_taxonomy_values kind constraint: %v", err)
+	}
+	if err := db.Exec(`ALTER TABLE equipment_taxonomy_values ADD CONSTRAINT chk_equipment_taxonomy_kind CHECK (kind IN ('class', 'type'))`).Error; err != nil {
+		utils.Errorf("Failed to add equipment_taxonomy_values kind constraint: %v", err)
 		return err
 	}
 	// Backfill rows imported before the flag existed: an asset has a functional
