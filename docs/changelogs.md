@@ -4,6 +4,10 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: single-code type labels in the New Equipment form
+
+Label Equipment Type di modal "New Equipment" disederhanakan menjadi satu kode saja (`Carbon Steel (CA)`, `Separator (SE)`, `Shell And Tube (ST)`, `Fixed Roof (FR)`, dst) — sebelumnya kode tercetak dua kali (`Carbon Steel (Ca) (CA)`). Dua sisa yang belum ikut diseragamkan juga dirapikan: tipe Heat Exchangers (`Shell And Tube (St) (ST)` → `Shell And Tube (ST)`, dst) dan spasi ganda pada `Surge Drum  (SD)` → `Surge Drum (SD)`. Test yang membaca opsi dropdown (`EquipmentToolbar`, `EquipmentMasterPage`) diperbarui mengikuti label baru. Nilai `asset_type` hasil import dari Excel tidak diubah pada langkah ini.
+
 ### Equipment Master: class cards open an empty table
 
 Gejala: mengklik kartu kelas spesifik (`Heat Exchangers`, `Piping`, `Storage Tanks`, `Piping Line`, dst) menampilkan tabel kosong.

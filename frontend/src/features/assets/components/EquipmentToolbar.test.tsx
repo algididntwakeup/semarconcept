@@ -156,12 +156,12 @@ describe('NewEquipmentModal', () => {
     await userEvent.selectOptions(classSelect, 'Pressure Vessels (VE)');
     const typeSelect = screen.getByLabelText('Equipment Type');
     expect(typeSelect).not.toBeDisabled();
-    expect(screen.getByRole('option', { name: 'Separator (Se) (SE)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Separator (SE)' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Asset ID \/ Tag Number/), {
       target: { value: '12-V-1104' },
     });
-    await userEvent.selectOptions(typeSelect, 'Separator (Se) (SE)');
+    await userEvent.selectOptions(typeSelect, 'Separator (SE)');
     fireEvent.change(screen.getByLabelText(/Description/), {
       target: { value: 'Inlet separator' },
     });
@@ -173,7 +173,7 @@ describe('NewEquipmentModal', () => {
         expect.objectContaining({
           tag_number: '12-V-1104',
           asset_class: 'Pressure Vessels (VE)',
-          asset_type: 'Separator (Se) (SE)',
+          asset_type: 'Separator (SE)',
           description: 'Inlet separator',
         })
       )

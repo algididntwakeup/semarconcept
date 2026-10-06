@@ -493,7 +493,7 @@ describe('EquipmentMasterPage API integration', () => {
     await userEvent.selectOptions(screen.getByLabelText(/Equipment Class/), 'Pressure Vessels (VE)');
     await userEvent.selectOptions(
       screen.getByLabelText('Equipment Type'),
-      'Separator (Se) (SE)'
+      'Separator (SE)'
     );
     await userEvent.type(screen.getByLabelText(/Asset ID \/ Tag Number/), '12-V-1104');
     await userEvent.click(screen.getByRole('button', { name: 'Save Equipment' }));
@@ -503,7 +503,7 @@ describe('EquipmentMasterPage API integration', () => {
         expect.objectContaining({
           tag_number: '12-V-1104',
           asset_class: 'Pressure Vessels (VE)',
-          asset_type: 'Separator (Se) (SE)',
+          asset_type: 'Separator (SE)',
         })
       )
     );
