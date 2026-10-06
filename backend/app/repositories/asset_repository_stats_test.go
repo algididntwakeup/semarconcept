@@ -20,9 +20,9 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT INITCAP\(LOWER\(BTRIM\(asset_class\)\)\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL AND COALESCE\(NULLIF\(BTRIM\(rbi_properties->>'General\.Hierarchy Level'\), ''\), '1'\) = '1' GROUP BY INITCAP\(LOWER\(BTRIM\(asset_class\)\)\) ORDER BY INITCAP\(LOWER\(BTRIM\(asset_class\)\)\)`).
+	mock.ExpectQuery(`SELECT BTRIM\(asset_class\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL AND COALESCE\(NULLIF\(BTRIM\(rbi_properties->>'General\.Hierarchy Level'\), ''\), '1'\) = '1' GROUP BY BTRIM\(asset_class\) ORDER BY BTRIM\(asset_class\)`).
 		WithArgs(42).
-		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping", int64(12)).AddRow("Storage Tanks", int64(7)))
+		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping (PI)", int64(12)).AddRow("Storage Tanks (TA)", int64(7)))
 	mock.ExpectQuery(`SELECT COUNT\(\*\) AS total, COUNT\(\*\) FILTER \(WHERE NOT \(LOWER\(REGEXP_REPLACE\(BTRIM\(asset_class\), '\\s\*\\\(\[\^\)\]\*\\\)\\s\*\$', ''\)\) IN \('piping', 'piping line', 'pipeline'\)\)\) AS equipment, COUNT\(\*\) FILTER \(WHERE COALESCE\(NULLIF\(lifecycle_status, ''\), status\) = 'Installed'\) AS installed, COUNT\(\*\) FILTER \(WHERE has_funcloc\) AS with_funcloc,`).
 		WithArgs(42).
 		WillReturnRows(sqlmock.NewRows([]string{"total", "equipment", "installed", "with_funcloc", "without_funcloc"}).
@@ -33,8 +33,8 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	stats, err := repo.GetAssetStats(context.Background(), 42)
 	require.NoError(t, err)
 	require.Equal(t, []AssetClassCount{
-		{Class: "Piping", Count: 12},
-		{Class: "Storage Tanks", Count: 7},
+		{Class: "Piping (PI)", Count: 12},
+		{Class: "Storage Tanks (TA)", Count: 7},
 	}, stats.Classes)
 	require.Equal(t, int64(1777), stats.Total)
 	require.Equal(t, int64(240), stats.Equipment)

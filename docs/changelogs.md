@@ -2,7 +2,32 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
-## Unreleased — 5 October 2026
+## Unreleased — 6 October 2026
+
+### Equipment Master: class cards open an empty table
+
+Gejala: mengklik kartu kelas spesifik (`Heat Exchangers`, `Piping`, `Storage Tanks`, `Piping Line`, dst) menampilkan tabel kosong.
+
+Penyebab: `GetAssetStats` mengembalikan label kelas yang sudah dinormalisasi `INITCAP(LOWER(...))` (mis. `Piping (Pi)`, `Heat Exchangers (Hx)`), sedangkan nilai tersimpan di DB memakai kode huruf besar (mis. `Piping (PI)`). Kartu mengirim label hasil normalisasi itu kembali sebagai filter `equipment_class`, dan repository memakai **exact match** `asset_class = $n`, sehingga tidak ada baris yang cocok.
+
+Perbaikan:
+
+- `GetAssetStats` kini mengembalikan label kelas **apa adanya** (`BTRIM(asset_class)`), jadi label kartu selalu identik dengan nilai tersimpan dan dengan filter list.
+- Filter `equipment_class` di `AssetRepository.List` dibuat case- dan whitespace-insensitive (`LOWER(BTRIM(asset_class)) = LOWER(BTRIM($n))`), sehingga perbedaan casing tidak lagi menghasilkan tabel kosong.
+
+Verifikasi live (setelah restart backend), kartu → isi tabel:
+
+```
+Filters And Strainers (FS)   47 →   47
+Heat Exchangers (HX)         56 →   56
+Heaters And Boilers (HB)      1 →    1
+Piping (PI)                1525 → 1525
+Piping Line (PL)              9 →    9
+Pressure Vessels (VE)        89 →   89
+Storage Tanks (TA)           40 →   40
+```
+
+Ringkasan tetap: `total 1767, installed 397, funcloc 397, equipment 233`. Validasi: `go build`, `go vet`, dan `go test ./app/...` lulus; `pnpm typecheck` lulus dan `pnpm test:run` lulus 34/35. Satu kegagalan (`opens the New Equipment modal`) berasal dari perubahan label tipe yang belum di-commit di `frontend/src/features/assets/data/equipmentTaxonomy.ts`, bukan dari perubahan ini.
 
 ### Equipment Master: fix Installed/Has Funcloc loss on import and export
 

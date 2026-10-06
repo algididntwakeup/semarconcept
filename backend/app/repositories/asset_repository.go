@@ -296,8 +296,10 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 		assetType = req.Type
 	}
 	if req.EquipmentClass != "" {
-		query += fmt.Sprintf(` AND asset_class = $%d`, argIdx)
-		countQuery += fmt.Sprintf(` AND asset_class = $%d`, argIdx)
+		// Case- and whitespace-insensitive so a card label always finds its
+		// rows even if the stored casing differs.
+		query += fmt.Sprintf(` AND LOWER(BTRIM(asset_class)) = LOWER(BTRIM($%d))`, argIdx)
+		countQuery += fmt.Sprintf(` AND LOWER(BTRIM(asset_class)) = LOWER(BTRIM($%d))`, argIdx)
 		args = append(args, req.EquipmentClass)
 		argIdx++
 	}
@@ -382,8 +384,12 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	}
 	// parentEquipmentExpr keeps rows whose hierarchy level is missing or "1".
 	const parentEquipmentExpr = `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1') = '1'`
-	// normalizedClass is the canonical class label shown on the cards.
-	const normalizedClass = `INITCAP(LOWER(BTRIM(asset_class)))`
+	// classLabel is the exact stored class value (for example "Piping (PI)").
+	// The card sends this label straight back as the equipment_class filter, so
+	// it must match the rows verbatim; normalising the casing here produced
+	// "Piping (Pi)", which no longer matched the stored value and left every
+	// class card opening an empty table.
+	const classLabel = `BTRIM(asset_class)`
 	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. Imported
 	// classes are stored as "Name (CODE)" (for example "Piping (PI)"), so the
 	// match strips a trailing parenthesised code and compares the leading name;
@@ -393,9 +399,9 @@ func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (Asse
 	// the relational lifecycle_status first, then the legacy status column.
 	const installedExpr = `COALESCE(NULLIF(lifecycle_status, ''), status) = 'Installed'`
 	err = db.WithContext(ctx).Model(&models.Asset{}).
-		Select(normalizedClass+" AS class, COUNT(*) AS count").
+		Select(classLabel+" AS class, COUNT(*) AS count").
 		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL AND "+parentEquipmentExpr, tenantID).
-		Group(normalizedClass).Order(normalizedClass).Scan(&stats.Classes).Error
+		Group(classLabel).Order(classLabel).Scan(&stats.Classes).Error
 	if err != nil {
 		return stats, fmt.Errorf("aggregate equipment class statistics: %w", err)
 	}
