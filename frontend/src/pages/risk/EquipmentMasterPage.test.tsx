@@ -347,7 +347,12 @@ describe('EquipmentMasterPage API integration', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Manage P-101' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Manage Asset' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Feed Pump')).toBeInTheDocument();
+    // The Manage Asset modal opens with the tag in its title and the form bound.
+    expect(
+      within(dialog).getByRole('heading', { name: 'Manage Asset — P-101' })
+    ).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Description')).toHaveValue('Main process pump');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     await userEvent.click(screen.getByRole('button', { name: 'Manage P-101' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Component' }));

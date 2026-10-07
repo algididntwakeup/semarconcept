@@ -28,6 +28,7 @@ import LifecycleActionModal, {
 import LifecycleConfirmModal, {
   type LifecycleConfirmAction,
 } from '../../features/assets/components/LifecycleConfirmModal';
+import ManageAssetModal from '../../features/assets/components/manage-asset/ManageAssetModal';
 import { assetService } from '../../services/assetServices';
 import type { EquipmentAssetImportResult } from '../../services/assetServices';
 import { useNotification } from '../../hooks/useNotification';
@@ -83,6 +84,7 @@ const EquipmentMasterPage = () => {
     action: LifecycleConfirmAction;
     asset: EquipmentAssetRow;
   } | null>(null);
+  const [manageAsset, setManageAsset] = useState<EquipmentAssetRow | null>(null);
   const [unmappedSuggestions, setUnmappedSuggestions] = useState<{
     class: string[];
     type: string[];
@@ -139,7 +141,7 @@ const EquipmentMasterPage = () => {
     setActionError('');
     switch (action) {
       case 'manage':
-        setSelectedAsset(asset);
+        setManageAsset(asset);
         break;
       case 'add-component':
         window.location.assign('/assets/hierarchy');
@@ -215,6 +217,23 @@ const EquipmentMasterPage = () => {
       const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
       setLifecycleConfirm(null);
       showNotification(`${tag} marked as ${action.toLowerCase()}.`, 'success');
+    },
+    [showNotification]
+  );
+
+  const handleManageAssetSave = useCallback(
+    (
+      payload: { columns: Record<string, string>; rbiProperties: Record<string, string> },
+      asset: EquipmentAssetRow
+    ) => {
+      // Fase 1 is the UI frame: the form hydrates from and maps back to the
+      // same keys the import uses (asset columns + rbi_properties), but the
+      // save request is staged until the backend accepts rbi_properties.
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      const fieldCount =
+        Object.keys(payload.columns).length + Object.keys(payload.rbiProperties).length;
+      setManageAsset(null);
+      showNotification(`Manage Asset ${tag}: ${fieldCount} field(s) ready to save.`, 'success');
     },
     [showNotification]
   );
@@ -763,6 +782,15 @@ const EquipmentMasterPage = () => {
           onClose={() => setTaxonomyOpen(false)}
           suggestedUnmapped={unmappedSuggestions}
           onNotify={(message, tone) => showNotification(message, tone)}
+        />
+      )}
+
+      {manageAsset && (
+        <ManageAssetModal
+          open
+          asset={manageAsset}
+          onClose={() => setManageAsset(null)}
+          onSave={handleManageAssetSave}
         />
       )}
 

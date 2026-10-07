@@ -4,6 +4,23 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Manage Asset modal (Fase 1 — kerangka UI & navigasi)
+
+Aksi **Manage Asset** kini membuka modal besar baru, bukan kartu detail ringkas.
+
+- Komponen `ManageAssetModal` (fullscreen 90% layar, `max-w-6xl`) dengan header `Manage Asset — {Tag Number}`.
+- **Navigasi level 1 (tipe konten):** tab `Data Source` (ikon titik hijau), `Image`, dan `File`.
+- **Navigasi level 2 (kategori data):** pill `General Data`, `Design Data`, `Operating Data`, `Risk Analysis`, `Other Data`, hanya tampil saat tab Data Source aktif.
+- **General Data:** Equipment ID (read-only), Funcloc, Description, Equipment Class, Equipment Type.
+- **Other Data:** accordion `Equipment References` berisi Asset ID, P&ID Drawing No., Inspection Drawing No., Jurisdiction Registration No., Juris Serial No., Latitude (degrees(decimal)), Longitude (degrees(decimal)), Elevation (m).
+- Kategori/tab yang belum dikerjakan menampilkan placeholder, bukan form kosong yang menyesatkan.
+- **State & binding:** React Hook Form (`useForm`) dengan katalog field di `manage-asset/manageAssetFields.ts`. Field asset memetakan ke kolom (`description`, `asset_class`, `asset_type`), sedangkan Funcloc dan seluruh Equipment References memetakan ke `rbi_properties` dengan key persis seperti import/export: `parent_funcloc` dan `Equipment References.<Label>` (mis. `Equipment References.P&ID Drawing No.`). Fungsi `manageAssetFormFromRow` (hidrasi) dan `manageAssetPayloadFromForm` (pecah ke `columns` + `rbiProperties`) menjaga round-trip.
+- Fase 1 masih kerangka: tombol `Save` memunculkan toast jumlah field yang siap disimpan dan menutup modal, belum mengirim request.
+
+Catatan: project frontend ini **Vite + React** (bukan Next.js), jadi modal dibuat sebagai komponen React biasa mengikuti pola modal yang sudah ada.
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (21 file, 145 test) lulus; test baru `ManageAssetModal.test.tsx` mencakup hidrasi, split payload ke kolom + key JSONB, tab/sub-navigasi, dan accordion Equipment References.
+
 ### Equipment Master: dynamic Lifecycle menu and lifecycle action modals
 
 - Menu **Lifecycle ▾** per baris kini dinamis mengikuti status aset:
