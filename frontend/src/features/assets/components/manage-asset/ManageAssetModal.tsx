@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
 import { useForm, type UseFormRegister } from 'react-hook-form';
-import { ChevronDown, FileText, Image as ImageIcon, LoaderCircle, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, LoaderCircle, X } from 'lucide-react';
 import type { EquipmentAssetRow } from '../AssetDataGrid';
+import ManageAssetAccordion from './ManageAssetAccordion';
 import {
   DATA_SOURCE_SECTIONS,
+  DETAIL_SPEC_PROPERTIES,
   EMPTY_MANAGE_ASSET_FORM,
+  EQUIPMENT_DESIGN_FIELDS,
+  EQUIPMENT_FLUID_DEFINITION_FIELDS,
   EQUIPMENT_REFERENCE_FIELDS,
+  FLUID_DEFINITION_FIELDS,
+  FLUID_INVENTORY_FIELDS,
   GENERAL_DATA_FIELDS,
   MANAGE_ASSET_TABS,
   manageAssetFormFromRow,
@@ -38,33 +44,110 @@ const labelClass = 'block space-y-1 text-xs font-medium text-slate-600';
 const inputClass =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:bg-slate-100 disabled:text-slate-500';
 
-/** A single labelled input driven by the field catalog. */
-const FieldInput = ({
+/** A single labelled control driven by the field catalog. */
+const FieldControl = ({
   field,
   register,
+  value,
+  disabled = false,
 }: {
   field: ManageAssetField;
   register: UseFormRegister<ManageAssetFormValues>;
-}) => (
-  <label className={field.multiline ? `${labelClass} sm:col-span-2` : labelClass}>
-    {field.label}
-    {field.multiline ? (
-      <textarea
-        rows={3}
-        readOnly={field.readOnly}
-        placeholder={field.placeholder}
-        className={inputClass}
-        {...register(field.name)}
-      />
-    ) : (
+  /** Current value, used by disabledWhenFilled and the radio group. */
+  value?: string;
+  disabled?: boolean;
+}) => {
+  const isDisabled = field.readOnly || disabled || (field.disabledWhenFilled && !!value?.trim());
+  const spanClass = field.multiline || field.input === 'radio' ? 'sm:col-span-2' : '';
+
+  if (field.input === 'radio') {
+    return (
+      <fieldset className={`${labelClass} ${spanClass}`}>
+        <legend className="text-xs font-medium text-slate-600">{field.label}</legend>
+        <div className="mt-1 flex gap-4">
+          {(field.options ?? []).map((option) => (
+            <label key={option} className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="radio"
+                value={option}
+                disabled={isDisabled}
+                className="h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                {...register(field.name)}
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (field.input === 'select') {
+    return (
+      <label className={`${labelClass} ${spanClass}`}>
+        {field.label}
+        <select disabled={isDisabled} className={inputClass} {...register(field.name)}>
+          <option value="">Select {field.label.toLowerCase()}…</option>
+          {(field.options ?? []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  if (field.multiline) {
+    return (
+      <label className={`${labelClass} ${spanClass}`}>
+        {field.label}
+        <textarea
+          rows={3}
+          disabled={isDisabled}
+          placeholder={field.placeholder}
+          className={inputClass}
+          {...register(field.name)}
+        />
+      </label>
+    );
+  }
+
+  return (
+    <label className={`${labelClass} ${spanClass}`}>
+      {field.label}
       <input
-        readOnly={field.readOnly}
+        type={field.input === 'number' ? 'number' : field.input === 'date' ? 'date' : 'text'}
+        disabled={isDisabled}
         placeholder={field.placeholder}
         className={inputClass}
         {...register(field.name)}
       />
-    )}
-  </label>
+    </label>
+  );
+};
+
+/** Grid of fields bound to the form. */
+const FieldGrid = ({
+  fields,
+  register,
+  values,
+}: {
+  fields: ManageAssetField[];
+  register: UseFormRegister<ManageAssetFormValues>;
+  values: ManageAssetFormValues;
+}) => (
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    {fields.map((field) => (
+      <FieldControl
+        key={field.name}
+        field={field}
+        register={register}
+        value={values[field.name]}
+        disabled={field.name === 'designEquipmentType'}
+      />
+    ))}
+  </div>
 );
 
 const ManageAssetModal = ({
@@ -76,11 +159,11 @@ const ManageAssetModal = ({
 }: ManageAssetModalProps) => {
   const [activeTab, setActiveTab] = useState<ManageAssetTab>('Data Source');
   const [activeSection, setActiveSection] = useState<DataSourceSection>('General Data');
-  const [referencesOpen, setReferencesOpen] = useState(true);
 
-  const { register, handleSubmit, reset } = useForm<ManageAssetFormValues>({
+  const { register, handleSubmit, reset, watch } = useForm<ManageAssetFormValues>({
     defaultValues: EMPTY_MANAGE_ASSET_FORM,
   });
+  const values = watch();
 
   // Re-hydrate whenever the modal opens for a (different) asset.
   useEffect(() => {
@@ -91,7 +174,6 @@ const ManageAssetModal = ({
     if (open) {
       setActiveTab('Data Source');
       setActiveSection('General Data');
-      setReferencesOpen(true);
     }
   }, [open]);
 
@@ -108,8 +190,8 @@ const ManageAssetModal = ({
 
   const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
 
-  const submit = handleSubmit(async (values) => {
-    await onSave?.(manageAssetPayloadFromForm(values), asset);
+  const submit = handleSubmit(async (formValues) => {
+    await onSave?.(manageAssetPayloadFromForm(formValues), asset);
   });
 
   return (
@@ -161,10 +243,7 @@ const ManageAssetModal = ({
                 }`}
               >
                 {tab === 'Data Source' ? (
-                  <span
-                    className="h-2 w-2 rounded-full bg-emerald-500"
-                    aria-hidden="true"
-                  />
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
                 ) : (
                   <Icon size={15} aria-hidden="true" />
                 )}
@@ -202,35 +281,74 @@ const ManageAssetModal = ({
                 {activeTab} uploads are planned for a later phase.
               </p>
             ) : activeSection === 'General Data' ? (
-              <section aria-label="General Data" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {GENERAL_DATA_FIELDS.map((field) => (
-                  <FieldInput key={field.name} field={field} register={register} />
-                ))}
+              <section aria-label="General Data">
+                <FieldGrid fields={GENERAL_DATA_FIELDS} register={register} values={values} />
+              </section>
+            ) : activeSection === 'Design Data' ? (
+              <section aria-label="Design Data">
+                <ManageAssetAccordion title="Equipment Design">
+                  <FieldGrid
+                    fields={EQUIPMENT_DESIGN_FIELDS}
+                    register={register}
+                    values={values}
+                  />
+                </ManageAssetAccordion>
+              </section>
+            ) : activeSection === 'Operating Data' ? (
+              <section aria-label="Operating Data" className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <div className="space-y-5">
+                  <ManageAssetAccordion title="Fluid Inventory">
+                    <FieldGrid
+                      fields={FLUID_INVENTORY_FIELDS}
+                      register={register}
+                      values={values}
+                    />
+                  </ManageAssetAccordion>
+                  <ManageAssetAccordion title="Equipment Fluid Definition">
+                    <FieldGrid
+                      fields={EQUIPMENT_FLUID_DEFINITION_FIELDS}
+                      register={register}
+                      values={values}
+                    />
+                  </ManageAssetAccordion>
+                </div>
+                <div className="space-y-5">
+                  <ManageAssetAccordion title="Fluid Definition">
+                    <FieldGrid
+                      fields={FLUID_DEFINITION_FIELDS}
+                      register={register}
+                      values={values}
+                    />
+                  </ManageAssetAccordion>
+                  <ManageAssetAccordion title="Detail Specs">
+                    <ul className="divide-y divide-slate-100">
+                      {DETAIL_SPEC_PROPERTIES.map((property) => (
+                        <li
+                          key={property}
+                          className="flex items-center justify-between gap-3 py-2"
+                        >
+                          <span className="text-sm text-slate-700">{property}</span>
+                          <button
+                            type="button"
+                            className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-700"
+                          >
+                            Apply
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </ManageAssetAccordion>
+                </div>
               </section>
             ) : activeSection === 'Other Data' ? (
-              <section aria-label="Other Data" className="space-y-3">
-                <div className="overflow-hidden rounded-xl border border-slate-200">
-                  <button
-                    type="button"
-                    aria-expanded={referencesOpen}
-                    onClick={() => setReferencesOpen((current) => !current)}
-                    className="flex w-full items-center justify-between gap-3 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                  >
-                    Equipment References
-                    <ChevronDown
-                      size={16}
-                      className={`transition-transform ${referencesOpen ? 'rotate-180' : ''}`}
-                      aria-hidden="true"
-                    />
-                  </button>
-                  {referencesOpen && (
-                    <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
-                      {EQUIPMENT_REFERENCE_FIELDS.map((field) => (
-                        <FieldInput key={field.name} field={field} register={register} />
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <section aria-label="Other Data">
+                <ManageAssetAccordion title="Equipment References">
+                  <FieldGrid
+                    fields={EQUIPMENT_REFERENCE_FIELDS}
+                    register={register}
+                    values={values}
+                  />
+                </ManageAssetAccordion>
               </section>
             ) : (
               <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">

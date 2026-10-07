@@ -53,6 +53,37 @@ describe('manageAssetFields mapping', () => {
     expect(rbiProperties.parent_funcloc).toBe('JI-JL-AG-99-ZZ');
     expect(rbiProperties['Equipment References.Inspection Drawing No.']).toBe('INS-9');
   });
+  it('maps Design and Operating fields into their rbi_properties categories', () => {
+    const { rbiProperties } = manageAssetPayloadFromForm({
+      ...EMPTY_MANAGE_ASSET_FORM,
+      designCode: 'ASME VIII Div. 1',
+      designPressure: '150',
+      designTemperature: '650',
+      weldEfficiency: '0.85',
+      postWeldHeatTreatment: 'YES',
+      equipmentStartDate: '2024-05-01',
+      vaporVolume: '12.5',
+      liquidVolume: '3',
+      totalMass: '900',
+      processFluid: 'Natural Gas',
+      consequenceModel: 'Advanced',
+    });
+
+    // Existing export keys are reused so values round-trip with import/export.
+    expect(rbiProperties['Component Design.Design Code']).toBe('ASME VIII Div. 1');
+    expect(rbiProperties['Component Design.Design Pressure']).toBe('150');
+    expect(rbiProperties['Component Design.Design Temperature']).toBe('650');
+    // New fields derive `Category.Label`, the same convention the import uses.
+    expect(rbiProperties['Equipment Design.Weld Efficiency']).toBe('0.85');
+    expect(rbiProperties['Equipment Design.Post Weld Heat Treatment']).toBe('YES');
+    expect(rbiProperties['Equipment Design.Equipment Start Date']).toBe('2024-05-01');
+    expect(rbiProperties['Fluid Inventory.Equipment Vapor Volume (m³)']).toBe('12.5');
+    expect(rbiProperties['Fluid Inventory.Total Equipment Mass (kg)']).toBe('900');
+    expect(rbiProperties['Equipment Fluid Definition.Process Fluid']).toBe('Natural Gas');
+    expect(rbiProperties['Fluid Definition.Consequence Model']).toBe('Advanced');
+    // The Design Equipment Type mirrors the asset column, never its own key.
+    expect(rbiProperties['Equipment Design.Equipment Type']).toBeUndefined();
+  });
 });
 
 describe('ManageAssetModal', () => {
@@ -92,6 +123,60 @@ describe('ManageAssetModal', () => {
       }),
       asset
     );
+  }, 15000);
+
+  it('renders the Equipment Design accordion with its fields', async () => {
+    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Design Data' }));
+
+    expect(screen.getByRole('button', { name: /Equipment Design/ })).toBeInTheDocument();
+    // Equipment Type is disabled because General Data already provides it.
+    expect(screen.getByLabelText('Equipment Type')).toBeDisabled();
+    expect(screen.getByLabelText('Design Code')).toBeInTheDocument();
+    expect(screen.getByLabelText('Equipment Start Date')).toBeInTheDocument();
+    expect(screen.getByLabelText('Design Pressure (psig)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Design Temperature (°F)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Weld Efficiency')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'YES' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'NO' })).toBeInTheDocument();
+  }, 15000);
+
+  it('renders the Operating Data two-column layout with Detail Specs placeholders', async () => {
+    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Operating Data' }));
+
+    expect(screen.getByRole('button', { name: /Fluid Inventory/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Equipment Vapor Volume (m³)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Equipment Liquid Volume (m³)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Total Equipment Mass (kg)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Equipment Fluid Definition/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Process Fluid')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fluid Definition' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Consequence Model')).toBeInTheDocument();
+
+    // Detail Specs lists the thickness properties with an Apply button each.
+    expect(screen.getByRole('button', { name: 'Detail Specs' })).toBeInTheDocument();
+    for (const property of ['Furnished Thickness', 'Corrosion Allowance', 'Pipe Schedule']) {
+      expect(screen.getByText(property)).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('button', { name: 'Apply' })).toHaveLength(3);
+  }, 15000);
+
+  it('collapses and expands an accordion', async () => {
+    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Design Data' }));
+    const header = screen.getByRole('button', { name: /Equipment Design/ });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+
+    await userEvent.click(header);
+    expect(screen.getByRole('button', { name: /Equipment Design/ })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    );
+    expect(screen.queryByLabelText('Design Code')).not.toBeInTheDocument();
   }, 15000);
 
   it('renders the Equipment References accordion under Other Data', async () => {

@@ -4,6 +4,18 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Manage Asset Fase 2 (Design & Operating Data)
+
+- Komponen baru `ManageAssetAccordion`: header abu-abu terang dengan toggle ikon **minus/plus hijau** di kanan, dipakai membungkus semua kelompok form.
+- **Design Data → Equipment Design**: Equipment Type (disabled karena sudah diisi di General Data), Design Code (select), Equipment Start Date (datepicker), Design Pressure (psig), Design Temperature (°F), Weld Efficiency, dan Post Weld Heat Treatment (radio YES/NO).
+- **Operating Data** kini layout dua kolom:
+  - Kiri: accordion `Fluid Inventory` (Equipment Vapor Volume (m³), Equipment Liquid Volume (m³), Total Equipment Mass (kg)) dan `Equipment Fluid Definition` (Process Fluid, select).
+  - Kanan: accordion `Fluid Definition` (Consequence Model, select) dan card placeholder `Detail Specs` bergaya list vertikal (Furnished Thickness, Corrosion Allowance, Pipe Schedule) dengan tombol kecil **Apply** hijau di tiap baris.
+- **Binding JSONB:** seluruh field Design & Operating masuk ke `rbi_properties`. Field yang sudah punya key export memakai key yang sama agar round-trip (`Component Design.Design Code` / `Design Pressure` / `Design Temperature`), sisanya memakai konvensi import `Category.Label` (mis. `Equipment Design.Weld Efficiency`, `Fluid Inventory.Total Equipment Mass (kg)`, `Equipment Fluid Definition.Process Fluid`, `Fluid Definition.Consequence Model`). Katalog field kini menyimpan `input` (text/number/date/select/radio) sehingga modal merender kontrol yang tepat.
+- `Equipment Type` di Design hanya cerminan kolom `asset_type` (tidak menulis key JSONB terpisah).
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (21 file, 149 test) lulus; test baru mencakup pemetaan Design/Operating ke kategori JSONB, accordion Design, layout dua kolom Operating + Detail Specs, serta buka/tutup accordion.
+
 ### Equipment Master: Manage Asset modal (Fase 1 — kerangka UI & navigasi)
 
 Aksi **Manage Asset** kini membuka modal besar baru, bukan kartu detail ringkas.
