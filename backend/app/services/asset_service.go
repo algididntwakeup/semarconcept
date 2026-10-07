@@ -528,6 +528,16 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 	if req.Metadata != nil {
 		existingAsset.Metadata = models.JSONBMap(req.Metadata)
 	}
+	// Merge rather than replace: the Manage Asset form submits only the keys it
+	// owns, so unrelated import keys must survive a save.
+	if len(req.RBIProperties) > 0 {
+		if existingAsset.RBIProperties == nil {
+			existingAsset.RBIProperties = models.JSONBMap{}
+		}
+		for key, value := range req.RBIProperties {
+			existingAsset.RBIProperties[key] = value
+		}
+	}
 
 	existingAsset.UpdatedBy = &userID
 	existingAsset.UpdatedAt = time.Now()

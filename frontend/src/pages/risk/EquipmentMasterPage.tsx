@@ -222,20 +222,24 @@ const EquipmentMasterPage = () => {
   );
 
   const handleManageAssetSave = useCallback(
-    (
+    async (
       payload: { columns: Record<string, string>; rbiProperties: Record<string, string> },
       asset: EquipmentAssetRow
     ) => {
-      // Fase 1 is the UI frame: the form hydrates from and maps back to the
-      // same keys the import uses (asset columns + rbi_properties), but the
-      // save request is staged until the backend accepts rbi_properties.
       const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
-      const fieldCount =
-        Object.keys(payload.columns).length + Object.keys(payload.rbiProperties).length;
-      setManageAsset(null);
-      showNotification(`Manage Asset ${tag}: ${fieldCount} field(s) ready to save.`, 'success');
+      try {
+        await assetService.updateEquipmentAsset(asset.id, payload);
+        setManageAsset(null);
+        await assetsQuery.refetch();
+        showNotification(`Manage Asset ${tag} saved.`, 'success');
+      } catch (error) {
+        showNotification(
+          error instanceof Error ? error.message : 'Unable to save asset changes',
+          'error'
+        );
+      }
     },
-    [showNotification]
+    [assetsQuery, showNotification]
   );
 
   const handleGridSearchChange = useCallback((value: string) => {
@@ -797,6 +801,8 @@ const EquipmentMasterPage = () => {
             console.log('[Manage Asset] files staged locally', files);
             showNotification(message, 'info');
           }}
+          onSpecApplied={(message) => showNotification(message, 'info')}
+          onNotify={(message) => showNotification(message, 'info')}
         />
       )}
 

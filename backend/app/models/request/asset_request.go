@@ -145,6 +145,10 @@ type UpdateAssetRequest struct {
 	SafetyCritical          *bool                  `json:"safety_critical,omitempty"`
 	EnvironmentallyCritical *bool                  `json:"environmentally_critical,omitempty"`
 	Metadata                map[string]interface{} `json:"metadata,omitempty"`
+	// RBIProperties merges into the stored rbi_properties map. Keys not present
+	// in the request are preserved, so a partial form save cannot drop values
+	// the import wrote (funcloc, source_class, design keys, ...).
+	RBIProperties map[string]interface{} `json:"rbi_properties,omitempty"`
 }
 
 // ===== COMPONENT REQUESTS =====

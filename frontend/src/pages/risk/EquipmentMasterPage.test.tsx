@@ -22,6 +22,7 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       purgeAllEquipmentAssets: vi.fn(),
       bulkDeleteEquipmentAssets: vi.fn(),
       createEquipmentAsset: vi.fn(),
+      updateEquipmentAsset: vi.fn(),
     },
   };
 });
@@ -447,6 +448,47 @@ describe('EquipmentMasterPage API integration', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
     expect(await screen.findByText('P-202 marked as uninstall.')).toBeInTheDocument();
+  }, 15000);
+
+  it('saves the Manage Asset form through the API and refetches the register', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 0, without: 1 },
+      total: 1,
+      equipment: 1,
+      installed: 0,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        { id: 9, tag_number: 'P-909', name: 'P-909', description: 'Old', asset_class: 'Piping (PI)' },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.updateEquipmentAsset).mockResolvedValue({ id: 9, tag_number: 'P-909' });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Manage P-909' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Manage Asset' }));
+    const dialog = await screen.findByRole('dialog');
+
+    await userEvent.clear(within(dialog).getByLabelText('Description'));
+    await userEvent.type(within(dialog).getByLabelText('Description'), 'Rebuilt pump');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Data Source' }));
+
+    await waitFor(() =>
+      expect(assetService.updateEquipmentAsset).toHaveBeenCalledWith(
+        9,
+        expect.objectContaining({
+          columns: expect.objectContaining({ description: 'Rebuilt pump' }),
+          rbiProperties: expect.objectContaining({ parent_funcloc: '' }),
+        })
+      )
+    );
+    // The register is refetched so the grid shows the saved value.
+    await waitFor(() => expect(assetService.getEquipmentAssets).toHaveBeenCalledTimes(2));
   }, 15000);
 
   it('shows file preview with name and size and allows clearing with the X button', async () => {

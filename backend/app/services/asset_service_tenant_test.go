@@ -73,6 +73,11 @@ func (m *MockAssetRepository) FindByID(ctx context.Context, tenantID, id int) (*
 	return args.Get(0).(*models.Asset), args.Error(1)
 }
 
+func (m *MockAssetRepository) Update(ctx context.Context, asset *models.Asset) error {
+	args := m.Called(ctx, asset)
+	return args.Error(0)
+}
+
 func (m *MockAssetRepository) FindByTag(ctx context.Context, tenantID, unitID int, tag string) (*models.Asset, error) {
 	args := m.Called(ctx, tenantID, unitID, tag)
 	if args.Get(0) == nil {
@@ -992,4 +997,46 @@ func TestAssetService_ExportAssetsForwardsSelectedIDs(t *testing.T) {
 	assert.NotEmpty(t, data)
 	assert.Contains(t, filename, ".csv")
 	assetRepo.AssertExpectations(t)
+}
+
+// TestAssetService_UpdateAssetMergesRBIProperties proves a Manage Asset save
+// merges the submitted rbi_properties keys instead of replacing the map, so
+// import-written keys (funcloc, source_class) survive a partial form save.
+func TestAssetService_UpdateAssetMergesRBIProperties(t *testing.T) {
+	ctx := context.Background()
+	tenantID, userID, assetID := 1, 10, 77
+	mockSiteRepo := new(MockSiteRepository)
+	mockUnitRepo := new(MockUnitRepository)
+	mockAssetRepo := new(MockAssetRepository)
+	mockCompRepo := new(MockComponentRepository)
+	svc := services.NewAssetService(mockSiteRepo, mockUnitRepo, mockAssetRepo, mockCompRepo)
+
+	existing := &models.Asset{
+		ID:       assetID,
+		TenantID: tenantID,
+		Name:     "Feed Pump",
+		RBIProperties: models.JSONBMap{
+			"parent_funcloc": "JI-JL-AG-11-PW",
+			"source_class":   "PI",
+		},
+	}
+	mockAssetRepo.On("FindByID", ctx, tenantID, assetID).Return(existing, nil)
+	mockAssetRepo.On("Update", ctx, mock.MatchedBy(func(asset *models.Asset) bool {
+		// New keys are written, untouched import keys survive, and the parent
+		// funcloc submitted by the form is overwritten.
+		return asset.RBIProperties["Equipment Design.Weld Efficiency"] == "0.85" &&
+			asset.RBIProperties["source_class"] == "PI" &&
+			asset.RBIProperties["parent_funcloc"] == "JI-JL-AG-99-ZZ"
+	})).Return(nil).Once()
+
+	req := &request.UpdateAssetRequest{
+		RBIProperties: map[string]interface{}{
+			"parent_funcloc":                   "JI-JL-AG-99-ZZ",
+			"Equipment Design.Weld Efficiency": "0.85",
+		},
+	}
+	res, err := svc.UpdateAsset(ctx, tenantID, assetID, req, userID)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	mockAssetRepo.AssertExpectations(t)
 }

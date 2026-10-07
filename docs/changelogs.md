@@ -4,6 +4,25 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Manage Asset Fase 4 + simpan nyata ke rbi_properties
+
+**Fase 4 — Risk Analysis & Linked Data**
+
+- Sub-tab `Risk Analysis` aktif: header `Available Linked Data` dengan ikon layers hijau dan badge hijau `12 field(s) available`.
+- Dua kartu read-only: **Operating Conditions (Stream INSTRUMENT AIR • daily)** dengan ikon api, blok abu-abu berisi `System: Corrosion System #02-63…` dan `Circuit: CC #07-02-63…`, plus teks miring `No operating parameters available for this scenario.`; dan **Design & Material** dengan ikon kunci pas biru, `Source: Piping Class Master`, serta grid read-only (Corrosion Allowance 1.6, Pipe Schedule SCH160, Rating Class 150#RF, Nominal Pipe Size 1).
+- Accordion `Equipment Inspection` berisi form Equipment Status (dropdown) dan Enable Interval Based Inspection (radio YES/NO).
+- Finalisasi UI: area konten memakai `overflow-auto`, header dan footer dibuat `sticky` dengan latar solid, dan footer menyediakan `Cancel`, `Close`, serta `Save Data Source` yang selalu terlihat.
+
+**Simpan nyata (poin 2 & 3)**
+
+- Backend `UpdateAssetRequest` kini menerima `rbi_properties` dan `UpdateAsset` **menggabungkannya** (merge) ke map yang tersimpan, bukan menimpanya — key hasil import seperti `parent_funcloc`, `level6_funcloc`, `source_class`, `source_type` tetap aman saat form menyimpan sebagian field.
+- Tombol `Save Data Source` mengirim kolom aset + `rbi_properties` lewat `PUT /assets/Asset/:id` lalu me-refetch register; toast sukses/gagal ditampilkan.
+- `Add External Link` diganti dari `window.prompt` menjadi dialog kecil dengan validasi URL (`http(s)://`), dan tombol `Apply` pada Detail Specs kini memberi umpan balik toast.
+
+Bukti live: menyimpan `Equipment Design.Weld Efficiency` saja tetap mempertahankan `level6_funcloc` dan `parent_funcloc` pada aset terpasang; statistik tetap `total 1767, installed 397, funcloc 397, equipment 233`.
+
+Validasi: `go build`, `go vet`, `go test ./app/...` (termasuk test merge rbi_properties), `pnpm typecheck`, dan `pnpm test:run` (22 file, 161 test).
+
 ### Equipment Master: Manage Asset Fase 3 (Image & File tabs)
 
 - Komponen baru `UploadDropzone` (dipakai bersama): kotak bergaris putus-putus dengan ikon unggah, judul, subteks, dan teks link hijau `Click or drag & drop to upload`. Mendukung klik maupun drag & drop.

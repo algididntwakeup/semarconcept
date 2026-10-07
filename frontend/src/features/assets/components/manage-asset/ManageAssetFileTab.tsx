@@ -14,6 +14,8 @@ import {
 export interface ManageAssetFileTabProps {
   /** Reports each accepted batch so the page can toast it. */
   onFilesAdded: (files: File[]) => void;
+  /** Reports local-only actions (external link added, spec applied). */
+  onNotify?: (message: string) => void;
 }
 
 /**
@@ -21,10 +23,13 @@ export interface ManageAssetFileTabProps {
  * dropzone, and the Files accordion list. Dropped files are held in local state
  * only — no upload yet.
  */
-const ManageAssetFileTab = ({ onFilesAdded }: ManageAssetFileTabProps) => {
+const ManageAssetFileTab = ({ onFilesAdded, onNotify }: ManageAssetFileTabProps) => {
   const [category, setCategory] = useState<FileCategory>('Document');
   const [files, setFiles] = useState<ManageAssetDocument[]>(SAMPLE_DOCUMENTS);
   const [listOpen, setListOpen] = useState(true);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkError, setLinkError] = useState('');
 
   const handleFiles = (dropped: File[]) => {
     const added: ManageAssetDocument[] = dropped.map((file, index) => ({
@@ -41,19 +46,30 @@ const ManageAssetFileTab = ({ onFilesAdded }: ManageAssetFileTabProps) => {
   };
 
   const handleAddLink = () => {
-    const url = window.prompt('External link URL');
-    if (!url?.trim()) return;
+    const url = linkUrl.trim();
+    if (!url) {
+      setLinkError('Enter a URL.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      setLinkError('URL must start with http:// or https://');
+      return;
+    }
     setFiles((current) => [
       ...current,
       {
         id: `link-${Date.now()}`,
-        name: url.trim(),
+        name: url,
         category,
         kind: 'link',
         uploadedAt: new Date().toISOString(),
       },
     ]);
     setListOpen(true);
+    onNotify?.(`External link added: ${url}`);
+    setLinkOpen(false);
+    setLinkUrl('');
+    setLinkError('');
   };
 
   return (
@@ -77,7 +93,7 @@ const ManageAssetFileTab = ({ onFilesAdded }: ManageAssetFileTabProps) => {
           </label>
           <button
             type="button"
-            onClick={handleAddLink}
+            onClick={() => setLinkOpen(true)}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <Link2 size={14} aria-hidden="true" />
@@ -148,6 +164,67 @@ const ManageAssetFileTab = ({ onFilesAdded }: ManageAssetFileTabProps) => {
           </ul>
         )}
       </div>
+
+      {linkOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setLinkOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-link-title"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <h3 id="add-link-title" className="text-base font-semibold text-slate-900">
+              Add External Link
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Link a document hosted elsewhere (DMS, SharePoint, vendor portal).
+            </p>
+            <label className="mt-4 block space-y-1 text-xs font-medium text-slate-600">
+              URL
+              <input
+                aria-label="External link URL"
+                value={linkUrl}
+                onChange={(event) => {
+                  setLinkUrl(event.target.value);
+                  setLinkError('');
+                }}
+                placeholder="https://dms.example.com/…"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              />
+            </label>
+            {linkError && (
+              <p role="alert" className="mt-1 text-xs text-rose-600">
+                {linkError}
+              </p>
+            )}
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLinkOpen(false);
+                  setLinkUrl('');
+                  setLinkError('');
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddLink}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                Add Link
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 };

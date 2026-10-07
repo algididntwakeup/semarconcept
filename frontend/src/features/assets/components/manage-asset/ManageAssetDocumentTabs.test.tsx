@@ -99,6 +99,32 @@ describe('ManageAssetFileTab', () => {
     expect(screen.getByText('Datasheet-P101.pdf')).toBeInTheDocument();
   }, 15000);
 
+  it('adds an external link through the dialog and rejects an invalid URL', async () => {
+    const onNotify = vi.fn();
+    render(<ManageAssetFileTab onFilesAdded={vi.fn()} onNotify={onNotify} />);
+
+    await userEvent.click(screen.getByRole('button', { name: /Add External Link/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Add External Link' });
+
+    // A bare value is rejected instead of being saved.
+    await userEvent.type(within(dialog).getByLabelText('External link URL'), 'not-a-url');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add Link' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('http://');
+
+    await userEvent.clear(within(dialog).getByLabelText('External link URL'));
+    await userEvent.type(
+      within(dialog).getByLabelText('External link URL'),
+      'https://dms.example.com/new-doc'
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add Link' }));
+
+    expect(screen.getByText('https://dms.example.com/new-doc')).toBeInTheDocument();
+    expect(onNotify).toHaveBeenCalledWith(
+      expect.stringContaining('https://dms.example.com/new-doc')
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  }, 15000);
+
   it('collapses and expands the Files list', async () => {
     render(<ManageAssetFileTab onFilesAdded={vi.fn()} />);
 

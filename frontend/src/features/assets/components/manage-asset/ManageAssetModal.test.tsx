@@ -114,7 +114,7 @@ describe('ManageAssetModal', () => {
 
     await userEvent.clear(screen.getByLabelText('Description'));
     await userEvent.type(screen.getByLabelText('Description'), 'Feed Pump v2');
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Data Source' }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -177,6 +177,53 @@ describe('ManageAssetModal', () => {
       'false'
     );
     expect(screen.queryByLabelText('Design Code')).not.toBeInTheDocument();
+  }, 15000);
+
+  it('renders the Risk Analysis linked data and inspection accordion', async () => {
+    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Risk Analysis' }));
+
+    expect(screen.getByRole('heading', { name: 'Available Linked Data' })).toBeInTheDocument();
+    expect(screen.getByText('12 field(s) available')).toBeInTheDocument();
+
+    // Card 1: operating conditions with the placeholder note.
+    expect(
+      screen.getByText('Operating Conditions (Stream INSTRUMENT AIR • daily)')
+    ).toBeInTheDocument();
+    expect(screen.getByText('System: Corrosion System #02-63…')).toBeInTheDocument();
+    expect(screen.getByText('Circuit: CC #07-02-63…')).toBeInTheDocument();
+    expect(
+      screen.getByText('No operating parameters available for this scenario.')
+    ).toBeInTheDocument();
+
+    // Card 2: design & material read-only grid.
+    expect(screen.getByText('Design & Material')).toBeInTheDocument();
+    expect(screen.getByText('Piping Class Master')).toBeInTheDocument();
+    for (const [label, value] of [
+      ['Corrosion Allowance', '1.6'],
+      ['Pipe Schedule', 'SCH160'],
+      ['Rating Class', '150#RF'],
+      ['Nominal Pipe Size', '1'],
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.getByText(value)).toBeInTheDocument();
+    }
+
+    // Equipment Inspection accordion form.
+    expect(screen.getByRole('button', { name: /Equipment Inspection/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Equipment Status')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'YES' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'NO' })).toBeInTheDocument();
+  }, 15000);
+
+  it('keeps Close and Save Data Source reachable in the footer', async () => {
+    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+
+    // Both footer actions stay available whichever section is shown.
+    await userEvent.click(screen.getByRole('button', { name: 'Risk Analysis' }));
+    expect(screen.getByRole('button', { name: 'Save Data Source' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   }, 15000);
 
   it('renders the Equipment References accordion under Other Data', async () => {

@@ -5,6 +5,7 @@ import type { EquipmentAssetRow } from '../AssetDataGrid';
 import ManageAssetAccordion from './ManageAssetAccordion';
 import ManageAssetImageTab from './ManageAssetImageTab';
 import ManageAssetFileTab from './ManageAssetFileTab';
+import ManageAssetRiskAnalysisTab from './ManageAssetRiskAnalysisTab';
 import {
   DATA_SOURCE_SECTIONS,
   DETAIL_SPEC_PROPERTIES,
@@ -39,6 +40,10 @@ export interface ManageAssetModalProps {
    * Fase 3 keeps them in local state only; nothing is uploaded.
    */
   onFilesAdded?: (files: File[], message: string) => void;
+  /** Reports a Detail Specs "Apply" click (local-only, no request). */
+  onSpecApplied?: (message: string) => void;
+  /** Reports local-only actions from the File tab (external link added). */
+  onNotify?: (message: string) => void;
 }
 
 const TAB_ICONS: Record<ManageAssetTab, typeof FileText> = {
@@ -164,6 +169,8 @@ const ManageAssetModal = ({
   onSave,
   isSaving = false,
   onFilesAdded,
+  onSpecApplied,
+  onNotify,
 }: ManageAssetModalProps) => {
   const [activeTab, setActiveTab] = useState<ManageAssetTab>('Data Source');
   const [activeSection, setActiveSection] = useState<DataSourceSection>('General Data');
@@ -210,7 +217,7 @@ const ManageAssetModal = ({
         aria-labelledby="manage-asset-title"
         className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
+        <header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 bg-white px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
               Manage Asset
@@ -296,6 +303,7 @@ const ManageAssetModal = ({
                 onFilesAdded={(added) =>
                   onFilesAdded?.(added, `File added to ${tag}: ${added.length} file(s).`)
                 }
+                onNotify={onNotify}
               />
             ) : activeSection === 'General Data' ? (
               <section aria-label="General Data">
@@ -347,6 +355,11 @@ const ManageAssetModal = ({
                           <span className="text-sm text-slate-700">{property}</span>
                           <button
                             type="button"
+                            onClick={() =>
+                              onSpecApplied?.(
+                                `${property} applied to ${tag} from the piping class master (staged locally).`
+                              )
+                            }
                             className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-emerald-700"
                           >
                             Apply
@@ -357,6 +370,8 @@ const ManageAssetModal = ({
                   </ManageAssetAccordion>
                 </div>
               </section>
+            ) : activeSection === 'Risk Analysis' ? (
+              <ManageAssetRiskAnalysisTab tag={String(tag)} />
             ) : activeSection === 'Other Data' ? (
               <section aria-label="Other Data">
                 <ManageAssetAccordion title="Equipment References">
@@ -374,7 +389,7 @@ const ManageAssetModal = ({
             )}
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+          <footer className="sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/95 px-6 py-4 backdrop-blur">
             <button
               type="button"
               onClick={onClose}
@@ -383,12 +398,19 @@ const ManageAssetModal = ({
               Cancel
             </button>
             <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              Close
+            </button>
+            <button
               type="submit"
               disabled={isSaving}
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
             >
               {isSaving && <LoaderCircle size={15} className="animate-spin" />}
-              Save
+              Save Data Source
             </button>
           </footer>
         </form>

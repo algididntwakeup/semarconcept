@@ -279,6 +279,21 @@ class AssetService {
     return unwrapApiData(response.data);
   }
 
+  /**
+   * Saves the Manage Asset form: asset columns plus the rbi_properties keys.
+   * The backend merges rbi_properties, so keys the form does not own survive.
+   */
+  async updateEquipmentAsset(
+    assetId: string | number,
+    payload: { columns: Record<string, string>; rbiProperties: Record<string, string> }
+  ): Promise<EquipmentAsset> {
+    const response = await apiClient.put(`${this.baseUrl}/Asset/${assetId}`, {
+      ...payload.columns,
+      rbi_properties: payload.rbiProperties,
+    });
+    return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
   async deleteEquipmentAsset(assetId: string | number): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/Asset/${assetId}`);
   }
