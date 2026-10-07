@@ -61,6 +61,7 @@ describe('Equipment Master reusable components', () => {
       asset_class: 'Piping',
       asset_type: 'Carbon Steel',
       status: 'Installed',
+      rbi_properties: { level6_funcloc: '10"-PG-12009-3C3-P (10"-PG-12009-3C3-P)' },
     };
 
     render(
@@ -77,14 +78,29 @@ describe('Equipment Master reusable components', () => {
     expect(screen.getByText('Piping (PI)')).toBeInTheDocument();
     expect(screen.getAllByText('Carbon Steel (CA)').length).toBeGreaterThan(0);
     expect(screen.getByText('Carbon Steel - CA')).toBeInTheDocument();
-    // Status replaces the old Lifecycle column, with no Lifecycle header.
+    // Status is merged into the Location column: the level-6 funcloc code sits
+    // above the installation badge, and there is no standalone Status header.
     expect(screen.getByText('Installed')).toBeInTheDocument();
+    expect(screen.getByText('10"-PG-12009-3C3-P')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Lifecycle' })).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Status' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Location / Status' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Action' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Manage P-101' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Lifecycle P-101' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next page' })).toBeInTheDocument();
+  });
+
+  it('shows only the status when an asset has no functional location', () => {
+    render(
+      <AssetDataGrid
+        assets={[{ id: 5, tag_number: 'P-5', name: 'P-5', asset_class: 'Piping', status: 'Available' }]}
+      />
+    );
+
+    // No location line, just the status badge, and the header stays merged.
+    expect(screen.getByText('Available')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Location / Status' })).toBeInTheDocument();
   });
 
   it('selects rows and forwards the checked ids to the selection actions', () => {

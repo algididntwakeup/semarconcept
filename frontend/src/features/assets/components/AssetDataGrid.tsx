@@ -188,7 +188,7 @@ const AssetDataGrid = memo(({
                   className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
               </th>
-              {['Tag Number / Equipment', 'Description', 'Class / Type', 'Status', 'Action'].map(
+              {['Tag Number / Equipment', 'Description', 'Class / Type', 'Location / Status', 'Action'].map(
                 (column) => (
                   <th
                     key={column}
@@ -259,6 +259,17 @@ const AssetDataGrid = memo(({
                   asset.status
                 ).replace(/_/g, ' ');
                 const isInstalled = status.toLowerCase() === 'installed';
+                // Level-6 functional location ("INSTALLED (TAG)"); the trailing
+                // "(TAG)" duplicates the tag column, so only the code is shown.
+                const level6 = Object.entries(asset.rbi_properties ?? {})
+                  .filter(([key]) =>
+                    ['level6_funcloc', 'installed_funcloc', 'General.Installed FunLoc'].includes(key)
+                  )
+                  .map(([, value]) => (typeof value === 'string' ? value.trim() : ''))
+                  .find(Boolean);
+                const location = level6
+                  ? (level6.includes('(') ? level6.slice(0, level6.indexOf('(')) : level6).trim()
+                  : '';
                 return (
                   <tr key={asset.id} className="transition-colors hover:bg-slate-50/80">
                     <td className="px-5 py-4">
@@ -290,16 +301,23 @@ const AssetDataGrid = memo(({
                       )}
                     </td>
                     <td className="px-5 py-4">
-                      {status ? (
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                            isInstalled
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          {status}
-                        </span>
+                      {location || status ? (
+                        <div className="space-y-1">
+                          {location && (
+                            <div className="text-sm font-medium text-slate-700">{location}</div>
+                          )}
+                          {status && (
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                isInstalled
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {status}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-slate-400">—</span>
                       )}

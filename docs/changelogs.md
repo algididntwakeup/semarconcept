@@ -4,6 +4,16 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: merge Location and Status into one grid column
+
+Kolom **Status** di Data Grid digabung ke kolom **Location / Status** (urutan kolom: Tag Number / Equipment, Description, Class / Type, Location / Status, Action).
+
+- Baris pertama sel menampilkan lokasi dari **funcloc level 6** (`rbi_properties.level6_funcloc`, dengan fallback `installed_funcloc` / `General.Installed FunLoc`). Suffix `(TAG)` dibuang karena menduplikasi kolom tag.
+- Baris kedua menampilkan badge status (`Installed` / `Available`).
+- Dinamis: kalau aset punya lokasi, lokasi di atas lalu status di bawah; kalau tidak ada lokasi, hanya status yang tampil. Header `Status` lama dihapus.
+
+Validasi: test grid diperbarui (`Location / Status` header, lokasi + status, serta kasus tanpa lokasi), `pnpm typecheck`, dan `pnpm test:run` (2 test EquipmentToolbar hanya timeout saat mesin sibuk dan lulus saat dijalankan sendiri).
+
 ### Equipment Master: apply dictionary changes to existing equipment
 
 Sebelumnya, mengedit kamus hanya berpengaruh pada import berikutnya — label yang sudah tersimpan di tabel aset tidak berubah, jadi tabel tetap menampilkan nama lama meskipun kamus sudah diganti.
