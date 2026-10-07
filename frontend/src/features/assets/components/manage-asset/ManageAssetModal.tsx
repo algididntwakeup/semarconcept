@@ -288,7 +288,13 @@ const ManageAssetModal = ({
                 </div>
               </section>
             ) : activeSection === 'Risk Analysis' ? (
-              <ManageAssetRiskAnalysisTab tag={String(tag)} register={register} values={values} />
+              <ManageAssetRiskAnalysisTab
+                tag={String(tag)}
+                register={register}
+                values={values}
+                linkedData={detailQuery.data?.linked_data}
+                isLoading={detailQuery.isLoading}
+              />
             ) : activeSection === 'Other Data' ? (
               <section aria-label="Other Data">
                 <ManageAssetAccordion title="Equipment References">

@@ -29,7 +29,24 @@ type AssetService struct {
 	unitRepo      repositories.UnitRepository
 	AssetRepo     repositories.AssetRepository
 	componentRepo repositories.ComponentRepository
-	logger        utils.Logger
+	// Optional relations, wired by the router. When nil, relational fetching and
+	// the audit trail degrade gracefully instead of failing the request.
+	pipingClassRepo  repositories.PipingClassRepository
+	lifecycleLogRepo repositories.EquipmentLifecycleLogRepository
+	logger           utils.Logger
+}
+
+// AssetServiceOption customises the service without changing the base
+// constructor signature used across the codebase and tests.
+type AssetServiceOption func(*AssetService)
+
+// WithAssetRelations wires the piping-class master (relational fetching) and
+// the lifecycle log (audit trail).
+func WithAssetRelations(pipingClassRepo repositories.PipingClassRepository, lifecycleLogRepo repositories.EquipmentLifecycleLogRepository) AssetServiceOption {
+	return func(s *AssetService) {
+		s.pipingClassRepo = pipingClassRepo
+		s.lifecycleLogRepo = lifecycleLogRepo
+	}
 }
 
 // NewAssetService creates a new asset service instance
@@ -38,14 +55,21 @@ func NewAssetService(
 	unitRepo repositories.UnitRepository,
 	AssetRepo repositories.AssetRepository,
 	componentRepo repositories.ComponentRepository,
+	options ...AssetServiceOption,
 ) AssetServiceInterface {
-	return &AssetService{
+	service := &AssetService{
 		siteRepo:      siteRepo,
 		unitRepo:      unitRepo,
 		AssetRepo:     AssetRepo,
 		componentRepo: componentRepo,
 		logger:        utils.NewLogger(),
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 // ===== EXISTING SITE OPERATIONS =====
@@ -418,7 +442,106 @@ func (s *AssetService) GetAsset(ctx context.Context, tenantID, assetID int) (*re
 	if err != nil {
 		return nil, err
 	}
-	return s.AssetToResponse(asset), nil
+	assetResponse := s.AssetToResponse(asset)
+	assetResponse.LinkedData = s.buildLinkedData(ctx, tenantID, asset)
+	return assetResponse, nil
+}
+
+// buildLinkedData resolves the master entities the asset references and renders
+// them as read-only cards. It returns nil when nothing is linked so the UI can
+// hide the whole "Available Linked Data" area, and never fails the request: a
+// missing master row simply produces no card.
+func (s *AssetService) buildLinkedData(ctx context.Context, tenantID int, asset *models.Asset) *response.AssetLinkedData {
+	if asset == nil || s.pipingClassRepo == nil {
+		return nil
+	}
+
+	linked := &response.AssetLinkedData{Cards: make([]response.LinkedDataCard, 0)}
+
+	// Piping class reference. The code may live in rbi_properties (the Manage
+	// Asset form key) or in the legacy design/specification maps.
+	code := firstNonEmptyString(
+		jsonbStringValue(asset.RBIProperties, "Component Design.Piping Class"),
+		jsonbStringValue(asset.DesignConditions, "piping_class"),
+		jsonbStringValue(asset.Specifications, "piping_class"),
+	)
+	if code == "" {
+		return nil
+	}
+	linked.PipingClassCode = code
+
+	class, err := s.pipingClassRepo.FindByCode(ctx, tenantID, code)
+	if err != nil {
+		// A lookup failure must not break the asset detail; log and continue.
+		utils.LogWarnf("Linked data: piping class lookup failed for %q: %v", code, err)
+		return linked
+	}
+	if class == nil {
+		// Unknown code: report the reference so the UI can still show it.
+		linked.Cards = append(linked.Cards, response.LinkedDataCard{
+			Key:      "piping-class",
+			Title:    "Design & Material",
+			Subtitle: "Source: Piping Class Master",
+			Source:   "Piping Class Master",
+			Properties: []response.LinkedDataProperty{
+				{Label: "Piping Class", Value: code},
+			},
+		})
+		return linked
+	}
+
+	properties := make([]response.LinkedDataProperty, 0, 5)
+	if class.Material != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Material", Value: class.Material})
+	}
+	if class.CorrosionAllowance != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Corrosion Allowance", Value: class.CorrosionAllowance})
+	}
+	if class.PipeSchedule != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Pipe Schedule", Value: class.PipeSchedule})
+	}
+	if class.RatingClass != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Rating Class", Value: class.RatingClass})
+	}
+	if class.NominalPipeSize != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Nominal Pipe Size", Value: class.NominalPipeSize})
+	}
+
+	linked.Cards = append(linked.Cards, response.LinkedDataCard{
+		Key:        "piping-class",
+		Title:      "Design & Material",
+		Subtitle:   "Source: Piping Class Master",
+		Source:     "Piping Class Master",
+		Properties: properties,
+	})
+	return linked
+}
+
+// jsonbStringValue reads a trimmed string from a JSONB map, tolerating a missing
+// key or a non-string value.
+func jsonbStringValue(properties models.JSONBMap, key string) string {
+	if properties == nil {
+		return ""
+	}
+	value, ok := properties[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+// firstNonEmptyString returns the first non-empty value.
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, req *request.UpdateAssetRequest, userID int) (*response.AssetResponse, error) {
@@ -426,6 +549,10 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 	if err != nil {
 		return nil, err
 	}
+
+	// Snapshot the auditable state before the request mutates it, so the audit
+	// entry can describe exactly what changed.
+	before := assetAuditSnapshot(existingAsset)
 
 	if req.UnitID != nil && *req.UnitID > 0 {
 		if _, err := s.unitRepo.FindByID(ctx, tenantID, *req.UnitID); err != nil {
@@ -546,7 +673,103 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 		return nil, err
 	}
 
+	// Append an audit entry only when the save actually changed something.
+	s.recordAssetUpdateAudit(ctx, tenantID, assetID, userID, before, existingAsset)
+
 	return s.AssetToResponse(existingAsset), nil
+}
+
+// assetAuditSnapshot captures the fields the Manage Asset form can change, plus
+// the rbi_properties map, as a comparable snapshot.
+func assetAuditSnapshot(asset *models.Asset) map[string]string {
+	snapshot := map[string]string{
+		"description":      derefString(asset.Description),
+		"asset_class":      derefString(asset.AssetClass),
+		"asset_type":       derefString(asset.AssetType),
+		"lifecycle_status": derefString(asset.LifecycleStatus),
+		"rbi_properties":   canonicalJSON(asset.RBIProperties),
+	}
+	return snapshot
+}
+
+// recordAssetUpdateAudit writes an UPDATE_ASSET entry when the snapshot differs.
+// A nil repository (service built without relations) skips the write.
+func (s *AssetService) recordAssetUpdateAudit(ctx context.Context, tenantID, assetID, userID int, before map[string]string, after *models.Asset) {
+	if s.lifecycleLogRepo == nil || after == nil {
+		return
+	}
+	afterSnapshot := assetAuditSnapshot(after)
+
+	changedFields := make([]string, 0, len(afterSnapshot))
+	for key, newValue := range afterSnapshot {
+		if before[key] != newValue {
+			changedFields = append(changedFields, key)
+		}
+	}
+	if len(changedFields) == 0 {
+		return
+	}
+	sort.Strings(changedFields)
+
+	oldValue := summariseAuditValues(before, changedFields)
+	newValue := summariseAuditValues(afterSnapshot, changedFields)
+	remarks := "Manage Asset save; changed: " + strings.Join(changedFields, ", ")
+
+	entry := &models.EquipmentLifecycleLog{
+		TenantID:    tenantID,
+		EquipmentID: assetID,
+		Action:      models.LifecycleActionUpdateAsset,
+		OldValue:    &oldValue,
+		NewValue:    &newValue,
+		Remarks:     &remarks,
+	}
+	if userID > 0 {
+		entry.CreatedBy = &userID
+	}
+	if err := s.lifecycleLogRepo.Create(ctx, entry); err != nil {
+		// Auditing must not fail the save the user already completed.
+		utils.LogWarnf("Failed to record UPDATE_ASSET audit for equipment %d: %v", assetID, err)
+	}
+}
+
+// summariseAuditValues renders the changed fields as "key=value" pairs, with a
+// cap so a large rbi_properties map cannot produce an unbounded audit row.
+func summariseAuditValues(snapshot map[string]string, fields []string) string {
+	const maxLength = 2000
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		value := snapshot[field]
+		if len(value) > 300 {
+			value = value[:300] + "…"
+		}
+		parts = append(parts, field+"="+value)
+	}
+	summary := strings.Join(parts, "; ")
+	if len(summary) > maxLength {
+		summary = summary[:maxLength] + "…"
+	}
+	return summary
+}
+
+// canonicalJSON renders a JSONB map deterministically so two equal maps compare
+// equal regardless of key order.
+func canonicalJSON(properties models.JSONBMap) string {
+	if len(properties) == 0 {
+		return "{}"
+	}
+	encoded, err := json.Marshal(properties)
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
+}
+
+// derefString safely dereferences an optional string.
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (s *AssetService) DeleteAsset(ctx context.Context, tenantID, assetID, userID int) error {

@@ -132,6 +132,11 @@ func main() {
 		if err := seeder.SeedEquipmentTaxonomyForAllTenants(); err != nil {
 			utils.Warnf("Equipment taxonomy synchronization encountered warning: %v", err)
 		}
+		// Piping-class master data is tenant configuration too: keep it present
+		// for existing tenants without reseeding users.
+		if err := seeder.SeedPipingClassesForAllTenants(); err != nil {
+			utils.Warnf("Piping class synchronization encountered warning: %v", err)
+		}
 	}
 
 	// Initialize Gin router using shared SQLX and GORM adapters

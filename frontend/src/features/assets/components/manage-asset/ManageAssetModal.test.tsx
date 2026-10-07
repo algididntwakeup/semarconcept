@@ -208,42 +208,68 @@ describe('ManageAssetModal', () => {
     expect(screen.queryByLabelText('Design Code')).not.toBeInTheDocument();
   }, 15000);
 
-  it('renders the Risk Analysis linked data and inspection accordion', async () => {
+  it('renders linked data cards returned by the API', async () => {
+    vi.mocked(assetService.getEquipmentAsset).mockResolvedValue({
+      ...asset,
+      linked_data: {
+        piping_class_code: 'A1A',
+        cards: [
+          {
+            key: 'operating-conditions',
+            title: 'Operating Conditions (Stream INSTRUMENT AIR • daily)',
+            subtitle: 'System: Corrosion System #02-63…',
+            properties: [{ label: 'Circuit', value: 'CC #07-02-63…' }],
+          },
+          {
+            key: 'piping-class',
+            title: 'Design & Material',
+            subtitle: 'Source: Piping Class Master',
+            source: 'Piping Class Master',
+            properties: [
+              { label: 'Corrosion Allowance', value: '1.6' },
+              { label: 'Pipe Schedule', value: 'SCH160' },
+            ],
+          },
+        ],
+      },
+    });
     renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Risk Analysis' }));
 
-    expect(screen.getByRole('heading', { name: 'Available Linked Data' })).toBeInTheDocument();
-    expect(screen.getByText('12 field(s) available')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Available Linked Data' })).toBeInTheDocument();
+    // The badge counts the fields actually returned (1 + 2).
+    expect(screen.getByText('3 field(s) available')).toBeInTheDocument();
 
-    // Card 1: operating conditions with the placeholder note.
     expect(
       screen.getByText('Operating Conditions (Stream INSTRUMENT AIR • daily)')
     ).toBeInTheDocument();
     expect(screen.getByText('System: Corrosion System #02-63…')).toBeInTheDocument();
-    expect(screen.getByText('Circuit: CC #07-02-63…')).toBeInTheDocument();
-    expect(
-      screen.getByText('No operating parameters available for this scenario.')
-    ).toBeInTheDocument();
+    expect(screen.getByText('CC #07-02-63…')).toBeInTheDocument();
 
-    // Card 2: design & material read-only grid.
     expect(screen.getByText('Design & Material')).toBeInTheDocument();
-    expect(screen.getByText('Piping Class Master')).toBeInTheDocument();
-    for (const [label, value] of [
-      ['Corrosion Allowance', '1.6'],
-      ['Pipe Schedule', 'SCH160'],
-      ['Rating Class', '150#RF'],
-      ['Nominal Pipe Size', '1'],
-    ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-      expect(screen.getByText(value)).toBeInTheDocument();
-    }
+    expect(screen.getByText('Source: Piping Class Master')).toBeInTheDocument();
+    expect(screen.getByText('Corrosion Allowance')).toBeInTheDocument();
+    expect(screen.getByText('1.6')).toBeInTheDocument();
 
-    // Equipment Inspection accordion form.
+    // Equipment Inspection accordion is always present.
     expect(screen.getByRole('button', { name: /Equipment Inspection/ })).toBeInTheDocument();
     expect(screen.getByLabelText('Equipment Status')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'YES' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'NO' })).toBeInTheDocument();
+  }, 15000);
+
+  it('hides the linked data area when the API returns nothing', async () => {
+    // The default mock has no linked_data at all — the null-safety case.
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Risk Analysis' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Equipment Inspection/ })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('heading', { name: 'Available Linked Data' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/field\(s\) available/)).not.toBeInTheDocument();
   }, 15000);
 
   it('keeps Close and Save Data Source reachable in the footer', async () => {

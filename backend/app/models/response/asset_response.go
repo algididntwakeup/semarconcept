@@ -132,6 +132,9 @@ type AssetResponse struct {
 	UpdatedAt               time.Time              `json:"updated_at"`
 	CreatedBy               *int                   `json:"created_by,omitempty"`
 	UpdatedBy               *int                   `json:"updated_by,omitempty"`
+	// LinkedData is the relational summary (Risk Analysis tab). It is omitted
+	// when the asset has no links, so the UI can hide the whole area.
+	LinkedData *AssetLinkedData `json:"linked_data,omitempty"`
 
 	// Calculated fields (optional)
 	Age             *float64 `json:"age_years,omitempty"`
@@ -527,4 +530,39 @@ type AssetPathItem struct {
 	Type string `json:"type"`
 	Name string `json:"name"`
 	Code string `json:"code"`
+}
+
+// ===== LINKED DATA (RELATIONAL FETCH) =====
+//
+// LinkedData summarises the master-data parameters an asset inherits from other
+// entities (currently the piping class). The Risk Analysis tab renders one card
+// per entry; an empty slice means the area is hidden, so the UI never has to
+// guard against missing fields.
+
+// LinkedDataCard is one read-only card in the Risk Analysis tab.
+type LinkedDataCard struct {
+	// Key is a stable identifier the UI can switch on ("piping-class").
+	Key string `json:"key"`
+	// Title is the card heading, e.g. "Design & Material".
+	Title string `json:"title"`
+	// Subtitle carries the source context, e.g. "Source: Piping Class Master".
+	Subtitle string `json:"subtitle,omitempty"`
+	// Source names the master entity the data came from.
+	Source string `json:"source,omitempty"`
+	// Properties are the read-only label/value pairs shown in the grid.
+	Properties []LinkedDataProperty `json:"properties"`
+}
+
+// LinkedDataProperty is one read-only label/value pair.
+type LinkedDataProperty struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// AssetLinkedData is the relational summary attached to an asset detail.
+type AssetLinkedData struct {
+	// PipingClassCode is the referenced master code, when the asset has one.
+	PipingClassCode string `json:"piping_class_code,omitempty"`
+	// Cards holds the rendered cards; empty when nothing is linked.
+	Cards []LinkedDataCard `json:"cards"`
 }

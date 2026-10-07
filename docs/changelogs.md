@@ -4,6 +4,28 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: relational fetching & audit trail (Langkah 3)
+
+**Relational fetching (GET /api/v1/assets/Asset/:id)**
+
+- Tabel master baru `piping_classes` (tenant-scoped: code, material, corrosion allowance, pipe schedule, rating class, nominal pipe size) + seeder default (A1A, A1B, D1A, K1A) yang di-backfill untuk setiap tenant.
+- Aset direferensikan lewat `rbi_properties["Component Design.Piping Class"]` (fallback ke `design_conditions` / `specifications`). Service me-resolve master tersebut dan menyisipkan objek **`linked_data`** ke response detail: `{ piping_class_code, cards: [{ key, title, subtitle, source, properties[] }] }`.
+- Null safety: `linked_data` **dihilangkan** sepenuhnya bila aset tidak punya relasi, sehingga UI bisa menyembunyikan seluruh area. Kode yang tidak dikenal tetap dilaporkan sebagai satu properti (tanpa error), dan kegagalan lookup master tidak menggagalkan request.
+
+**Audit trail (PUT /api/v1/assets/Asset/:id)**
+
+- Aksi baru `UPDATE_ASSET` ditambahkan ke model + CHECK constraint `chk_lifecycle_action` (constraint lama hanya mengizinkan aksi lifecycle, sehingga entri audit akan ditolak DB).
+- Repository baru `EquipmentLifecycleLogRepository` (append-only) untuk `equipment_lifecycle_logs`.
+- `UpdateAsset` mengambil snapshot sebelum mutasi, membandingkan field yang dapat diaudit (description, asset_class, asset_type, lifecycle_status, rbi_properties), lalu menulis satu entri berisi `action=UPDATE_ASSET`, `old_value`, `new_value`, `remarks` (daftar field berubah), `created_by` (user dari auth) dan `created_at`. Tidak ada perubahan → tidak ada entri. Kegagalan menulis audit **tidak** menggagalkan save.
+
+**Frontend**
+
+- Tipe `EquipmentLinkedData` + kartu; tab Risk Analysis menghapus hardcode dan merender kartu dari `linked_data.cards` (judul, subtitle/source, grid properti), dengan badge jumlah field dihitung dari data. Area `Available Linked Data` disembunyikan bila kosong/null, dan ada status loading.
+
+Bukti live: aset tanpa referensi → `linked_data` tidak ada; setelah diarahkan ke `A1A` → kartu `Design & Material` berisi Material/Corrosion Allowance/Pipe Schedule/Rating Class/Nominal Pipe Size; kode `ZZ9` → kartu menampilkan referensinya saja. Dua PUT menghasilkan dua entri `UPDATE_ASSET` dengan `created_by=1` dan ringkasan perubahan.
+
+Validasi: `go build`, `go vet`, `go test ./app/...` (termasuk test linked data: kartu terbentuk, tanpa relasi → nil, kode tak dikenal; dan audit: entri tertulis, tanpa perubahan → tidak ada, gagal audit tetap sukses), `pnpm typecheck`, `pnpm test:run` (22 file, 162 test).
+
 ### Equipment Master: document & image upload infrastructure
 
 Tab Image dan File kini memakai backend sungguhan, bukan dummy state.

@@ -56,6 +56,29 @@ export interface EquipmentAsset {
   installed_floc_id?: string | number | null;
   parent_floc?: string | null;
   has_funcloc?: boolean | null;
+  /** Relational summary from the API; absent when the asset has no links. */
+  linked_data?: EquipmentLinkedData | null;
+}
+
+/** One read-only label/value pair in a linked-data card. */
+export interface EquipmentLinkedDataProperty {
+  label: string;
+  value: string;
+}
+
+/** One read-only card rendered in the Risk Analysis tab. */
+export interface EquipmentLinkedDataCard {
+  key: string;
+  title: string;
+  subtitle?: string;
+  source?: string;
+  properties: EquipmentLinkedDataProperty[];
+}
+
+/** Relational summary attached to an asset detail. */
+export interface EquipmentLinkedData {
+  piping_class_code?: string;
+  cards: EquipmentLinkedDataCard[];
 }
 
 export interface EquipmentAssetListParams {

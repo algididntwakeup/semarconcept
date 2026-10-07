@@ -53,6 +53,7 @@ func MigrateAll(db *gorm.DB) error {
 		&models.TaxonomyAttribute{},
 		&models.EquipmentTaxonomyValue{},
 		&models.EquipmentDocument{},
+		&models.PipingClass{},
 		&models.Menu{},
 		&models.MenuAccessLog{},
 	)
@@ -107,7 +108,7 @@ func MigrateAll(db *gorm.DB) error {
 	if err := db.Exec(`ALTER TABLE equipment_lifecycle_logs DROP CONSTRAINT IF EXISTS chk_lifecycle_action`).Error; err != nil {
 		utils.Warnf("Could not drop existing lifecycle action constraint: %v", err)
 	}
-	if err := db.Exec(`ALTER TABLE equipment_lifecycle_logs ADD CONSTRAINT chk_lifecycle_action CHECK (action IN ('Relocate','Install','Uninstall','Repair','Retire','Condemn','Send to repair'))`).Error; err != nil {
+	if err := db.Exec(`ALTER TABLE equipment_lifecycle_logs ADD CONSTRAINT chk_lifecycle_action CHECK (action IN ('Relocate','Install','Uninstall','Repair','Retire','Condemn','Send to repair','UPDATE_ASSET'))`).Error; err != nil {
 		utils.Errorf("Failed to add equipment_lifecycle_logs action constraint: %v", err)
 		return err
 	}

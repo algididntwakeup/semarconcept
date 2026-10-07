@@ -27,12 +27,15 @@ func SetupAssetRoutes(router *gin.RouterGroup, db *sqlx.DB, tokenGen utils.Token
 	userRepo := repositories.NewUserRepository(db)
 
 	documentRepo := repositories.NewEquipmentDocumentRepository(db)
+	pipingClassRepo := repositories.NewPipingClassRepository(db)
+	lifecycleLogRepo := repositories.NewEquipmentLifecycleLogRepository(db)
 
 	assetService := services.NewAssetService(
 		siteRepo,
 		unitRepo,
 		AssetRepo,
 		componentRepo,
+		services.WithAssetRelations(pipingClassRepo, lifecycleLogRepo),
 	)
 
 	documentService := services.NewEquipmentDocumentService(documentRepo, storagePath)
