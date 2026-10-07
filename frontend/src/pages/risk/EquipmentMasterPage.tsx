@@ -791,6 +791,12 @@ const EquipmentMasterPage = () => {
           asset={manageAsset}
           onClose={() => setManageAsset(null)}
           onSave={handleManageAssetSave}
+          onFilesAdded={(files, message) => {
+            // Fase 3 is UI only: the file stays in the modal's local state and
+            // no upload request is sent.
+            console.log('[Manage Asset] files staged locally', files);
+            showNotification(message, 'info');
+          }}
         />
       )}
 

@@ -4,6 +4,16 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Manage Asset Fase 3 (Image & File tabs)
+
+- Komponen baru `UploadDropzone` (dipakai bersama): kotak bergaris putus-putus dengan ikon unggah, judul, subteks, dan teks link hijau `Click or drag & drop to upload`. Mendukung klik maupun drag & drop.
+- **Tab Image:** header `[{Tag Number}] Image` + tombol `Save Data Source`; action bar berisi `Image Annotations (0 images)` di kiri dan tombol hijau `Upload Image` di kanan; dropzone dengan teks `No images yet` dan subteks `Upload P&ID drawings, maps, or photos to annotate and link with asset locations`. Gambar yang di-drop masuk state lokal dan muncul sebagai grid thumbnail nama file.
+- **Tab File:** area upload berisi dropdown `Category` (Document, Drawing, Report, Datasheet, Certificate), tombol `Add External Link` di kanan atas, dan dropzone untuk PDF/DOCX/XLSX; di bawahnya accordion `Files (n)` dengan list view.
+- **List item:** ikon dokumen atau tautan, nama file (atau URL), badge kategori berwarna (DRAWING ungu, REPORT biru, CERTIFICATE hijau, DATASHEET amber, DOCUMENT slate), ukuran file (mis. `3.3 MB`), dan tanggal unggah (mis. `30 Sept 2026`). Data awal memakai array dummy 5 baris.
+- **UI state:** file yang di-drop disimpan di `useState` (belum ada API call). Menambah file langsung memperbarui hitungan `Files (n)`/`Image Annotations (n)` dan merender item baru; halaman menampilkan toast info dan `console.log` bahwa file ditahan lokal.
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (22 file, 157 test) lulus; test baru mencakup formatter ukuran/tanggal, warna badge, dropzone Image, list File, penambahan file hasil drop, dan buka/tutup accordion.
+
 ### Equipment Master: Manage Asset Fase 2 (Design & Operating Data)
 
 - Komponen baru `ManageAssetAccordion`: header abu-abu terang dengan toggle ikon **minus/plus hijau** di kanan, dipakai membungkus semua kelompok form.

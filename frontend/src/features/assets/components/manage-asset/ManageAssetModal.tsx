@@ -3,6 +3,8 @@ import { useForm, type UseFormRegister } from 'react-hook-form';
 import { FileText, Image as ImageIcon, LoaderCircle, X } from 'lucide-react';
 import type { EquipmentAssetRow } from '../AssetDataGrid';
 import ManageAssetAccordion from './ManageAssetAccordion';
+import ManageAssetImageTab from './ManageAssetImageTab';
+import ManageAssetFileTab from './ManageAssetFileTab';
 import {
   DATA_SOURCE_SECTIONS,
   DETAIL_SPEC_PROPERTIES,
@@ -32,6 +34,11 @@ export interface ManageAssetModalProps {
     asset: EquipmentAssetRow
   ) => Promise<void> | void;
   isSaving?: boolean;
+  /**
+   * Reports files dropped into the Image/File tabs so the page can toast them.
+   * Fase 3 keeps them in local state only; nothing is uploaded.
+   */
+  onFilesAdded?: (files: File[], message: string) => void;
 }
 
 const TAB_ICONS: Record<ManageAssetTab, typeof FileText> = {
@@ -156,6 +163,7 @@ const ManageAssetModal = ({
   onClose,
   onSave,
   isSaving = false,
+  onFilesAdded,
 }: ManageAssetModalProps) => {
   const [activeTab, setActiveTab] = useState<ManageAssetTab>('Data Source');
   const [activeSection, setActiveSection] = useState<DataSourceSection>('General Data');
@@ -276,10 +284,19 @@ const ManageAssetModal = ({
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
-            {activeTab !== 'Data Source' ? (
-              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                {activeTab} uploads are planned for a later phase.
-              </p>
+            {activeTab === 'Image' ? (
+              <ManageAssetImageTab
+                tag={String(tag)}
+                onFilesAdded={(added) =>
+                  onFilesAdded?.(added, `Image added to ${tag}: ${added.length} file(s).`)
+                }
+              />
+            ) : activeTab === 'File' ? (
+              <ManageAssetFileTab
+                onFilesAdded={(added) =>
+                  onFilesAdded?.(added, `File added to ${tag}: ${added.length} file(s).`)
+                }
+              />
             ) : activeSection === 'General Data' ? (
               <section aria-label="General Data">
                 <FieldGrid fields={GENERAL_DATA_FIELDS} register={register} values={values} />
