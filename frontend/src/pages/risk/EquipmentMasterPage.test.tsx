@@ -383,7 +383,7 @@ describe('EquipmentMasterPage API integration', () => {
     ).toBeInTheDocument();
   }, 15000);
 
-  it('shows a placeholder toast for Lifecycle row actions', async () => {
+  it('opens the Install modal from a Lifecycle row action and confirms with a toast', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
@@ -392,7 +392,9 @@ describe('EquipmentMasterPage API integration', () => {
       installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
-      assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
+      assets: [
+        { id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)', status: 'Available' },
+      ],
       total: 1,
       page: 1,
       limit: 10,
@@ -401,8 +403,45 @@ describe('EquipmentMasterPage API integration', () => {
     renderPage();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Lifecycle P-101' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Relocate' }));
-    expect(await screen.findByText('Feature Relocate is under development')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Install' }));
+
+    // The placement modal opens with the asset tag and a Confirm action.
+    expect(
+      await screen.findByRole('heading', { name: 'Install Equipment to Hierarchy' })
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Install' }));
+
+    expect(await screen.findByText(/Install request for P-101 staged/)).toBeInTheDocument();
+  }, 15000);
+
+  it('confirms a simple Lifecycle action through the confirmation modal', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        { id: 8, tag_number: 'P-202', name: 'Feed Pump', asset_class: 'Piping (PI)', status: 'Installed' },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Lifecycle P-202' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Are you sure you want to uninstall this asset?' })
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText('P-202 marked as uninstall.')).toBeInTheDocument();
   }, 15000);
 
   it('shows file preview with name and size and allows clearing with the X button', async () => {

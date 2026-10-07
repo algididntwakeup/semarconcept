@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Ban, ChevronDown, Network, Package, MapPin, Wrench, X } from 'lucide-react';
 import type { EquipmentAssetRow } from './AssetDataGrid';
 
 export type AssetRowAction = 'manage' | 'add-component' | 'timeline' | 'edit' | 'delete';
 
-/** Lifecycle transitions offered by the row Lifecycle menu. */
+/** Every lifecycle transition the row menu can offer. */
 export const ASSET_LIFECYCLE_MENU_ACTIONS = [
+  'Install',
   'Relocate',
   'Uninstall',
   'Send to repair',
@@ -14,6 +15,37 @@ export const ASSET_LIFECYCLE_MENU_ACTIONS = [
 ] as const;
 
 export type AssetLifecycleMenuAction = (typeof ASSET_LIFECYCLE_MENU_ACTIONS)[number];
+
+type LifecycleTone = 'green' | 'orange' | 'red' | 'blue';
+
+const lifecycleToneClass: Record<LifecycleTone, string> = {
+  green: 'text-emerald-600',
+  orange: 'text-amber-600',
+  red: 'text-rose-600',
+  blue: 'text-blue-600',
+};
+
+// Available equipment can be installed; installed equipment can be relocated
+// or removed. The menu is built from these lists so the options always match
+// the asset's current status.
+const lifecycleOptionsByState = {
+  available: [
+    { action: 'Install', icon: MapPin, tone: 'green' },
+    { action: 'Send to repair', icon: Wrench, tone: 'orange' },
+    { action: 'Retire', icon: Package, tone: 'orange' },
+    { action: 'Condemn', icon: Ban, tone: 'red' },
+  ],
+  installed: [
+    { action: 'Relocate', icon: Network, tone: 'blue' },
+    { action: 'Uninstall', icon: X, tone: 'red' },
+    { action: 'Send to repair', icon: Wrench, tone: 'orange' },
+    { action: 'Retire', icon: Package, tone: 'orange' },
+    { action: 'Condemn', icon: Ban, tone: 'red' },
+  ],
+} as const satisfies Record<
+  'available' | 'installed',
+  ReadonlyArray<{ action: AssetLifecycleMenuAction; icon: typeof MapPin; tone: LifecycleTone }>
+>;
 
 interface RowActionsProps {
   asset: EquipmentAssetRow;
@@ -85,6 +117,12 @@ const RowDropdown = ({
 
 const RowActions = ({ asset, onManage, onLifecycle }: RowActionsProps) => {
   const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+  const status = (asset.lifecycle_status ?? asset.lifecycleStatus ?? asset.status ?? '')
+    .toString()
+    .trim()
+    .toLowerCase();
+  const lifecycleOptions =
+    status === 'installed' ? lifecycleOptionsByState.installed : lifecycleOptionsByState.available;
 
   return (
     <div className="flex items-center justify-end gap-2">
@@ -111,7 +149,7 @@ const RowActions = ({ asset, onManage, onLifecycle }: RowActionsProps) => {
       <RowDropdown label="Lifecycle" ariaLabel={`Lifecycle ${tag}`}>
         {(close) => (
           <>
-            {ASSET_LIFECYCLE_MENU_ACTIONS.map((action) => (
+            {lifecycleOptions.map(({ action, icon: Icon, tone }) => (
               <button
                 key={action}
                 type="button"
@@ -120,8 +158,9 @@ const RowActions = ({ asset, onManage, onLifecycle }: RowActionsProps) => {
                   close();
                   onLifecycle?.(action, asset);
                 }}
-                className="flex w-full items-center px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
               >
+                <Icon size={15} className={lifecycleToneClass[tone]} aria-hidden="true" />
                 {action}
               </button>
             ))}

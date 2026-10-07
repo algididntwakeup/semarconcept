@@ -22,6 +22,12 @@ import type {
 import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
 import EquipmentTaxonomyModal from '../../features/assets/components/EquipmentTaxonomyModal';
+import LifecycleActionModal, {
+  type LifecyclePlacementAction,
+} from '../../features/assets/components/LifecycleActionModal';
+import LifecycleConfirmModal, {
+  type LifecycleConfirmAction,
+} from '../../features/assets/components/LifecycleConfirmModal';
 import { assetService } from '../../services/assetServices';
 import type { EquipmentAssetImportResult } from '../../services/assetServices';
 import { useNotification } from '../../hooks/useNotification';
@@ -69,6 +75,14 @@ const EquipmentMasterPage = () => {
   const [file, setFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState<number | null>(null);
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
+  const [lifecyclePlacement, setLifecyclePlacement] = useState<{
+    action: LifecyclePlacementAction;
+    asset: EquipmentAssetRow;
+  } | null>(null);
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<{
+    action: LifecycleConfirmAction;
+    asset: EquipmentAssetRow;
+  } | null>(null);
   const [unmappedSuggestions, setUnmappedSuggestions] = useState<{
     class: string[];
     type: string[];
@@ -169,10 +183,38 @@ const EquipmentMasterPage = () => {
   }, [deleteAssetAsync, showNotification]);
 
   const handleLifecycleAction = useCallback(
-    (action: AssetLifecycleMenuAction) => {
-      // Lifecycle transitions are staged UI for now; each option reports its
-      // placeholder state until the backend transitions are implemented.
-      showNotification(`Feature ${action} is under development`, 'info');
+    (action: AssetLifecycleMenuAction, asset: EquipmentAssetRow) => {
+      // Placement actions (Install/Relocate) need a location pick; the rest only
+      // need a confirmation. Both flows are staged UI for now: confirming shows
+      // a success toast without calling the API.
+      if (action === 'Install' || action === 'Relocate') {
+        setLifecyclePlacement({ action, asset });
+        return;
+      }
+      setLifecycleConfirm({ action, asset });
+    },
+    []
+  );
+
+  const handleLifecyclePlacementConfirm = useCallback(
+    (action: LifecyclePlacementAction, asset: EquipmentAssetRow, location: string) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      setLifecyclePlacement(null);
+      showNotification(
+        location
+          ? `${action} request for ${tag} staged at ${location}.`
+          : `${action} request for ${tag} staged.`,
+        'success'
+      );
+    },
+    [showNotification]
+  );
+
+  const handleLifecycleConfirmConfirm = useCallback(
+    (action: LifecycleConfirmAction, asset: EquipmentAssetRow) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      setLifecycleConfirm(null);
+      showNotification(`${tag} marked as ${action.toLowerCase()}.`, 'success');
     },
     [showNotification]
   );
@@ -721,6 +763,26 @@ const EquipmentMasterPage = () => {
           onClose={() => setTaxonomyOpen(false)}
           suggestedUnmapped={unmappedSuggestions}
           onNotify={(message, tone) => showNotification(message, tone)}
+        />
+      )}
+
+      {lifecyclePlacement && (
+        <LifecycleActionModal
+          open
+          action={lifecyclePlacement.action}
+          asset={lifecyclePlacement.asset}
+          onClose={() => setLifecyclePlacement(null)}
+          onConfirm={handleLifecyclePlacementConfirm}
+        />
+      )}
+
+      {lifecycleConfirm && (
+        <LifecycleConfirmModal
+          open
+          action={lifecycleConfirm.action}
+          asset={lifecycleConfirm.asset}
+          onClose={() => setLifecycleConfirm(null)}
+          onConfirm={handleLifecycleConfirmConfirm}
         />
       )}
 

@@ -196,15 +196,33 @@ describe('Equipment Master reusable components', () => {
     expect(onManage).toHaveBeenCalledWith('delete', asset);
   });
 
-  it('lists the Lifecycle actions and dispatches the selected one', () => {
+  it('offers Install options for an Available asset', () => {
     const onLifecycle = vi.fn();
-    const asset = { id: 21, tag_number: 'E-210' };
+    const asset = { id: 21, tag_number: 'E-210', status: 'Available' };
     render(<RowActions asset={asset} onLifecycle={onLifecycle} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Lifecycle E-210' }));
+    for (const label of ['Install', 'Send to repair', 'Retire', 'Condemn']) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+    }
+    // Relocate/Uninstall only apply to installed equipment.
+    expect(screen.queryByRole('menuitem', { name: 'Relocate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Uninstall' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Install' }));
+    expect(onLifecycle).toHaveBeenCalledWith('Install', asset);
+  });
+
+  it('offers Relocate options for an Installed asset', () => {
+    const onLifecycle = vi.fn();
+    const asset = { id: 22, tag_number: 'E-220', status: 'Installed' };
+    render(<RowActions asset={asset} onLifecycle={onLifecycle} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lifecycle E-220' }));
     for (const label of ['Relocate', 'Uninstall', 'Send to repair', 'Retire', 'Condemn']) {
       expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
     }
+    // Install only applies to available equipment.
+    expect(screen.queryByRole('menuitem', { name: 'Install' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Relocate' }));
     expect(onLifecycle).toHaveBeenCalledWith('Relocate', asset);
   });

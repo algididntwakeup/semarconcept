@@ -4,6 +4,17 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: dynamic Lifecycle menu and lifecycle action modals
+
+- Menu **Lifecycle ▾** per baris kini dinamis mengikuti status aset:
+  - **Available** → `Install` (pin hijau), `Send to repair` (obeng oranye), `Retire` (kotak oranye), `Condemn` (dilarang merah);
+  - **Installed** → `Relocate` (node biru), `Uninstall` (X merah), `Send to repair`, `Retire`, `Condemn`.
+- Komponen baru `LifecycleActionModal` untuk `Install`/`Relocate`: judul dinamis (`Install Equipment to Hierarchy` / `Relocate Equipment`), tag aset di bawah judul, kotak pencarian `Search Functional Location...`, kotak **Active Selection** (default “Click a node below to select”), daftar node placeholder yang bisa difilter, serta tombol `Cancel` dan `Confirm [Action]`.
+- Komponen baru `LifecycleConfirmModal` untuk `Uninstall`/`Send to repair`/`Retire`/`Condemn`: judul `Are you sure you want to [action] this asset?` dengan tombol `Cancel` dan `Confirm`.
+- Wiring: keduanya masih staged UI — `Confirm` hanya memunculkan toast success dan menutup modal, tanpa API call.
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (20 file, 140 test) lulus; test grid diperbarui untuk opsi dinamis per status dan alur modal.
+
 ### Equipment Master: merge Location and Status into one grid column
 
 Kolom **Status** di Data Grid digabung ke kolom **Location / Status** (urutan kolom: Tag Number / Equipment, Description, Class / Type, Location / Status, Action).
