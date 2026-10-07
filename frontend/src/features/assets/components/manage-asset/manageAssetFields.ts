@@ -78,6 +78,9 @@ export interface ManageAssetFormValues {
   processFluid: string;
   // Operating Data > Fluid Definition.
   consequenceModel: string;
+  // Risk Analysis > Equipment Inspection.
+  inspectionEquipmentStatus: string;
+  intervalBasedInspection: string;
   // Other Data > Equipment References.
   assetId: string;
   pidDrawingNo: string;
@@ -180,6 +183,31 @@ export const DETAIL_SPEC_PROPERTIES = [
   'Pipe Schedule',
 ] as const;
 
+/** Equipment Status options for the inspection form. */
+export const EQUIPMENT_STATUS_OPTIONS = [
+  'In Service',
+  'Out of Service',
+  'Standby',
+  'Under Maintenance',
+  'Decommissioned',
+] as const;
+
+/** Risk Analysis > Equipment Inspection. */
+export const EQUIPMENT_INSPECTION_FIELDS: ManageAssetField[] = [
+  {
+    name: 'inspectionEquipmentStatus',
+    label: 'Equipment Status',
+    input: 'select',
+    options: EQUIPMENT_STATUS_OPTIONS,
+  },
+  {
+    name: 'intervalBasedInspection',
+    label: 'Enable Interval Based Inspection',
+    input: 'radio',
+    options: ['YES', 'NO'],
+  },
+];
+
 const EMPTY_FIELD_VALUES = (fields: ManageAssetField[]): Record<string, string> =>
   Object.fromEntries(fields.map((field) => [field.name, '']));
 
@@ -189,6 +217,7 @@ export const EMPTY_MANAGE_ASSET_FORM: ManageAssetFormValues = {
   ...EMPTY_FIELD_VALUES(FLUID_INVENTORY_FIELDS),
   ...EMPTY_FIELD_VALUES(EQUIPMENT_FLUID_DEFINITION_FIELDS),
   ...EMPTY_FIELD_VALUES(FLUID_DEFINITION_FIELDS),
+  ...EMPTY_FIELD_VALUES(EQUIPMENT_INSPECTION_FIELDS),
   ...EMPTY_FIELD_VALUES(EQUIPMENT_REFERENCE_FIELDS),
 } as unknown as ManageAssetFormValues;
 
@@ -199,6 +228,7 @@ const RBI_FIELD_GROUPS: Array<{ category: string; fields: ManageAssetField[] }> 
   { category: 'Fluid Inventory', fields: FLUID_INVENTORY_FIELDS },
   { category: 'Equipment Fluid Definition', fields: EQUIPMENT_FLUID_DEFINITION_FIELDS },
   { category: 'Fluid Definition', fields: FLUID_DEFINITION_FIELDS },
+  { category: 'Equipment Inspection', fields: EQUIPMENT_INSPECTION_FIELDS },
   { category: 'Equipment References', fields: EQUIPMENT_REFERENCE_FIELDS },
 ];
 

@@ -1,9 +1,15 @@
 import { Flame, Layers, Wrench } from 'lucide-react';
+import type { UseFormRegister } from 'react-hook-form';
 import ManageAssetAccordion from './ManageAssetAccordion';
+import { FieldGrid } from './ManageAssetFieldControl';
+import { EQUIPMENT_INSPECTION_FIELDS, type ManageAssetFormValues } from './manageAssetFields';
 
 export interface ManageAssetRiskAnalysisTabProps {
   /** Tag number shown alongside the linked-data header. */
   tag: string;
+  /** Form binding so the inspection fields persist with the rest of the form. */
+  register: UseFormRegister<ManageAssetFormValues>;
+  values: ManageAssetFormValues;
 }
 
 /**
@@ -20,15 +26,8 @@ const DESIGN_MATERIAL_PROPERTIES: Array<{ label: string; value: string }> = [
   { label: 'Nominal Pipe Size', value: '1' },
 ];
 
-const EQUIPMENT_STATUS_OPTIONS = [
-  'In Service',
-  'Out of Service',
-  'Standby',
-  'Under Maintenance',
-  'Decommissioned',
-] as const;
 
-const ManageAssetRiskAnalysisTab = ({ tag }: ManageAssetRiskAnalysisTabProps) => (
+const ManageAssetRiskAnalysisTab = ({ tag, register, values }: ManageAssetRiskAnalysisTabProps) => (
   <section aria-label="Risk Analysis" className="space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <h3 className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
@@ -83,39 +82,7 @@ const ManageAssetRiskAnalysisTab = ({ tag }: ManageAssetRiskAnalysisTabProps) =>
     </div>
 
     <ManageAssetAccordion title="Equipment Inspection">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block space-y-1 text-xs font-medium text-slate-600">
-          Equipment Status
-          <select
-            aria-label="Equipment Status"
-            defaultValue=""
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-          >
-            <option value="">Select equipment status…</option>
-            {EQUIPMENT_STATUS_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <fieldset className="space-y-1 text-xs font-medium text-slate-600">
-          <legend>Enable Interval Based Inspection</legend>
-          <div className="mt-1 flex gap-4">
-            {['YES', 'NO'].map((option) => (
-              <label key={option} className="inline-flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="radio"
-                  name={`interval-based-inspection-${tag}`}
-                  value={option}
-                  className="h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                {option}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      </div>
+      <FieldGrid fields={EQUIPMENT_INSPECTION_FIELDS} register={register} values={values} />
     </ManageAssetAccordion>
   </section>
 );

@@ -1,13 +1,28 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ManageAssetModal from './ManageAssetModal';
+import { assetService } from '../../../../services/assetServices';
+import type * as AssetServicesModule from '../../../../services/assetServices';
 import {
   EMPTY_MANAGE_ASSET_FORM,
   manageAssetFormFromRow,
   manageAssetPayloadFromForm,
 } from './manageAssetFields';
 import type { EquipmentAssetRow } from '../AssetDataGrid';
+
+// The modal fetches the authoritative record on open; stub it so tests stay
+// offline. The detail resolves to the same row the test passes in.
+vi.mock('../../../../services/assetServices', async () => {
+  const actual = await vi.importActual<typeof AssetServicesModule>('../../../../services/assetServices');
+  return { ...actual, assetService: { ...actual.assetService, getEquipmentAsset: vi.fn() } };
+});
+
+const renderModal = (ui: React.ReactElement) => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+};
 
 const asset: EquipmentAssetRow = {
   id: 42,
@@ -87,8 +102,17 @@ describe('manageAssetFields mapping', () => {
 });
 
 describe('ManageAssetModal', () => {
+  beforeEach(() => {
+    // The detail payload differs from the grid row so a test can tell that the
+    // API prefill (not just the row seed) has been applied.
+    vi.mocked(assetService.getEquipmentAsset).mockResolvedValue({
+      ...asset,
+      description: 'Feed Pump (from API)',
+    });
+  });
+
   it('shows the title, tabs, and sub-navigation', () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: 'Manage Asset — P-101' })).toBeInTheDocument();
     for (const tab of ['Data Source', 'Image', 'File']) {
@@ -107,8 +131,13 @@ describe('ManageAssetModal', () => {
 
   it('prefills General Data and submits mapped columns + rbi keys', async () => {
     const onSave = vi.fn();
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} onSave={onSave} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} onSave={onSave} />);
 
+    // Wait for the API prefill to land before editing; a late response would
+    // otherwise restore the fetched value over what the user typed.
+    await waitFor(() =>
+      expect(screen.getByLabelText('Description')).toHaveValue('Feed Pump (from API)')
+    );
     expect(screen.getByLabelText('Equipment ID')).toHaveValue('42');
     expect(screen.getByLabelText('Funcloc')).toHaveValue('JI-JL-AG-11-PW');
 
@@ -126,7 +155,7 @@ describe('ManageAssetModal', () => {
   }, 15000);
 
   it('renders the Equipment Design accordion with its fields', async () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Design Data' }));
 
@@ -143,7 +172,7 @@ describe('ManageAssetModal', () => {
   }, 15000);
 
   it('renders the Operating Data two-column layout with Detail Specs placeholders', async () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Operating Data' }));
 
@@ -165,7 +194,7 @@ describe('ManageAssetModal', () => {
   }, 15000);
 
   it('collapses and expands an accordion', async () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Design Data' }));
     const header = screen.getByRole('button', { name: /Equipment Design/ });
@@ -180,7 +209,7 @@ describe('ManageAssetModal', () => {
   }, 15000);
 
   it('renders the Risk Analysis linked data and inspection accordion', async () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Risk Analysis' }));
 
@@ -218,7 +247,7 @@ describe('ManageAssetModal', () => {
   }, 15000);
 
   it('keeps Close and Save Data Source reachable in the footer', async () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     // Both footer actions stay available whichever section is shown.
     await userEvent.click(screen.getByRole('button', { name: 'Risk Analysis' }));
@@ -227,7 +256,7 @@ describe('ManageAssetModal', () => {
   }, 15000);
 
   it('renders the Equipment References accordion under Other Data', async () => {
-    render(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
+    renderModal(<ManageAssetModal open asset={asset} onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Other Data' }));
 

@@ -4,6 +4,21 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Manage Asset — API wiring (GET & PUT)
+
+Integrasi backend untuk modal Manage Asset. Backend ternyata sudah siap dari pekerjaan sebelumnya, jadi langkah ini fokus pada verifikasi kontrak dan penyambungan frontend.
+
+- **PUT `/api/v1/assets/Asset/:id`** menerima kolom dasar (`description`, `asset_class`, `asset_type`, …) **dan** objek `rbi_properties`; service **merge** ke map tersimpan sehingga key hasil import (`source_class`, `level6_funcloc`, `parent_funcloc`) tidak hilang. Repository menulis `rbi_properties = :rbi_properties` lewat GORM.
+- **GET `/api/v1/assets/Asset/:id`** mengembalikan seluruh kolom aset dengan `rbi_properties` sudah ter-parse sebagai objek JSON (bukan string).
+- Frontend: service `getEquipmentAsset(id)` + hook `useEquipmentAsset`, dan modal memanggilnya saat dibuka untuk **pre-fill** form. Baris grid dipakai sebagai seed instan, lalu respons API menimpa **sekali** per aset (dijaga ref) agar respons yang terlambat tidak menimpa input yang sedang diketik.
+- Field **Equipment Inspection** (Equipment Status + Enable Interval Based Inspection) kini ikut terikat ke form dan tersimpan sebagai `Equipment Inspection.<label>`.
+- Kontrol field diekstrak ke `ManageAssetFieldControl.tsx` agar tab Risk Analysis memakai binding form yang sama.
+- Tombol `Save Data Source` mengirim kolom + `rbi_properties` lewat PUT, menampilkan toast sukses, dan me-refetch register; kegagalan menampilkan pesan error dari backend.
+
+Bukti live: `GET` detail mengembalikan `rbi_properties` bertipe objek (24 kolom); `PUT` dengan hanya 3 key baru tetap mempertahankan `source_class` dan `level6_funcloc`, serta mengubah `description`. Statistik tetap `total 1767, installed 397, funcloc 397, equipment 233`.
+
+Validasi: `go build`, `go vet`, `go test ./app/...`, `pnpm typecheck`, dan `pnpm test:run` (22 file, 161 test).
+
 ### Equipment Master: Manage Asset Fase 4 + simpan nyata ke rbi_properties
 
 **Fase 4 — Risk Analysis & Linked Data**

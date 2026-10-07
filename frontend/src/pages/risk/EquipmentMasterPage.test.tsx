@@ -23,11 +23,19 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       bulkDeleteEquipmentAssets: vi.fn(),
       createEquipmentAsset: vi.fn(),
       updateEquipmentAsset: vi.fn(),
+      getEquipmentAsset: vi.fn(),
     },
   };
 });
 
 const renderPage = () => {
+  // Detail fetch mirrors the row the grid returns; individual tests can override.
+  vi.mocked(assetService.getEquipmentAsset).mockImplementation(async (id) => ({
+    id: Number(id),
+    tag_number: 'P-101',
+    description: 'Main process pump',
+    asset_class: 'Piping (PI)',
+  }));
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });

@@ -280,6 +280,15 @@ class AssetService {
   }
 
   /**
+   * Loads one asset with its full columns and parsed rbi_properties, so the
+   * Manage Asset form can pre-fill from the authoritative record.
+   */
+  async getEquipmentAsset(assetId: string | number): Promise<EquipmentAsset> {
+    const response = await apiClient.get(`${this.baseUrl}/Asset/${assetId}`);
+    return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
+  /**
    * Saves the Manage Asset form: asset columns plus the rbi_properties keys.
    * The backend merges rbi_properties, so keys the form does not own survive.
    */

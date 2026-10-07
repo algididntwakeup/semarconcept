@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
-import { useForm, type UseFormRegister } from 'react-hook-form';
+import { useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useEquipmentAsset } from '../../api/assetQueries';
 import { FileText, Image as ImageIcon, LoaderCircle, X } from 'lucide-react';
 import type { EquipmentAssetRow } from '../AssetDataGrid';
 import ManageAssetAccordion from './ManageAssetAccordion';
 import ManageAssetImageTab from './ManageAssetImageTab';
 import ManageAssetFileTab from './ManageAssetFileTab';
 import ManageAssetRiskAnalysisTab from './ManageAssetRiskAnalysisTab';
+import { FieldGrid } from './ManageAssetFieldControl';
 import {
   DATA_SOURCE_SECTIONS,
   DETAIL_SPEC_PROPERTIES,
@@ -52,115 +54,7 @@ const TAB_ICONS: Record<ManageAssetTab, typeof FileText> = {
   File: FileText,
 };
 
-const labelClass = 'block space-y-1 text-xs font-medium text-slate-600';
-const inputClass =
-  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:bg-slate-100 disabled:text-slate-500';
 
-/** A single labelled control driven by the field catalog. */
-const FieldControl = ({
-  field,
-  register,
-  value,
-  disabled = false,
-}: {
-  field: ManageAssetField;
-  register: UseFormRegister<ManageAssetFormValues>;
-  /** Current value, used by disabledWhenFilled and the radio group. */
-  value?: string;
-  disabled?: boolean;
-}) => {
-  const isDisabled = field.readOnly || disabled || (field.disabledWhenFilled && !!value?.trim());
-  const spanClass = field.multiline || field.input === 'radio' ? 'sm:col-span-2' : '';
-
-  if (field.input === 'radio') {
-    return (
-      <fieldset className={`${labelClass} ${spanClass}`}>
-        <legend className="text-xs font-medium text-slate-600">{field.label}</legend>
-        <div className="mt-1 flex gap-4">
-          {(field.options ?? []).map((option) => (
-            <label key={option} className="inline-flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="radio"
-                value={option}
-                disabled={isDisabled}
-                className="h-4 w-4 border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                {...register(field.name)}
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-    );
-  }
-
-  if (field.input === 'select') {
-    return (
-      <label className={`${labelClass} ${spanClass}`}>
-        {field.label}
-        <select disabled={isDisabled} className={inputClass} {...register(field.name)}>
-          <option value="">Select {field.label.toLowerCase()}…</option>
-          {(field.options ?? []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
-    );
-  }
-
-  if (field.multiline) {
-    return (
-      <label className={`${labelClass} ${spanClass}`}>
-        {field.label}
-        <textarea
-          rows={3}
-          disabled={isDisabled}
-          placeholder={field.placeholder}
-          className={inputClass}
-          {...register(field.name)}
-        />
-      </label>
-    );
-  }
-
-  return (
-    <label className={`${labelClass} ${spanClass}`}>
-      {field.label}
-      <input
-        type={field.input === 'number' ? 'number' : field.input === 'date' ? 'date' : 'text'}
-        disabled={isDisabled}
-        placeholder={field.placeholder}
-        className={inputClass}
-        {...register(field.name)}
-      />
-    </label>
-  );
-};
-
-/** Grid of fields bound to the form. */
-const FieldGrid = ({
-  fields,
-  register,
-  values,
-}: {
-  fields: ManageAssetField[];
-  register: UseFormRegister<ManageAssetFormValues>;
-  values: ManageAssetFormValues;
-}) => (
-  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-    {fields.map((field) => (
-      <FieldControl
-        key={field.name}
-        field={field}
-        register={register}
-        value={values[field.name]}
-        disabled={field.name === 'designEquipmentType'}
-      />
-    ))}
-  </div>
-);
 
 const ManageAssetModal = ({
   open,
@@ -179,11 +73,30 @@ const ManageAssetModal = ({
     defaultValues: EMPTY_MANAGE_ASSET_FORM,
   });
   const values = watch();
+  // Tracks which asset the detail prefill already applied, so a late response
+  // cannot overwrite what the user has started typing.
+  const prefilledAssetRef = useRef<string | number | null>(null);
 
-  // Re-hydrate whenever the modal opens for a (different) asset.
+  // Load the authoritative record when the modal opens so the form pre-fills
+  // from the API (all columns plus parsed rbi_properties) rather than the row
+  // snapshot the grid already holds.
+  const detailQuery = useEquipmentAsset(open && asset ? asset.id : null);
+
+  // Seed immediately from the row so the form is never blank.
   useEffect(() => {
-    if (open && asset) reset(manageAssetFormFromRow(asset));
+    if (open && asset) {
+      reset(manageAssetFormFromRow(asset));
+      prefilledAssetRef.current = null;
+    }
   }, [open, asset, reset]);
+
+  // Overwrite with the fetched detail exactly once per opened asset.
+  useEffect(() => {
+    if (!open || !asset || !detailQuery.data) return;
+    if (prefilledAssetRef.current === asset.id) return;
+    prefilledAssetRef.current = asset.id;
+    reset(manageAssetFormFromRow(detailQuery.data));
+  }, [open, asset, detailQuery.data, reset]);
 
   useEffect(() => {
     if (open) {
@@ -371,7 +284,7 @@ const ManageAssetModal = ({
                 </div>
               </section>
             ) : activeSection === 'Risk Analysis' ? (
-              <ManageAssetRiskAnalysisTab tag={String(tag)} />
+              <ManageAssetRiskAnalysisTab tag={String(tag)} register={register} values={values} />
             ) : activeSection === 'Other Data' ? (
               <section aria-label="Other Data">
                 <ManageAssetAccordion title="Equipment References">
