@@ -4,6 +4,31 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: document & image upload infrastructure
+
+Tab Image dan File kini memakai backend sungguhan, bukan dummy state.
+
+**Skema & migrasi**
+
+- Model `EquipmentDocument` (`equipment_documents`): `id`, `tenant_id`, `equipment_id` (FK ke assets), `file_name`, `file_url`, `file_type`, `file_size`, `uploaded_at`, `uploaded_by`. AutoMigrate + constraint `file_type IN ('Image','Document','Drawing','Report','Datasheet','Certificate')` dan index `(tenant_id, equipment_id, uploaded_at DESC)`.
+
+**API**
+
+- `POST /api/v1/assets/equipments/:id/files` — multipart; validasi ekstensi (PDF, DOCX, XLSX, PNG, JPG/JPEG) dan batas 10 MB; menyimpan file ke volume `storage/uploads/equipments/<id>/` dengan nama UUID; metadata ditulis ke tabel. Gagal metadata → file dihapus (tidak ada orphan).
+- `GET /api/v1/assets/equipments/:id/files` — daftar dokumen aset (tenant-scoped, terbaru dulu).
+- `DELETE /api/v1/assets/equipments/:id/files/:documentId` — hapus metadata + file fisik.
+- Folder uploads sudah diserve di `/static/uploads` (sudah ada di router), sehingga `file_url` bisa langsung dibuka.
+
+**Frontend**
+
+- Service `getEquipmentDocuments`, `uploadEquipmentDocument` (FormData + progress), `deleteEquipmentDocument`; hook React Query `useEquipmentDocuments` dan `useUploadEquipmentDocument`.
+- Tab Image & File: dropzone mengunggah lewat API dengan spinner + persentase, daftar dirender dari GET (nama file sebagai tautan ke `file_url`), badge kategori/ukuran/tanggal tetap, dan tombol hapus dengan konfirmasi. Dummy `SAMPLE_DOCUMENTS` tidak lagi dipakai.
+- `Add External Link` untuk sementara memberi notifikasi bahwa tautan belum disimpan di server (belum ada kolomnya).
+
+Bukti live: upload PNG (Image) dan PDF (Drawing) → 201 dengan `file_url` benar; GET mengembalikan 2 dokumen; `/static/uploads/...` mengembalikan isi file; `.exe` ditolak 400; delete menghapus baris **dan** file di disk.
+
+Validasi: `go build`, `go vet`, `go test ./app/...` (termasuk test upload: validasi ekstensi/ukuran, image tetap Image, cleanup saat metadata gagal), `pnpm typecheck`, dan `pnpm test:run` (22 file, 161 test).
+
 ### Equipment Master: Manage Asset — API wiring (GET & PUT)
 
 Integrasi backend untuk modal Manage Asset. Backend ternyata sudah siap dari pekerjaan sebelumnya, jadi langkah ini fokus pada verifikasi kontrak dan penyambungan frontend.

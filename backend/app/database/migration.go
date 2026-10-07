@@ -52,6 +52,7 @@ func MigrateAll(db *gorm.DB) error {
 		&models.TaxonomyCategory{},
 		&models.TaxonomyAttribute{},
 		&models.EquipmentTaxonomyValue{},
+		&models.EquipmentDocument{},
 		&models.Menu{},
 		&models.MenuAccessLog{},
 	)
@@ -128,6 +129,19 @@ func MigrateAll(db *gorm.DB) error {
 	}
 	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_assets_has_funcloc ON assets (has_funcloc)`).Error; err != nil {
 		utils.Errorf("Failed to create assets.has_funcloc index: %v", err)
+		return err
+	}
+	// Attached files: the type is a closed set and the list is always read per
+	// equipment, so both are enforced/optimised here.
+	if err := db.Exec(`ALTER TABLE equipment_documents DROP CONSTRAINT IF EXISTS chk_equipment_documents_type`).Error; err != nil {
+		utils.Warnf("Could not drop existing equipment_documents type constraint: %v", err)
+	}
+	if err := db.Exec(`ALTER TABLE equipment_documents ADD CONSTRAINT chk_equipment_documents_type CHECK (file_type IN ('Image','Document','Drawing','Report','Datasheet','Certificate'))`).Error; err != nil {
+		utils.Errorf("Failed to add equipment_documents type constraint: %v", err)
+		return err
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_equipment_documents_tenant_equipment ON equipment_documents (tenant_id, equipment_id, uploaded_at DESC)`).Error; err != nil {
+		utils.Errorf("Failed to create equipment_documents lookup index: %v", err)
 		return err
 	}
 	// Tenant-scoped import dictionary: the kind is a closed set and every value

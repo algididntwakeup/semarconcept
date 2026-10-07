@@ -206,17 +206,21 @@ const ManageAssetModal = ({
           <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
             {activeTab === 'Image' ? (
               <ManageAssetImageTab
+                assetId={asset.id}
                 tag={String(tag)}
                 onFilesAdded={(added) =>
                   onFilesAdded?.(added, `Image added to ${tag}: ${added.length} file(s).`)
                 }
+                onError={onNotify}
               />
             ) : activeTab === 'File' ? (
               <ManageAssetFileTab
+                assetId={asset.id}
                 onFilesAdded={(added) =>
                   onFilesAdded?.(added, `File added to ${tag}: ${added.length} file(s).`)
                 }
                 onNotify={onNotify}
+                onError={onNotify}
               />
             ) : activeSection === 'General Data' ? (
               <section aria-label="General Data">

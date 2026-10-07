@@ -1,14 +1,42 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ManageAssetImageTab from './ManageAssetImageTab';
 import ManageAssetFileTab from './ManageAssetFileTab';
-import {
-  SAMPLE_DOCUMENTS,
-  categoryBadgeClass,
-  formatFileSize,
-  formatUploadDate,
-} from './manageAssetDocuments';
+import { assetService } from '../../../../services/assetServices';
+import type * as AssetServicesModule from '../../../../services/assetServices';
+import { categoryBadgeClass, formatFileSize, formatUploadDate } from './manageAssetDocuments';
+
+vi.mock('../../../../services/assetServices', async () => {
+  const actual = await vi.importActual<typeof AssetServicesModule>('../../../../services/assetServices');
+  return {
+    ...actual,
+    assetService: {
+      ...actual.assetService,
+      getEquipmentDocuments: vi.fn(),
+      uploadEquipmentDocument: vi.fn(),
+      deleteEquipmentDocument: vi.fn(),
+    },
+  };
+});
+
+const renderTab = (ui: React.ReactElement) => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+};
+
+const documentRow = (overrides: Partial<Awaited<ReturnType<typeof assetService.getEquipmentDocuments>>[number]> = {}) => ({
+  id: 1,
+  tenant_id: 1,
+  equipment_id: 42,
+  file_name: 'P&ID-1200-Rev-C.pdf',
+  file_url: '/static/uploads/equipments/42/abc.pdf',
+  file_type: 'Drawing' as const,
+  file_size: 3_460_000,
+  uploaded_at: '2026-09-30T10:00:00Z',
+  ...overrides,
+});
 
 describe('manageAssetDocuments helpers', () => {
   it('formats file sizes and upload dates like the legacy list', () => {
@@ -28,107 +56,123 @@ describe('manageAssetDocuments helpers', () => {
 });
 
 describe('ManageAssetImageTab', () => {
-  it('renders the header, action bar, and empty dropzone', () => {
-    render(<ManageAssetImageTab tag="P-101" onFilesAdded={vi.fn()} />);
+  beforeEach(() => {
+    vi.mocked(assetService.getEquipmentDocuments).mockReset();
+    vi.mocked(assetService.uploadEquipmentDocument).mockReset();
+  });
+
+  it('renders the header, action bar, and empty dropzone when there are no images', async () => {
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([]);
+    renderTab(<ManageAssetImageTab assetId={42} tag="P-101" onFilesAdded={vi.fn()} />);
 
     expect(screen.getByRole('heading', { name: '[P-101] Image' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save Data Source' })).toBeInTheDocument();
+    // The dropzone only renders once the document query settles.
+    expect(await screen.findByText('No images yet')).toBeInTheDocument();
     expect(screen.getByText('Image Annotations (0 images)')).toBeInTheDocument();
-    expect(screen.getByText('Upload Image')).toBeInTheDocument();
-    expect(screen.getByText('No images yet')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Upload P&ID drawings, maps, or photos to annotate and link with asset locations'
-      )
-    ).toBeInTheDocument();
     expect(screen.getByText('Click or drag & drop to upload')).toBeInTheDocument();
-  });
+  }, 15000);
 
-  it('counts and lists images added through the dropzone', async () => {
+  it('lists images returned by the API with a link to the served file', async () => {
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([
+      documentRow({ id: 9, file_name: 'photo.png', file_type: 'Image', file_url: '/static/uploads/equipments/42/photo.png' }),
+      documentRow({ id: 10, file_name: 'drawing.pdf', file_type: 'Drawing' }),
+    ]);
+    renderTab(<ManageAssetImageTab assetId={42} tag="P-101" onFilesAdded={vi.fn()} />);
+
+    // Only the image row belongs to this tab.
+    expect(await screen.findByText('Image Annotations (1 images)')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'photo.png' });
+    expect(link).toHaveAttribute('href', '/static/uploads/equipments/42/photo.png');
+    expect(screen.queryByText('drawing.pdf')).not.toBeInTheDocument();
+  }, 15000);
+
+  it('uploads a dropped image through the API', async () => {
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([]);
+    vi.mocked(assetService.uploadEquipmentDocument).mockResolvedValue(documentRow({ file_type: 'Image' }));
     const onFilesAdded = vi.fn();
-    const { container } = render(<ManageAssetImageTab tag="P-101" onFilesAdded={onFilesAdded} />);
+    const { container } = renderTab(
+      <ManageAssetImageTab assetId={42} tag="P-101" onFilesAdded={onFilesAdded} />
+    );
 
+    await waitFor(() => expect(assetService.getEquipmentDocuments).toHaveBeenCalled());
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['x'], 'pid-1200.png', { type: 'image/png' });
+    const file = new File(['x'], 'pid.png', { type: 'image/png' });
     await userEvent.upload(input, file);
 
+    await waitFor(() =>
+      expect(assetService.uploadEquipmentDocument).toHaveBeenCalledWith(42, file, undefined)
+    );
     expect(onFilesAdded).toHaveBeenCalledWith([file]);
-    expect(screen.getByText('Image Annotations (1 images)')).toBeInTheDocument();
-    expect(screen.getByText('pid-1200.png')).toBeInTheDocument();
-    expect(screen.queryByText('No images yet')).not.toBeInTheDocument();
   }, 15000);
 });
 
 describe('ManageAssetFileTab', () => {
-  it('lists the seeded documents with badges, size, and date', () => {
-    render(<ManageAssetFileTab onFilesAdded={vi.fn()} />);
+  beforeEach(() => {
+    vi.mocked(assetService.getEquipmentDocuments).mockReset();
+    vi.mocked(assetService.uploadEquipmentDocument).mockReset();
+    vi.mocked(assetService.deleteEquipmentDocument).mockReset();
+  });
 
-    expect(screen.getByText(`Files (${SAMPLE_DOCUMENTS.length})`)).toBeInTheDocument();
-    expect(screen.getByText('P&ID-1200-Rev-C.pdf')).toBeInTheDocument();
+  it('lists the documents from the API with badges, size, date, and a served URL', async () => {
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([
+      documentRow({ id: 1, file_name: 'P&ID-1200-Rev-C.pdf', file_type: 'Drawing', file_size: 3_460_000, uploaded_at: '2026-09-30T00:00:00Z' }),
+      documentRow({ id: 2, file_name: 'Inspection-Report.docx', file_type: 'Report', file_size: 812_000 }),
+      documentRow({ id: 3, file_name: 'Certificate.pdf', file_type: 'Certificate', file_size: 245_000 }),
+    ]);
+    renderTab(<ManageAssetFileTab assetId={42} onFilesAdded={vi.fn()} />);
+
+    expect(await screen.findByText('Files (3)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'P&ID-1200-Rev-C.pdf' })).toHaveAttribute(
+      'href',
+      '/static/uploads/equipments/42/abc.pdf'
+    );
     expect(screen.getByText('3.3 MB · 30 Sept 2026')).toBeInTheDocument();
-    // "Drawing"/"Document" also appear in the category picker, so scope the
-    // badge assertions to the list items.
+
     const list = screen.getByRole('list');
     expect(within(list).getByText('Drawing')).toBeInTheDocument();
     expect(within(list).getByText('Report')).toBeInTheDocument();
     expect(within(list).getByText('Certificate')).toBeInTheDocument();
-    // The external link renders with its URL as the name.
-    expect(
-      screen.getByText('https://dms.example.com/assets/P-101/overview')
-    ).toBeInTheDocument();
-  });
-
-  it('offers the category picker and an Add External Link action', () => {
-    render(<ManageAssetFileTab onFilesAdded={vi.fn()} />);
-
-    expect(screen.getByLabelText('Category')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Add External Link/ })).toBeInTheDocument();
-    expect(screen.getByText('Drop files here')).toBeInTheDocument();
-  });
-
-  it('adds a dropped file to the list and bumps the count', async () => {
-    const onFilesAdded = vi.fn();
-    const { container } = render(<ManageAssetFileTab onFilesAdded={onFilesAdded} />);
-
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    const file = new File(['pdf'], 'Datasheet-P101.pdf', { type: 'application/pdf' });
-    await userEvent.upload(input, file);
-
-    expect(onFilesAdded).toHaveBeenCalledWith([file]);
-    expect(screen.getByText(`Files (${SAMPLE_DOCUMENTS.length + 1})`)).toBeInTheDocument();
-    expect(screen.getByText('Datasheet-P101.pdf')).toBeInTheDocument();
   }, 15000);
 
-  it('adds an external link through the dialog and rejects an invalid URL', async () => {
-    const onNotify = vi.fn();
-    render(<ManageAssetFileTab onFilesAdded={vi.fn()} onNotify={onNotify} />);
-
-    await userEvent.click(screen.getByRole('button', { name: /Add External Link/ }));
-    const dialog = screen.getByRole('dialog', { name: 'Add External Link' });
-
-    // A bare value is rejected instead of being saved.
-    await userEvent.type(within(dialog).getByLabelText('External link URL'), 'not-a-url');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Add Link' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('http://');
-
-    await userEvent.clear(within(dialog).getByLabelText('External link URL'));
-    await userEvent.type(
-      within(dialog).getByLabelText('External link URL'),
-      'https://dms.example.com/new-doc'
+  it('offers the category picker and uploads with the chosen category', async () => {
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([]);
+    vi.mocked(assetService.uploadEquipmentDocument).mockResolvedValue(documentRow());
+    const onFilesAdded = vi.fn();
+    const { container } = renderTab(
+      <ManageAssetFileTab assetId={42} onFilesAdded={onFilesAdded} />
     );
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Add Link' }));
 
-    expect(screen.getByText('https://dms.example.com/new-doc')).toBeInTheDocument();
-    expect(onNotify).toHaveBeenCalledWith(
-      expect.stringContaining('https://dms.example.com/new-doc')
+    await waitFor(() => expect(assetService.getEquipmentDocuments).toHaveBeenCalled());
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'Report');
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['pdf'], 'report.pdf', { type: 'application/pdf' });
+    await userEvent.upload(input, file);
+
+    await waitFor(() =>
+      expect(assetService.uploadEquipmentDocument).toHaveBeenCalledWith(42, file, 'Report')
     );
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onFilesAdded).toHaveBeenCalledWith([file]);
+  }, 15000);
+
+  it('deletes a document through the API after confirmation', async () => {
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([documentRow({ id: 5 })]);
+    vi.mocked(assetService.deleteEquipmentDocument).mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderTab(<ManageAssetFileTab assetId={42} onFilesAdded={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete P&ID-1200-Rev-C.pdf' }));
+
+    await waitFor(() => expect(assetService.deleteEquipmentDocument).toHaveBeenCalledWith(42, 5));
+    confirmSpy.mockRestore();
   }, 15000);
 
   it('collapses and expands the Files list', async () => {
-    render(<ManageAssetFileTab onFilesAdded={vi.fn()} />);
+    vi.mocked(assetService.getEquipmentDocuments).mockResolvedValue([documentRow()]);
+    renderTab(<ManageAssetFileTab assetId={42} onFilesAdded={vi.fn()} />);
 
-    const header = screen.getByRole('button', { name: /Files \(/ });
+    const header = await screen.findByRole('button', { name: /Files \(/ });
     expect(header).toHaveAttribute('aria-expanded', 'true');
 
     await userEvent.click(header);

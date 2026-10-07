@@ -14,6 +14,7 @@ import type {
   EquipmentAssetListParams,
   EquipmentAssetListResponse,
   EquipmentAssetStats,
+  EquipmentDocument,
   EquipmentTaxonomyValue,
   CreateEquipmentTaxonomyValuePayload,
   UpdateEquipmentTaxonomyValuePayload,
@@ -118,6 +119,28 @@ export const useEquipmentAsset = (assetId: string | number | null, enabled = tru
     queryKey: assetKeys.detail(assetId ?? 'none'),
     queryFn: (): Promise<EquipmentAsset> => assetService.getEquipmentAsset(assetId as string | number),
     enabled: enabled && assetId !== null && assetId !== undefined,
+  });
+};
+
+export const useEquipmentDocuments = (equipmentId: string | number | null, enabled = true) => {
+  return useQuery({
+    queryKey: assetKeys.equipmentMaster.documents(equipmentId ?? 'none'),
+    queryFn: (): Promise<EquipmentDocument[]> =>
+      assetService.getEquipmentDocuments(equipmentId as string | number),
+    enabled: enabled && equipmentId !== null && equipmentId !== undefined,
+  });
+};
+
+export const useUploadEquipmentDocument = (equipmentId: string | number | null) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, category }: { file: File; category?: string }) =>
+      assetService.uploadEquipmentDocument(equipmentId as string | number, file, category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: assetKeys.equipmentMaster.documents(equipmentId ?? 'none'),
+      });
+    },
   });
 };
 

@@ -141,6 +141,20 @@ export interface EquipmentTaxonomyReapplyResult {
   dry_run: boolean;
 }
 
+/** One file attached to an asset, as returned by the documents API. */
+export interface EquipmentDocument {
+  id: number;
+  tenant_id: number;
+  equipment_id: number;
+  file_name: string;
+  /** Public path served by the backend, e.g. /static/uploads/equipments/42/….pdf */
+  file_url: string;
+  file_type: 'Image' | 'Document' | 'Drawing' | 'Report' | 'Datasheet' | 'Certificate';
+  file_size: number;
+  uploaded_at: string;
+  uploaded_by?: number;
+}
+
 const unwrapApiData = <T,>(value: unknown): T => {
   if (value && typeof value === 'object' && 'data' in value) {
     return (value as { data: T }).data;
@@ -286,6 +300,44 @@ class AssetService {
   async getEquipmentAsset(assetId: string | number): Promise<EquipmentAsset> {
     const response = await apiClient.get(`${this.baseUrl}/Asset/${assetId}`);
     return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
+  /** Lists the files attached to an asset (images, drawings, reports, …). */
+  async getEquipmentDocuments(equipmentId: string | number): Promise<EquipmentDocument[]> {
+    const response = await apiClient.get(`${this.baseUrl}/equipments/${equipmentId}/files`);
+    const data = unwrapApiData<EquipmentDocument[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  }
+
+  /** Uploads one file for an asset; `category` narrows non-image kinds. */
+  async uploadEquipmentDocument(
+    equipmentId: string | number,
+    file: File,
+    category?: string,
+    onUploadProgress?: (progress: number) => void
+  ): Promise<EquipmentDocument> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (category) formData.append('category', category);
+    const response = await apiClient.post(
+      `${this.baseUrl}/equipments/${equipmentId}/files`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+        onUploadProgress: (event) => {
+          if (event.total) onUploadProgress?.(Math.round((event.loaded * 100) / event.total));
+        },
+      }
+    );
+    return unwrapApiData<EquipmentDocument>(response.data);
+  }
+
+  async deleteEquipmentDocument(
+    equipmentId: string | number,
+    documentId: number
+  ): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/equipments/${equipmentId}/files/${documentId}`);
   }
 
   /**

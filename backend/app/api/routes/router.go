@@ -706,7 +706,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 
 		//  ENABLED: Asset routes now that all repositories exist
 		utils.Info("Enabling asset routes - all repositories are now available")
-		SetupAssetRoutes(apiV1.Group("/assets"), sqlxDB, jwtService, roleRepo)
+		SetupAssetRoutes(apiV1.Group("/assets"), sqlxDB, jwtService, roleRepo, cfg.Storage.UploadPath)
 	}
 
 	//  SURGICAL ADD: Static file serving for media
