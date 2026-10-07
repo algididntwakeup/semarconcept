@@ -22,6 +22,7 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       purgeAllEquipmentAssets: vi.fn(),
       bulkDeleteEquipmentAssets: vi.fn(),
       createEquipmentAsset: vi.fn(),
+      createEquipmentComponent: vi.fn(),
       updateEquipmentAsset: vi.fn(),
       getEquipmentAsset: vi.fn(),
     },
@@ -344,13 +345,6 @@ describe('EquipmentMasterPage API integration', () => {
       page: 1,
       limit: 10,
     });
-    const assignSpy = vi.fn();
-    const originalLocation = window.location;
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: { ...originalLocation, assign: assignSpy },
-    });
-
     renderPage();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Manage P-101' }));
@@ -365,13 +359,80 @@ describe('EquipmentMasterPage API integration', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Manage P-101' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Component' }));
-    expect(assignSpy).toHaveBeenCalledWith('/assets/hierarchy');
-
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: originalLocation,
-    });
+    // Add Component now opens its own modal instead of navigating away.
+    const addDialog = await screen.findByRole('dialog');
+    expect(
+      within(addDialog).getByRole('heading', { name: 'Add Component to P-101' })
+    ).toBeInTheDocument();
+    expect(within(addDialog).getByLabelText(/Tag Name/)).toBeInTheDocument();
+    expect(within(addDialog).getByRole('button', { name: 'Save Component' })).toBeInTheDocument();
   }, 15000);
+
+  it('adds a component from the row menu, inheriting the parent class', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Heat Exchangers', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 1,
+      installed: 1,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        {
+          id: 42,
+          tag_number: '1\"-AI-12002-1G1',
+          name: 'Air Cooler',
+          asset_class: 'Heat Exchangers',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.createEquipmentComponent).mockResolvedValue({
+      id: 900,
+      name: '01',
+      component_type: 'tube_bundle',
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Manage 1"-AI-12002-1G1/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Component' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByRole('heading', { name: 'Add Component to 1"-AI-12002-1G1' })
+    ).toBeInTheDocument();
+
+    await userEvent.type(within(dialog).getByLabelText(/Tag Name/), '01');
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/Component Type \(Asset Type Mapping\)/),
+      'tube_bundle'
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Component' }));
+
+    await waitFor(() =>
+      expect(assetService.createEquipmentComponent).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          name: '01',
+          component_type: 'tube_bundle',
+          // Level 7 component descends the parent's class.
+          component_class: 'Heat Exchangers',
+        })
+      )
+    );
+    expect(
+      await screen.findByText('Component 01 added to 1"-AI-12002-1G1.')
+    ).toBeInTheDocument();
+    // The modal closes on success.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Add Component to 1"-AI-12002-1G1' })
+      ).not.toBeInTheDocument()
+    );
+  }, 20000);
 
   it('shows a placeholder toast and captures the id for the Manage → Edit Asset wiring', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({

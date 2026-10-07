@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ClipboardList, FileUp, X } from 'lucide-react';
 import {
   useCreateEquipmentAsset,
+  useCreateEquipmentComponent,
   useDeleteEquipmentAsset,
   useEquipmentMaintenanceActions,
   useEquipmentAssets,
@@ -29,6 +30,9 @@ import LifecycleConfirmModal, {
   type LifecycleConfirmAction,
 } from '../../features/assets/components/LifecycleConfirmModal';
 import ManageAssetModal from '../../features/assets/components/manage-asset/ManageAssetModal';
+import AddComponentModal, {
+  type AddComponentPayload,
+} from '../../features/assets/components/AddComponentModal';
 import { assetService } from '../../services/assetServices';
 import type { EquipmentAssetImportResult } from '../../services/assetServices';
 import { useNotification } from '../../hooks/useNotification';
@@ -85,6 +89,8 @@ const EquipmentMasterPage = () => {
     asset: EquipmentAssetRow;
   } | null>(null);
   const [manageAsset, setManageAsset] = useState<EquipmentAssetRow | null>(null);
+  const [addComponentAsset, setAddComponentAsset] = useState<EquipmentAssetRow | null>(null);
+  const [withL7Components, setWithL7Components] = useState(false);
   const [unmappedSuggestions, setUnmappedSuggestions] = useState<{
     class: string[];
     type: string[];
@@ -97,12 +103,16 @@ const EquipmentMasterPage = () => {
     limit: pageSize,
     search,
     lifecycle_status: lifecycleFilter || undefined,
+    // The "with L7 components" filter lists component rows (level 7) instead of
+    // parent equipment, so adding a component visibly affects the table.
+    hierarchy_level: withL7Components ? '7' : undefined,
   });
   const statsQuery = useEquipmentAssetStats();
   const deleteAsset = useDeleteEquipmentAsset();
   const createEquipment = useCreateEquipmentAsset();
   const deleteAssetAsync = deleteAsset.mutateAsync;
   const maintenance = useEquipmentMaintenanceActions();
+  const createComponent = useCreateEquipmentComponent(addComponentAsset?.id ?? null);
 
   const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
   const summary = useMemo(
@@ -144,7 +154,7 @@ const EquipmentMasterPage = () => {
         setManageAsset(asset);
         break;
       case 'add-component':
-        window.location.assign('/assets/hierarchy');
+        setAddComponentAsset(asset);
         break;
       case 'timeline':
         try {
@@ -219,6 +229,41 @@ const EquipmentMasterPage = () => {
       showNotification(`${tag} marked as ${action.toLowerCase()}.`, 'success');
     },
     [showNotification]
+  );
+
+  const handleAddComponentSave = useCallback(
+    async (payload: AddComponentPayload, asset: EquipmentAssetRow) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      try {
+        await createComponent.mutateAsync({
+          name: payload.name,
+          component_type: payload.component_type,
+          // Level 7 components descend the parent's equipment class.
+          component_class: payload.component_class,
+          location_description: payload.functional_location,
+          specifications: {
+            functional_location: payload.functional_location,
+            description: payload.description,
+            component_type_label: payload.component_type_label,
+            inherited_equipment_class: payload.component_class,
+            hierarchy_level: '7',
+          },
+        });
+        setAddComponentAsset(null);
+        // Only the "with L7 components" view shows the new child row, so refresh
+        // the list there; otherwise the parent row is unchanged.
+        if (withL7Components) {
+          await assetsQuery.refetch();
+        }
+        showNotification(`Component ${payload.name} added to ${tag}.`, 'success');
+      } catch (error) {
+        showNotification(
+          error instanceof Error ? error.message : 'Unable to add component.',
+          'error'
+        );
+      }
+    },
+    [assetsQuery, createComponent, showNotification, withL7Components]
   );
 
   const handleManageAssetSave = useCallback(
@@ -757,6 +802,8 @@ const EquipmentMasterPage = () => {
           onClearSearch={handleClearSearch}
           lifecycleFilter={lifecycleFilter}
           onLifecycleFilterChange={handleLifecycleFilterChange}
+          withL7Components={withL7Components}
+          onWithL7ComponentsChange={setWithL7Components}
           onAction={handleRowAction}
           onLifecycleAction={handleLifecycleAction}
           onExportSelected={(ids) => void handleExport('xlsx', ids)}
@@ -803,6 +850,16 @@ const EquipmentMasterPage = () => {
           }}
           onSpecApplied={(message) => showNotification(message, 'info')}
           onNotify={(message) => showNotification(message, 'info')}
+        />
+      )}
+
+      {addComponentAsset && (
+        <AddComponentModal
+          open
+          asset={addComponentAsset}
+          onClose={() => setAddComponentAsset(null)}
+          onSubmit={handleAddComponentSave}
+          isSubmitting={createComponent.isPending}
         />
       )}
 

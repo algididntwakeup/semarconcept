@@ -122,6 +122,22 @@ export const useEquipmentAsset = (assetId: string | number | null, enabled = tru
   });
 };
 
+export const useCreateEquipmentComponent = (equipmentId: string | number | null) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof assetService.createEquipmentComponent>[1]) =>
+      assetService.createEquipmentComponent(equipmentId as string | number, payload),
+    onSuccess: () => {
+      // A new Level 7 child changes the equipment detail and the component
+      // lists, so refresh both plus the master list (the "with L7 components"
+      // filter reads from it).
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.components() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.detail(equipmentId ?? 'none') });
+    },
+  });
+};
+
 export const useEquipmentDocuments = (equipmentId: string | number | null, enabled = true) => {
   return useQuery({
     queryKey: assetKeys.equipmentMaster.documents(equipmentId ?? 'none'),

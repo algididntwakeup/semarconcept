@@ -81,6 +81,28 @@ export interface EquipmentLinkedData {
   cards: EquipmentLinkedDataCard[];
 }
 
+/** A child component of an equipment asset (Hierarchy Level 7). */
+export interface EquipmentComponent {
+  id: string | number;
+  asset_id?: string | number;
+  name: string;
+  component_code?: string | null;
+  component_type?: string | null;
+  component_class?: string | null;
+  material?: string | null;
+  location_description?: string | null;
+  status?: string | null;
+}
+
+/** Payload for creating a component under a parent equipment asset. */
+export interface CreateEquipmentComponentPayload {
+  name: string;
+  component_type: string;
+  component_class?: string;
+  location_description?: string;
+  specifications?: Record<string, unknown>;
+}
+
 export interface EquipmentAssetListParams {
   page?: number;
   limit?: number;
@@ -452,6 +474,29 @@ class AssetService {
       environmentally_critical: false,
     });
     return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
+  /**
+   * Creates a child component under a parent equipment asset. The endpoint
+   * lives under /equipments/:id/components and maps to the components table via
+   * the parent asset id, so the component descends the parent's identity.
+   */
+  async createEquipmentComponent(
+    equipmentId: string | number,
+    payload: CreateEquipmentComponentPayload
+  ): Promise<EquipmentComponent> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/equipments/${equipmentId}/components`,
+      {
+        asset_id: Number(equipmentId),
+        name: payload.name,
+        component_type: payload.component_type,
+        component_class: payload.component_class,
+        location_description: payload.location_description,
+        specifications: payload.specifications,
+      }
+    );
+    return unwrapApiData<EquipmentComponent>(response.data);
   }
 
   async diagnoseEquipmentDuplicates(): Promise<EquipmentDuplicateDiagnosis> {

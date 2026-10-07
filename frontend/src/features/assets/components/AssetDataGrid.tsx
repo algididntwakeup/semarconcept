@@ -23,6 +23,9 @@ export interface AssetDataGridProps {
   ) => Promise<void> | void;
   lifecycleFilter?: string;
   onLifecycleFilterChange?: (status: string) => void;
+  /** When on, the grid lists Level 7 component rows instead of parents. */
+  withL7Components?: boolean;
+  onWithL7ComponentsChange?: (value: boolean) => void;
   /** Download only the checked rows. */
   onExportSelected?: (assetIds: Array<string | number>) => void;
   /** Soft-delete the checked rows. */
@@ -56,6 +59,8 @@ const AssetDataGrid = memo(({
   onLifecycleAction,
   lifecycleFilter = '',
   onLifecycleFilterChange,
+  withL7Components = false,
+  onWithL7ComponentsChange,
   onExportSelected,
   onDeleteSelected,
   isExportingSelected = false,
@@ -97,7 +102,7 @@ const AssetDataGrid = memo(({
       aria-label="Equipment register"
     >
       {bannerSlot && <div className="space-y-3 border-b border-slate-100 p-4">{bannerSlot}</div>}
-      {(onSearchChange || onLifecycleFilterChange || toolbarSlot) && (
+      {(onSearchChange || onLifecycleFilterChange || onWithL7ComponentsChange || toolbarSlot) && (
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
             {onSearchChange && (
@@ -132,6 +137,19 @@ const AssetDataGrid = memo(({
                   <option value="Retired">Retired</option>
                   <option value="Condemned">Condemned</option>
                 </select>
+              </label>
+            )}
+            {onWithL7ComponentsChange && (
+              <label className="flex items-center gap-2 whitespace-nowrap text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={withL7Components}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                    onWithL7ComponentsChange(event.target.checked)
+                  }
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                with L7 components
               </label>
             )}
           </div>

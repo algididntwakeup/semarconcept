@@ -4,6 +4,31 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Equipment Master: Add Component modal & API integration prep
+
+**UI — `AddComponentModal`**
+
+- Judul dinamis `Add Component to {Parent Tag Number}` (mis. `Add Component to 1"-AI-12002-1G1`).
+- Section `Component Identity` dengan badge ikon dokumen hijau.
+- Grid 2 kolom: **Functional Location (Optional)** (placeholder `e.g., TUBE-SECTION`) dan **Tag Name \*** (placeholder `e.g., 01`, wajib). Field lebar penuh: **Description** (textarea) dan **Component Type (Asset Type Mapping) \*** (dropdown wajib).
+- Footer: **Close** (putih) dan **Save Component** (hijau solid, spinner saat menyimpan).
+- `noValidate` dipakai agar pesan validasi konsisten dari modal (bukan bubble browser).
+- Katalog `componentTypes.ts` menurunkan opsi tipe dari kelas induk (Heat Exchanger → Shell/Channel/Tube Bundle/Tube/Head/Nozzle/Baffle/Tubesheet; Pressure Vessel, Storage Tank, Piping, Filter, Heater punya daftar masing-masing) dengan fallback ke seluruh katalog bila kelas tak dikenal. `code` mencerminkan konstanta `component_type` di model Go.
+
+**Integrasi API (persiapan)**
+
+- `assetService.createEquipmentComponent(equipmentId, payload)` → `POST /assets/equipments/:id/components`; hook `useCreateEquipmentComponent` meng-invalidate daftar equipment-master, komponen, dan detail aset.
+- Row action **Add Component** kini membuka modal (bukan lagi navigasi ke `/assets/hierarchy`).
+- Saat Save: payload dikirim dengan `component_class` **diwarisi dari kelas induk** (komponen Level 7 tidak membawa kelas sendiri), lalu modal ditutup, toast sukses muncul, dan baris tabel di-refresh **hanya bila filter "with L7 components" aktif**.
+- Ditambahkan filter **"with L7 components"** pada grid (memanfaatkan param `hierarchy_level` yang sudah didukung backend) sehingga perilaku refresh punya kondisi nyata.
+
+**Catatan backend (belum diimplementasikan, sesuai urutan permintaan)**
+
+- `POST /api/v1/equipments/:id/components` masih 404 (diverifikasi live). Model `Asset` sudah punya `ParentID` self-referencing; model `Component` sudah punya `AssetID` (kolom `equipment_id`).
+- Keputusan desain yang perlu diambil saat mengerjakan Golang: komponen Level 7 sebaiknya dibuat sebagai **baris `assets` anak** (`parent_id` = ID induk, `rbi_properties["General.Hierarchy Level"]="7"`) agar filter "with L7 components" benar-benar menampilkannya; tabel `components` terpisah tidak akan muncul pada filter level 7 yang membaca `assets`.
+
+Validasi: `pnpm typecheck`, `pnpm test:run` (23 file, 172 test; termasuk 9 test `AddComponentModal` dan alur penuh Add Component → toast → tutup modal).
+
 ### Equipment Master: relational fetching & audit trail (Langkah 3)
 
 **Relational fetching (GET /api/v1/assets/Asset/:id)**
