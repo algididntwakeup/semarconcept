@@ -5,6 +5,25 @@
     <link rel="icon" type="image/ico" href="/favicon.ico?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
+    <!-- 🌓 ANTI-FLICKER: Evaluate theme before any DOM rendering -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme') || localStorage.getItem('semar-theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || (!saved && prefersDark) || (saved === 'system' && prefersDark)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Fonts: icons come from lucide-react/MUI components, not the Material Icons font. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,7 +42,7 @@
     
     <title>SEMAR - Reliability Meets Intelligence</title>
     
-    <!-- 🔥 CRITICAL CSS: Prevent layout shifts and improve loading -->
+    <!-- 🔥 CRITICAL CSS: Prevent layout shifts, flicker, and improve loading -->
     <style>
       /* Prevent flash of unstyled content */
       body {
@@ -31,12 +50,21 @@
         padding: 0;
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
         background-color: #f8fafc;
+        color: #020617;
         overflow-x: hidden;
       }
       
       #root {
         min-height: 100vh;
         background-color: #f8fafc;
+      }
+      
+      /* Dark mode critical styles for anti-flicker */
+      html.dark body,
+      html.dark #root,
+      html.dark .initial-loading {
+        background-color: #0b0f19 !important;
+        color: #f8fafc !important;
       }
       
       /* Loading spinner for initial load */
@@ -55,6 +83,11 @@
         border-top: 3px solid #4285f4;
         border-radius: 50%;
         animation: spin 1s linear infinite;
+      }
+      
+      html.dark .loading-spinner {
+        border-color: #1e293b;
+        border-top-color: #6366f1;
       }
       
       @keyframes spin {

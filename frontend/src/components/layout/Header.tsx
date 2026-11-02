@@ -17,11 +17,13 @@ import {
   Tooltip,
   alpha,
   styled,
-  useTheme,
+  useTheme as useMuiTheme,
   InputBase,
   Paper,
   Button,
+  Switch,
 } from '@mui/material';
+import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 
 // Icons
 import MenuIcon from '@mui/icons-material/Menu';
@@ -189,7 +191,8 @@ const Header: React.FC<HeaderProps> = ({
   sidebarCollapsed = false,
   onSidebarToggle 
 }) => {
-  const theme = useTheme();
+  const theme = useMuiTheme();
+  const { isDarkMode, toggleTheme } = useAppTheme();
   const navigate = useNavigate(); // 🆕 ADDED: Navigation hook
   
   // State management
@@ -197,7 +200,6 @@ const Header: React.FC<HeaderProps> = ({
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState<null | HTMLElement>(null);
   const [searchValue, setSearchValue] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   
   const isProfileMenuOpen = Boolean(profileAnchorEl);
   const isNotificationsOpen = Boolean(notificationsAnchorEl);
@@ -292,7 +294,7 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   const handleThemeToggle = () => {
-    setIsDarkMode(!isDarkMode);
+    toggleTheme();
   };
 
   // 🆕 CHANGED: Get initials for avatar - now shows "AM" like in image 2
@@ -501,6 +503,16 @@ const Header: React.FC<HeaderProps> = ({
         <MenuItem onClick={handleProfileMenuClose}>
           <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
           <ListItemText>Preferences</ListItemText>
+        </MenuItem>
+        
+        <MenuItem onClick={toggleTheme} sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <ListItemIcon>
+              {isDarkMode ? <DarkModeIcon fontSize="small" sx={{ color: '#818cf8' }} /> : <LightModeIcon fontSize="small" sx={{ color: '#f59e0b' }} />}
+            </ListItemIcon>
+            <ListItemText>Dark Mode</ListItemText>
+          </Box>
+          <Switch size="small" checked={isDarkMode} onChange={toggleTheme} />
         </MenuItem>
         
         <Divider />

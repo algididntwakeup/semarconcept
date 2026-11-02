@@ -17,10 +17,10 @@ const Sidebar: React.FC = () => {
   const { 
     sidebarOpen, 
     mobileOpen, 
-    setMobileOpen,
-    openCollapseMenus,
-    toggleCollapseMenu,
-    activeHorizontalTab,
+    setMobileOpen, 
+    openCollapseMenus, 
+    toggleCollapseMenu, 
+    activeHorizontalTab, 
     topLevelMenuItems,
   } = useNavigation();
 
@@ -98,7 +98,9 @@ const Sidebar: React.FC = () => {
                 }
               }}
               className={`w-full flex items-center justify-between py-2.5 px-2.5 rounded-2xl transition-all duration-300 group ${
-                isActive ? 'bg-primary-500/10 text-primary-600 font-bold' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'
+                isActive 
+                  ? 'bg-primary-500/10 text-primary-600 dark:text-primary-400 font-bold' 
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
               }`}
             >
               <div className={`flex items-center ${!isExpanded ? 'justify-center w-full' : ''}`}>
@@ -108,7 +110,7 @@ const Sidebar: React.FC = () => {
                   } p-2 rounded-xl transition-all duration-300 flex items-center justify-center flex-shrink-0 ${
                     isActive 
                       ? 'bg-primary-500 text-white shadow-glow-primary scale-105' 
-                      : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-primary-500 group-hover:shadow-sm'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 group-hover:bg-white dark:group-hover:bg-slate-700 group-hover:text-primary-500 group-hover:shadow-sm'
                   }`}
                 >
                   {renderItemIcon(item.icon, "w-4 h-4")}
@@ -125,7 +127,7 @@ const Sidebar: React.FC = () => {
           
           {isExpanded && item.children && (
             <div className={`overflow-hidden transition-all duration-500 ${isOpen ? 'max-h-96 opacity-100 py-1' : 'max-h-0 opacity-0'}`}>
-              <ul className="space-y-1 ml-4 border-l border-slate-100">
+              <ul className="space-y-1 ml-4 border-l border-slate-100 dark:border-slate-800">
                 {item.children.map((child: any) => renderMenuItem(child, level + 1, isExpanded))}
               </ul>
             </div>
@@ -142,7 +144,7 @@ const Sidebar: React.FC = () => {
             className={`w-full flex items-center py-2.5 px-2.5 rounded-2xl transition-all duration-300 group ${
               isActive 
                 ? 'bg-primary-500 text-white shadow-premium shadow-primary-500/30 font-bold' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 font-medium'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-100 font-medium'
             }`}
           >
             <div className={`flex items-center ${!isExpanded ? 'justify-center w-full' : ''}`}>
@@ -184,13 +186,13 @@ const Sidebar: React.FC = () => {
       >
         <div className="relative group flex-shrink-0">
           <div className="absolute -inset-1 bg-gradient-to-r from-primary-600 to-indigo-600 rounded-xl blur opacity-25 group-hover:opacity-60 transition duration-300"></div>
-          <div className="relative w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center p-1 shadow-sm transition-transform group-hover/logo:scale-105">
+          <div className="relative w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center p-1 shadow-sm transition-transform group-hover/logo:scale-105">
             <img src="/logo.png" alt="SEMAR Logo" className="w-full h-full object-contain" />
           </div>
         </div>
         {isExpanded && (
           <div className="flex flex-col flex-1 overflow-hidden">
-            <span className="font-black text-lg text-slate-800 tracking-tighter leading-none group-hover/logo:text-primary-600 transition-colors">SEMAR</span>
+            <span className="font-black text-lg text-slate-800 dark:text-slate-100 tracking-tighter leading-none group-hover/logo:text-primary-600 dark:group-hover/logo:text-primary-400 transition-colors">SEMAR</span>
             <span className="text-[8px] font-bold text-primary-500 uppercase tracking-widest mt-0.5 leading-tight truncate">Reliability Meets<br/>Intelligence</span>
           </div>
         )}
@@ -208,7 +210,7 @@ const Sidebar: React.FC = () => {
             {sidebarItems.length > 0 ? (
               sidebarItems.map((item) => renderMenuItem(item, 0, isExpanded))
             ) : (
-              <div className="px-4 py-4 rounded-2xl bg-slate-50/50 mx-2 text-center border border-dashed border-slate-200">
+              <div className="px-4 py-4 rounded-2xl bg-slate-50/50 dark:bg-slate-800/50 mx-2 text-center border border-dashed border-slate-200 dark:border-slate-700">
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">No items</span>
               </div>
             )}
@@ -218,7 +220,7 @@ const Sidebar: React.FC = () => {
 
       {/* Logout Action Footer */}
       <div className="px-3 mt-auto">
-        <div className={`p-3 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xl ${!isExpanded ? 'px-0 flex justify-center' : ''}`}>
+        <div className={`p-3 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white shadow-xl dark:border dark:border-slate-800 ${!isExpanded ? 'px-0 flex justify-center' : ''}`}>
           <button
             onClick={handleLogout}
             className={`flex items-center justify-center group transition-all ${isExpanded ? 'w-full' : ''}`}
@@ -247,7 +249,7 @@ const Sidebar: React.FC = () => {
           sidebarOpen ? 'w-[260px]' : 'w-[84px]'
         }`}
       >
-        <div className="glass h-full rounded-3xl shadow-premium border-white/40 overflow-hidden">
+        <div className="glass h-full rounded-3xl shadow-premium border-white/40 dark:border-slate-800/80 overflow-hidden">
           <SidebarContent isExpanded={sidebarOpen} />
         </div>
       </aside>
@@ -255,7 +257,7 @@ const Sidebar: React.FC = () => {
       {/* Mobile Backdrop */}
       {mobileOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-40 lg:hidden transition-all duration-500"
+          className="fixed inset-0 bg-slate-900/60 dark:bg-black/70 backdrop-blur-md z-40 lg:hidden transition-all duration-500"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -266,7 +268,7 @@ const Sidebar: React.FC = () => {
           mobileOpen ? 'translate-x-0' : '-translate-x-[120%]'
         }`}
       >
-        <div className="glass h-full rounded-3xl shadow-2xl border-white/40 overflow-hidden">
+        <div className="glass h-full rounded-3xl shadow-2xl border-white/40 dark:border-slate-800/80 overflow-hidden">
           <SidebarContent isExpanded={true} />
         </div>
       </aside>

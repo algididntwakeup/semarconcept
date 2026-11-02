@@ -8,7 +8,9 @@ import {
   LogOut, 
   User as UserIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 import Sidebar from '../components/layout/Sidebar';
@@ -20,6 +22,7 @@ import { checkRouteAccess } from '../config/route-manifest';
 import { NavItem } from '../types/navigation';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Kontrak navigasi bersama dipindah ke config/navigation-context.ts agar dapat
 // dipakai di luar pohon provider (module landing page) tanpa circular import.
@@ -54,6 +57,7 @@ const MainLayout: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const user = useSelector((state: RootState) => state.auth.user);
   const location = useLocation();
+  const { isDarkMode, toggleTheme } = useTheme();
 
   const isMobile = window.innerWidth < 768;
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
@@ -113,15 +117,23 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const activeItem = topLevelMenuItems[activeHorizontalTab];
     const container = headerMenuRef.current;
-    const activeTab = activeItem ? headerTabRefs.current.get(activeItem.id) : undefined;
+    const activeTab = activeItem ? headerTabRefs.current.get(itemActiveId(activeItem)) : undefined;
+
+    function itemActiveId(it: NavItem) {
+      return it.id;
+    }
 
     if (!container || !activeTab) return;
 
     const centeredLeft = activeTab.offsetLeft - (container.clientWidth - activeTab.offsetWidth) / 2;
-    container.scrollTo({
-      left: Math.max(0, centeredLeft),
-      behavior: 'smooth',
-    });
+    if (typeof container.scrollTo === 'function') {
+      container.scrollTo({
+        left: Math.max(0, centeredLeft),
+        behavior: 'smooth',
+      });
+    } else {
+      container.scrollLeft = Math.max(0, centeredLeft);
+    }
   }, [activeHorizontalTab, topLevelMenuItems]);
 
   const notifications = useMemo(
@@ -347,13 +359,13 @@ const MainLayout: React.FC = () => {
 
   return (
     <NavigationContext.Provider value={navigationContextValue}>
-      <div className="flex w-full min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-primary-100 selection:text-primary-700">
+      <div className="flex w-full min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-primary-100 selection:text-primary-700 dark:bg-[#0b0f19] dark:text-slate-100 dark:selection:bg-primary-900/40 dark:selection:text-primary-300 transition-colors duration-200">
         
         {/* Background Decorative blobs */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-primary-100/30 rounded-full blur-[120px] animate-float"></div>
-          <div className="absolute bottom-[-5%] right-[-5%] w-[35%] h-[35%] bg-blue-100/30 rounded-full blur-[100px] animate-pulse"></div>
-          <div className="absolute top-[30%] right-[10%] w-[15%] h-[15%] bg-indigo-100/20 rounded-full blur-[80px]"></div>
+          <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-primary-100/30 dark:bg-primary-950/20 rounded-full blur-[120px] animate-float"></div>
+          <div className="absolute bottom-[-5%] right-[-5%] w-[35%] h-[35%] bg-blue-100/30 dark:bg-slate-900/30 rounded-full blur-[100px] animate-pulse"></div>
+          <div className="absolute top-[30%] right-[10%] w-[15%] h-[15%] bg-indigo-100/20 dark:bg-indigo-950/15 rounded-full blur-[80px]"></div>
         </div>
 
         <Sidebar />
@@ -365,11 +377,12 @@ const MainLayout: React.FC = () => {
         >
           {/* Modern Floating Header */}
           <div className="sticky top-4 z-40 px-4 sm:px-6 md:px-8 transition-all duration-300">
-            <div className="glass flex items-center justify-between h-16 px-4 rounded-2xl shadow-premium border-white/50 backdrop-blur-xl bg-white/75">
+            <div className="glass flex items-center justify-between h-16 px-4 rounded-2xl shadow-premium border-white/50 dark:border-slate-800/80 backdrop-blur-xl bg-white/75 dark:bg-slate-900/80">
               <div className="flex items-center gap-1 sm:gap-4 h-full">
                 <button 
-                  className="lg:hidden p-2 rounded-xl hover:bg-white/50 text-slate-600 transition-colors"
+                  className="lg:hidden p-2 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-300 transition-colors"
                   onClick={() => setMobileOpen(true)}
+                  aria-label="Open mobile menu"
                 >
                   <MenuIcon className="w-5 h-5" />
                 </button>
@@ -378,13 +391,14 @@ const MainLayout: React.FC = () => {
                 {/* Horizontal Module Switcher (Improved for scalability) */}
                 <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0">
                   <button 
-                    className="hidden lg:block p-2 rounded-xl hover:bg-white/50 text-slate-400 hover:text-primary-600 transition-all active:scale-95"
+                    className="hidden lg:block p-2 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/60 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all active:scale-95"
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+                    aria-label={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
                   >
                     <MenuIcon className="w-5 h-5" />
                   </button>
-                  <div className="h-6 w-px bg-slate-200/50 mx-1"></div>
+                  <div className="h-6 w-px bg-slate-200/50 dark:bg-slate-700/50 mx-1"></div>
                   
                   <div className="relative flex items-center group/nav">
                     {/* Left arrow - visible when scrolled */}
@@ -392,14 +406,14 @@ const MainLayout: React.FC = () => {
                       type="button"
                       aria-label="Scroll modules left"
                       onClick={() => headerMenuRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
-                      className="absolute -left-3 flex w-8 h-8 items-center justify-center bg-white rounded-full shadow-premium border border-slate-100 text-slate-400 hover:text-primary-600 z-20 transition-all opacity-0 group-hover/nav:opacity-100"
+                      className="absolute -left-3 flex w-8 h-8 items-center justify-center bg-white dark:bg-slate-800 rounded-full shadow-premium border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 z-20 transition-all opacity-0 group-hover/nav:opacity-100"
                     >
                       <ChevronLeft size={14} strokeWidth={3} />
                     </button>
 
                     <div 
                       ref={headerMenuRef}
-                      className="flex items-center h-11 px-1.5 bg-slate-100/40 backdrop-blur-sm rounded-2xl border border-slate-200/50 overflow-x-auto overscroll-x-contain touch-pan-x max-w-[50vw] md:max-w-[40vw] xl:max-w-[50vw] scroll-smooth no-scrollbar"
+                      className="flex items-center h-11 px-1.5 bg-slate-100/40 dark:bg-slate-800/40 backdrop-blur-sm rounded-2xl border border-slate-200/50 dark:border-slate-700/50 overflow-x-auto overscroll-x-contain touch-pan-x max-w-[50vw] md:max-w-[40vw] xl:max-w-[50vw] scroll-smooth no-scrollbar"
                     >
                       <div className="flex items-center min-w-max px-0.5">
                         {topLevelMenuItems.map((item, idx) => {
@@ -415,8 +429,8 @@ const MainLayout: React.FC = () => {
                               onClick={() => handleMenuItemClick(item, true)}
                               className={`rounded-xl px-3 sm:px-5 py-2.5 mx-0.5 text-[10px] font-black uppercase tracking-widest transition-colors duration-200 whitespace-nowrap border ${
                                 isActive 
-                                  ? 'bg-white text-primary-600 shadow-sm border-slate-200/60' 
-                                  : 'text-slate-400 border-transparent hover:text-slate-700 hover:bg-white/50'
+                                  ? 'bg-white dark:bg-slate-800 text-primary-600 dark:text-primary-400 shadow-sm border-slate-200/60 dark:border-slate-700' 
+                                  : 'text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/50'
                               }`}
                             >
                               {item.title}
@@ -431,7 +445,7 @@ const MainLayout: React.FC = () => {
                       type="button"
                       aria-label="Scroll modules right"
                       onClick={() => headerMenuRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
-                      className="absolute -right-3 flex w-8 h-8 items-center justify-center bg-white rounded-full shadow-premium border border-slate-100 text-slate-400 hover:text-primary-600 z-20 transition-all opacity-0 group-hover/nav:opacity-100"
+                      className="absolute -right-3 flex w-8 h-8 items-center justify-center bg-white dark:bg-slate-800 rounded-full shadow-premium border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 z-20 transition-all opacity-0 group-hover/nav:opacity-100"
                     >
                       <ChevronRight size={14} strokeWidth={3} />
                     </button>
@@ -446,8 +460,9 @@ const MainLayout: React.FC = () => {
 
                 <div className="relative" ref={notificationsRef}>
                   <button 
-                    className="p-2 rounded-xl hover:bg-white/50 text-slate-600 transition-all active:scale-95"
+                    className="p-2 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/60 text-slate-600 dark:text-slate-300 transition-all active:scale-95"
                     onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    aria-label="Notifications"
                   >
                     <Bell className="w-5 h-5" />
                     {unreadCount > 0 && (
@@ -457,13 +472,13 @@ const MainLayout: React.FC = () => {
                     )}
                   </button>
                   {isNotificationsOpen && (
-                    <div className="absolute top-full right-0 mt-3 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 py-2 z-50">
-                      <div className="px-4 py-2 border-b border-slate-100 font-bold text-slate-800 text-sm">Notifications</div>
+                    <div className="absolute top-full right-0 mt-3 w-80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 dark:border-slate-800 py-2 z-50">
+                      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-100 text-sm">Notifications</div>
                       <div className="max-h-60 overflow-y-auto">
                         {notifications.map(n => (
-                          <div key={n.id} className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-l-2 border-transparent hover:border-primary-500 transition-all">
-                            <p className="text-xs font-bold text-slate-800">{n.title}</p>
-                            <p className="text-[10px] text-slate-500">{n.message}</p>
+                          <div key={n.id} className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer border-l-2 border-transparent hover:border-primary-500 transition-all">
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{n.title}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{n.message}</p>
                           </div>
                         ))}
                       </div>
@@ -475,24 +490,65 @@ const MainLayout: React.FC = () => {
                   <button 
                     className="flex items-center p-1 rounded-full hover:shadow-md transition-all active:scale-95"
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    aria-label="User profile menu"
+                    aria-expanded={isUserMenuOpen}
                   >
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-500 to-indigo-600 border-2 border-white shadow-md flex items-center justify-center text-white font-bold text-[10px]">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary-500 to-indigo-600 border-2 border-white dark:border-slate-700 shadow-md flex items-center justify-center text-white font-bold text-[10px]">
                       {getUserInitials(user)}
                     </div>
                   </button>
                   {isUserMenuOpen && (
-                    <div className="absolute top-full right-0 mt-3 w-56 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 py-2 z-50 overflow-hidden">
-                      <div className="px-4 py-3 bg-slate-50/50">
-                        <p className="text-xs font-bold text-slate-800">{user?.first_name || 'Admin'}</p>
-                        <p className="text-[10px] text-slate-500">{userRoleLabel}</p>
+                    <div className="absolute top-full right-0 mt-3 w-60 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 dark:border-slate-800 py-2 z-50 overflow-hidden">
+                      <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-800/50">
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">{user?.first_name || 'Admin'}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{userRoleLabel}</p>
                       </div>
-                      <button className="w-full text-left px-4 py-2 text-xs font-medium text-slate-600 hover:bg-primary-50 transition-colors flex items-center">
+                      <button className="w-full text-left px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-primary-50 dark:hover:bg-slate-800/60 transition-colors flex items-center">
                         <UserIcon className="w-3.5 h-3.5 mr-2" /> Profile
                       </button>
-                      <div className="h-px bg-slate-100 my-1"></div>
+
+                      {/* 🌓 Dark Mode toggle row in user profile dropdown */}
+                      <div 
+                        role="button"
+                        tabIndex={0}
+                        onClick={toggleTheme}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleTheme();
+                          }
+                        }}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors cursor-pointer select-none"
+                        aria-label="Toggle dark mode"
+                        aria-pressed={isDarkMode}
+                      >
+                        <div className="flex items-center">
+                          {isDarkMode ? (
+                            <Moon className="w-3.5 h-3.5 mr-2 text-indigo-400 transition-transform duration-300" />
+                          ) : (
+                            <Sun className="w-3.5 h-3.5 mr-2 text-amber-500 transition-transform duration-300" />
+                          )}
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">Dark Mode</span>
+                        </div>
+                        {/* Interactive toggle switch on the right */}
+                        <div 
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isDarkMode ? 'bg-primary-600' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              isDarkMode ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="h-px bg-slate-100 dark:bg-slate-800 my-1"></div>
                       <button 
                         onClick={handleLogout}
-                        className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center"
+                        className="w-full text-left px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center"
                       >
                         <LogOut className="w-3.5 h-3.5 mr-2" /> Sign Out
                       </button>
@@ -505,7 +561,7 @@ const MainLayout: React.FC = () => {
 
           {/* Breadcrumbs (Second Line) with proper spacing */}
           <div className="px-4 mt-6 sm:px-6 md:px-8">
-            <div className="flex items-center justify-between border-b border-slate-200/50 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/60 pb-4">
               <Breadcrumbs />
             </div>
           </div>
