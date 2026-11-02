@@ -38,6 +38,7 @@ const ResetPasswordPage = React.lazy(() => import('../pages/auth/ResetPasswordPa
 // Active pages: primary Dashboard and RBI Equipment Master.
 const DashboardPage = React.lazy(() => import('../pages/dashboard/DashboardPage'));
 const EquipmentMasterPage = React.lazy(() => import('../pages/risk/EquipmentMasterPage'));
+const FunctionalLocationsPage = React.lazy(() => import('../pages/floc/FunctionalLocationsPage'));
 
 // Error pages
 const AccessInactivePage = React.lazy(() => import('../pages/error/AccessInactivePage'));
@@ -122,6 +123,9 @@ export const AppRoutes: React.FC = () => {
             <Route index element={<Navigate to="/risk/equipment-master" replace />} />
             <Route path="equipment-master" element={<EquipmentMasterPage />} />
           </Route>
+
+          {/* Petualangan 2: Functional Locations Visual Tree (L1-L8) */}
+          <Route path="functional-locations" element={<FunctionalLocationsPage />} />
 
         </Route>
 

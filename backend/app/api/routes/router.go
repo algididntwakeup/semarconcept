@@ -213,6 +213,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	// Use real analytics repository implementation
 	analyticsRepo := repositories.NewAnalyticsRepository(sqlxDB)
 	taxonomyRepo := repositories.NewTaxonomyRepository(sqlxDB)
+	flocRepo := repositories.NewFunctionalLocationRepository(sqlxDB, gormDB)
 
 	// GORM-based repositories
 	tenantRepo := repositories.NewTenantRepository(gormDB)
@@ -247,6 +248,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	)
 
 	taxonomyService := services.NewTaxonomyService(taxonomyRepo)
+	flocService := services.NewFunctionalLocationService(flocRepo)
 
 	//  SURGICAL ADD: Media Service for file management
 	mediaService := services.NewLocalMediaService(
@@ -302,6 +304,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService) //  NEW: For dashboard endpoints
 	mediaHandler := handlers.NewMediaHandler(mediaService)             //  NEW: For media endpoints
 	taxonomyHandler := handlers.NewTaxonomyHandler(taxonomyService)
+	flocHandler := handlers.NewFunctionalLocationHandler(flocService)
 	maintenanceService := services.NewMaintenanceService(gormDB)
 	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 
@@ -720,6 +723,18 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 			maintenanceRoutes.POST("/fix-links", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.FixLinks)
 			maintenanceRoutes.POST("/sync-floc", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.SyncFLOC)
 			maintenanceRoutes.POST("/resolve-duplicate", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.ResolveDuplicate)
+		}
+
+		// Functional Location Visual Tree routes (Petualangan 2)
+		flocRoutes := apiV1.Group("/functional-locations")
+		flocRoutes.Use(authMiddleware)
+		flocRoutes.Use(middleware.RequireTenantContext())
+		flocRoutes.Use(middleware.RateLimitMiddleware(middleware.StandardTier))
+		{
+			flocRoutes.GET("/tree", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetTree)
+			flocRoutes.GET("", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetAll)
+			flocRoutes.GET("/:id", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetByID)
+			flocRoutes.GET("/:id/equipments", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetEquipments)
 		}
 	}
 

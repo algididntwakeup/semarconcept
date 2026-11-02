@@ -92,7 +92,7 @@ func TestMaintenanceService_ResolveDuplicate(t *testing.T) {
 		mock.ExpectBegin()
 
 		// 4. Update kept asset with merged rbi_properties
-		mock.ExpectExec(`UPDATE "assets" SET .*rbi_properties.*updated_at.* WHERE id = \$1 AND tenant_id = \$2`).
+		mock.ExpectExec(`UPDATE "assets" SET .*rbi_properties.*updated_at.* WHERE id = \$4 AND tenant_id = \$5`).
 			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), userID, req.KeptAssetID, tenantID).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 
