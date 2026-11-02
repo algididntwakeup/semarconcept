@@ -190,10 +190,38 @@ describe('Equipment Master reusable components', () => {
     expect(screen.getByRole('menuitem', { name: 'Add Component' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'View Timeline' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Edit Asset' })).toBeInTheDocument();
-    const deleteItem = screen.getByRole('menuitem', { name: 'Delete' });
+    const deleteItem = screen.getByRole('menuitem', { name: 'Delete Asset' });
     expect(deleteItem.className).toContain('text-rose-600');
     fireEvent.click(deleteItem);
     expect(onManage).toHaveBeenCalledWith('delete', asset);
+  });
+
+  it('renders dropdown in document.body portal and opens drop-up when near bottom', () => {
+    const onManage = vi.fn();
+    const asset = { id: 25, tag_number: 'E-250' };
+    render(<RowActions asset={asset} onManage={onManage} />);
+
+    const button = screen.getByRole('button', { name: 'Manage E-250' });
+    // Simulate button located near bottom of viewport (e.g. y = 720 in 768px viewport)
+    vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({
+      top: 700,
+      bottom: 730,
+      left: 800,
+      right: 900,
+      width: 100,
+      height: 30,
+      x: 800,
+      y: 700,
+      toJSON: () => {},
+    });
+
+    fireEvent.click(button);
+    const menu = screen.getByRole('menu', { name: 'Manage E-250' });
+    // Menu is appended directly to document.body via React Portal
+    expect(menu.parentElement).toBe(document.body);
+    // Menu detects space below is constrained and sets drop-up placement
+    expect(menu).toHaveAttribute('data-placement', 'top');
+    expect(menu.style.bottom).toBeTruthy();
   });
 
   it('offers Install options for an Available asset', () => {
