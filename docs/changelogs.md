@@ -4,6 +4,75 @@ Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
 ## Unreleased — 6 October 2026
 
+### Interactive Duplicate Resolution System & Smart Merge (Diagnose Duplicates Upgrade)
+
+**Backend — Grouped Diagnosis, Smart Merge, & Soft-Delete Resolution (`/api/v1/maintenance/*`)**
+
+- Modifikasi `POST /api/v1/maintenance/diagnose-duplicates` (dan `GET`):
+  - Mengembalikan struktur data berkelompok per `tag_number` yang kembar: `[]DuplicateTagGroup` dengan array detail aset lengkap (`DuplicateAssetDetail` meliputi ID, Tag Number, Name, Description, Asset Class, Asset Type, Status, Created At, Updated At).
+- Endpoint `POST /api/v1/maintenance/resolve-duplicate` dengan **Smart Merge**:
+  - Menerima payload: `{ "kept_asset_id": number, "deleted_asset_ids": number[] }`.
+  - Validasi: `kept_asset_id` wajib positif, `deleted_asset_ids` tidak boleh kosong, dan `kept_asset_id` tidak boleh tercantum dalam `deleted_asset_ids`.
+  - **Smart Merge Logic**: Sebelum soft-delete dieksekusi, backend menarik seluruh objek JSONB `rbi_properties` dari aset-aset duplikat (`deleted_asset_ids`). Melakukan algoritma Deep Merge rekursif (`map[string]interface{}`) untuk mengisi key/properti yang masih kosong (`nil` atau string kosong `""`) pada `kept_asset` menggunakan nilai dari aset duplikat.
+  - **Aturan Prioritas**: Nilai yang sudah terisi di `kept_asset` tidak pernah ditimpa oleh data dari aset yang dihapus.
+  - Pembaruan `rbi_properties` disimpan ke `kept_asset` di dalam transaksi database sebelum anak komponen di-re-parent dan aset duplikat di-soft-delete (`status = 'deleted'`).
+  - Routing: Didukung di `backend/app/api/routes/router.go` dengan RBAC permission `asset:update`.
+- Unit Tests:
+  - `backend/app/services/maintenance_service_test.go`: Pengujian GORM mock untuk grouping diagnosis, pencegahan payload tidak valid, verifikasi keabsahan aset yang dipertahankan, Smart Merge deep merge priority, re-parenting anak, dan eksekusi soft delete.
+  - `backend/app/api/handlers/maintenance_handler_test.go`: Pengujian controller/handler Gin untuk HTTP status, validasi JSON payload, tenant context, dan respon JSON.
+
+**Frontend — `<DuplicateResolutionModal />` & Smart Merge UI**
+
+- Komponen `<DuplicateResolutionModal />` (`frontend/src/features/assets/components/DuplicateResolutionModal.tsx`):
+  - Hanya terbuka jika pemanggilan diagnosa menghasilkan duplikat (`duplicateGroups.length > 0`). Jika 0 duplikat, hanya memunculkan toast `"No duplicates found."`.
+  - Menampilkan Accordion per `tag_number` duplikat dilengkapi badge jumlah duplikat serta opsi collapse/expand.
+  - Banner informasi Smart Merge di bagian atas modal: `"Smart Merge: Missing properties in your kept asset will be safely filled using data from the deleted duplicates."`
+  - Tabel perbandingan di dalam setiap accordion: Kolom ID, Asset Details (Name & Description), Class / Type, Status (badge berwarna), dan Created At (tanggal terformat).
+  - Tombol aksi per baris: `"Keep & Merge Data"` dengan ikon `GitMerge`.
+  - Loading State per baris: Menampilkan `<LoaderCircle />` dengan teks `"Merging..."` pada baris yang sedang diproses dan menonaktifkan seluruh tombol aksi lainnya di dalam modal agar pengguna tidak menekan tombol berulang.
+  - Action Wiring & Revalidation: Memanggil `POST /api/v1/maintenance/resolve-duplicate`, menghapus kelompok tag tersebut dari tampilan modal setelah sukses, memanggil `revalidate` data tabel utama dan kartu statistik, serta menutup modal otomatis bila seluruh duplikat telah terselesaikan.
+  - Toast notification sukses spesifik: `toast.success("Successfully merged data and removed duplicates.")`.
+- Wiring & Modifikasi di `frontend/src/services/assetServices.ts` & `frontend/src/features/assets/api/assetQueries.ts`:
+  - Type definitions: `DuplicateAssetDetail`, `DuplicateTagGroup`, `ResolveDuplicatePayload`, `ResolveDuplicateResult`.
+  - Methods: `diagnoseEquipmentDuplicates` dan `resolveEquipmentDuplicate`.
+  - Mutation hook: `resolveDuplicate` dalam `useEquipmentMaintenanceActions` yang meng-invalidate cache query aset.
+- Pengujian Frontend:
+  - `frontend/src/features/assets/components/DuplicateResolutionModal.test.tsx`: Pengujian banner Smart Merge, tombol Keep & Merge Data, accordion toggling, resolusi baris, pemblokiran tombol saat in-flight loading, penanganan error, dan penutupan modal.
+  - `frontend/src/pages/risk/EquipmentMasterPage.test.tsx`: Pengujian integrasi penuh dari klik menu dropdown "Diagnose duplicates", pembukaan modal, interaksi per baris, dan toast sukses spesifik.
+  - Verifikasi: `pnpm typecheck` (0 error) dan `pnpm test:run` (180 tes lulus di 24 test suite).
+  - Container Docker `semar-backend` dan `semar-frontend` berhasil di-rebuild dan berjalan sehat (healthy).
+- Pengujian Frontend:
+  - `frontend/src/features/assets/components/DuplicateResolutionModal.test.tsx`: 7 tes vitest menguji rendering, accordion toggling, resolusi baris, pemblokiran tombol saat in-flight loading, penanganan error, dan penutupan modal.
+  - `frontend/src/pages/risk/EquipmentMasterPage.test.tsx`: Pengujian integrasi penuh dari klik menu dropdown "Diagnose duplicates", pembukaan modal, interaksi per baris, dan penutupan.
+  - Verifikasi: `pnpm typecheck` (0 error) dan `pnpm test:run` (180 tes lulus di 24 test suite).
+  - Container Docker `semar-backend` dan `semar-frontend` berhasil di-rebuild dan berjalan sehat (healthy).
+
+
+### Petualangan 1: Mass Data Cleaning Utilities (Equipment Master Maintenance)
+
+**Backend — Maintenance Service & Controller (`POST /api/v1/maintenance/*`)**
+
+- Service baru `MaintenanceService` (`backend/app/services/maintenance_service.go`):
+  - `POST /api/v1/maintenance/diagnose-duplicates`: Menggunakan GORM query untuk mencari aset dengan `tag_number` yang sama (duplikat), mengelompokkan per tag yang memiliki `COUNT(*) > 1`, dan mengambil daftar ID aset yang terlibat.
+  - `POST /api/v1/maintenance/fix-links`: Logika auto-linking komponen Level 7 dengan `parent_id` kosong. Mencocokkan `tag_number` komponen yang mengandung `tag_number` aset induk (memilih kecocokan tag terpanjang/paling spesifik), dan meng-update `parent_id` ke ID aset induk.
+  - `POST /api/v1/maintenance/sync-floc`: Bulk update komponen Level 7 yang telah memiliki `parent_id` tetapi `installed_floc_id`-nya kosong atau berbeda dengan aset induknya. Menyalin `installed_floc_id` dan status `has_funcloc` dari induk ke komponen anak.
+- Controller/Handler baru `MaintenanceHandler` (`backend/app/api/handlers/maintenance_handler.go`) dengan tenant context zero-trust enforcement dan audit log update.
+- Routing didaftarkan di `backend/app/api/routes/router.go` pada group `/api/v1/maintenance` dengan RBAC permission (`asset:view` untuk diagnosa, `asset:update` untuk fix links dan sync floc).
+- Unit test terpadu: `backend/app/services/maintenance_service_test.go` dengan `go-sqlmock` mencakup ketiga endpoint.
+
+**Frontend — API Wiring, Feedback, dan Auto-Refresh**
+
+- Menghubungkan client service `frontend/src/services/assetServices.ts` ke endpoint baru:
+  - `diagnoseEquipmentDuplicates` memanggil `POST /maintenance/diagnose-duplicates`.
+  - `fixEquipmentComponentLinks` memanggil `POST /maintenance/fix-links`.
+  - `syncEquipmentComponentsToFLOC` memanggil `POST /maintenance/sync-floc`.
+- Indikator Loading: Selama salah satu proses maintenance berlangsung (`isMaintenancePending`), tombol dropdown Maintenance dinonaktifkan (`disabled`) untuk mencegah klik ganda dan `AssetDataGrid` menampilkan state loading/skeleton.
+- Notifikasi Hasil: Menampilkan toast notification informatif:
+  - Diagnosa duplikat: status sukses (bila tidak ada duplikat) atau peringatan (menampilkan jumlah duplikat yang ditemukan).
+  - Fix links & Sync FLOC: toast sukses yang merangkum jumlah tautan yang diperbaiki dan komponen yang disinkronisasi.
+- Data Refresh: Memanggil `refetch` data aset (`assetsQuery.refetch()` dan `statsQuery.refetch()`) seketika operasi selesai agar tabel dan ringkasan kartu langsung menampilkan data terkini.
+- Validasi: `go build ./...`, `go test ./...` (100% lulus), `pnpm typecheck` (0 error), `pnpm test:run` (23 file, 172 test lulus 100%), dan container Docker di-rebuild serta running sehat.
+
 ### Equipment Master: Add Component modal & API integration prep
 
 **UI — `AddComponentModal`**

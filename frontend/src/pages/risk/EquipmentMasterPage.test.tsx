@@ -15,6 +15,7 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       getEquipmentAssetStats: vi.fn(),
       getEquipmentAssets: vi.fn(),
       diagnoseEquipmentDuplicates: vi.fn(),
+      resolveEquipmentDuplicate: vi.fn(),
       fixEquipmentComponentLinks: vi.fn(),
       syncEquipmentComponentsToFLOC: vi.fn(),
       importEquipmentAssets: vi.fn(),
@@ -283,10 +284,7 @@ describe('EquipmentMasterPage API integration', () => {
       page: 1,
       limit: 10,
     });
-    vi.mocked(assetService.diagnoseEquipmentDuplicates).mockResolvedValue({
-      duplicate_count: 0,
-      duplicates: [],
-    });
+    vi.mocked(assetService.diagnoseEquipmentDuplicates).mockResolvedValue([]);
     vi.mocked(assetService.fixEquipmentComponentLinks).mockResolvedValue({
       affected_links: 2,
       dry_run: false,
@@ -304,7 +302,7 @@ describe('EquipmentMasterPage API integration', () => {
     openMaintenanceMenu();
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Diagnose duplicates' }));
     expect(
-      await screen.findByText('Duplicate tag diagnosis complete: no duplicates found.')
+      await screen.findByText('No duplicates found.')
     ).toBeInTheDocument();
     expect(assetService.diagnoseEquipmentDuplicates).toHaveBeenCalledOnce();
 
@@ -321,6 +319,77 @@ describe('EquipmentMasterPage API integration', () => {
       await screen.findByText('FLOC sync complete: 2 valid, 0 orphaned components.')
     ).toBeInTheDocument();
     expect(assetService.syncEquipmentComponentsToFLOC).toHaveBeenCalledWith(false);
+  }, 15000);
+
+  it('opens DuplicateResolutionModal when duplicates are found and resolves them', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.diagnoseEquipmentDuplicates).mockResolvedValue([
+      {
+        tag_number: '12-H-1101',
+        duplicate_count: 2,
+        duplicates: [
+          {
+            id: 101,
+            asset_id: 101,
+            tenant_id: 1,
+            tag_number: '12-H-1101',
+            name: 'Heat Exchanger Primary',
+            status: 'active',
+            has_funcloc: true,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+          {
+            id: 102,
+            asset_id: 102,
+            tenant_id: 1,
+            tag_number: '12-H-1101',
+            name: 'Heat Exchanger Copy',
+            status: 'draft',
+            has_funcloc: false,
+            created_at: '2026-01-02T00:00:00Z',
+            updated_at: '2026-01-02T00:00:00Z',
+          },
+        ],
+      },
+    ]);
+    vi.mocked(assetService.resolveEquipmentDuplicate).mockResolvedValue({
+      kept_asset_id: 101,
+      deleted_count: 1,
+      deleted_asset_ids: [102],
+    });
+
+    renderPage();
+
+    openMaintenanceMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Diagnose duplicates' }));
+
+    expect(await screen.findByText('Resolve Duplicate Equipment Tags')).toBeInTheDocument();
+    expect(screen.getByText(/Smart Merge:/i)).toBeInTheDocument();
+    expect(screen.getByText('12-H-1101')).toBeInTheDocument();
+    expect(screen.getByText('Heat Exchanger Primary')).toBeInTheDocument();
+    expect(screen.getByText('Heat Exchanger Copy')).toBeInTheDocument();
+
+    const keepButtons = screen.getAllByRole('button', { name: /Keep & Merge Data/i });
+    expect(keepButtons).toHaveLength(2);
+    fireEvent.click(keepButtons[0]);
+
+    await waitFor(() => {
+      expect(assetService.resolveEquipmentDuplicate).toHaveBeenCalledWith({
+        kept_asset_id: 101,
+        deleted_asset_ids: [102],
+      });
+    });
+
+    expect(
+      await screen.findByText('Successfully merged data and removed duplicates.')
+    ).toBeInTheDocument();
   }, 15000);
 
   it('keeps Manage Asset and Add Component working from the Manage dropdown', async () => {

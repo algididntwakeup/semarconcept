@@ -302,6 +302,8 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService) //  NEW: For dashboard endpoints
 	mediaHandler := handlers.NewMediaHandler(mediaService)             //  NEW: For media endpoints
 	taxonomyHandler := handlers.NewTaxonomyHandler(taxonomyService)
+	maintenanceService := services.NewMaintenanceService(gormDB)
+	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 
 	//  CRITICAL FIXED: Initialize role and permission handlers with correct services
 	roleHandler := handlers.NewRoleHandler(roleService)
@@ -707,6 +709,18 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 		//  ENABLED: Asset routes now that all repositories exist
 		utils.Info("Enabling asset routes - all repositories are now available")
 		SetupAssetRoutes(apiV1.Group("/assets"), sqlxDB, jwtService, roleRepo, cfg.Storage.UploadPath)
+
+		// Maintenance mass data cleaning routes (Petualangan 1)
+		maintenanceRoutes := apiV1.Group("/maintenance")
+		maintenanceRoutes.Use(authMiddleware)
+		maintenanceRoutes.Use(middleware.RequireTenantContext())
+		{
+			maintenanceRoutes.POST("/diagnose-duplicates", middleware.RBACMiddleware(roleRepo, "asset:view"), maintenanceHandler.DiagnoseDuplicates)
+			maintenanceRoutes.GET("/diagnose-duplicates", middleware.RBACMiddleware(roleRepo, "asset:view"), maintenanceHandler.DiagnoseDuplicates)
+			maintenanceRoutes.POST("/fix-links", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.FixLinks)
+			maintenanceRoutes.POST("/sync-floc", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.SyncFLOC)
+			maintenanceRoutes.POST("/resolve-duplicate", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.ResolveDuplicate)
+		}
 	}
 
 	//  SURGICAL ADD: Static file serving for media

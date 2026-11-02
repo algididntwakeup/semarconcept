@@ -122,6 +122,41 @@ export interface EquipmentAssetListResponse {
   limit: number;
 }
 
+export interface DuplicateAssetDetail {
+  id: number;
+  asset_id: number;
+  tenant_id: number;
+  tag_number: string;
+  name: string;
+  description?: string;
+  asset_class?: string;
+  asset_type?: string;
+  status?: string;
+  lifecycle_status?: string;
+  parent_id?: number;
+  installed_floc_id?: number;
+  has_funcloc: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DuplicateTagGroup {
+  tag_number: string;
+  duplicate_count: number;
+  duplicates: DuplicateAssetDetail[];
+}
+
+export interface ResolveDuplicatePayload {
+  kept_asset_id: number;
+  deleted_asset_ids: number[];
+}
+
+export interface ResolveDuplicateResult {
+  kept_asset_id: number;
+  deleted_count: number;
+  deleted_asset_ids: number[];
+}
+
 export interface EquipmentDuplicateDiagnosis {
   duplicate_count: number;
   duplicates: { tag_number: string; count: number; asset_ids: number[] }[];
@@ -499,18 +534,26 @@ class AssetService {
     return unwrapApiData<EquipmentComponent>(response.data);
   }
 
-  async diagnoseEquipmentDuplicates(): Promise<EquipmentDuplicateDiagnosis> {
-    const response = await apiClient.get(`${this.baseUrl}/diagnose-duplicates`);
-    return unwrapApiData(response.data) as EquipmentDuplicateDiagnosis;
+  async diagnoseEquipmentDuplicates(): Promise<DuplicateTagGroup[]> {
+    const response = await apiClient.post('/maintenance/diagnose-duplicates');
+    const data = unwrapApiData<DuplicateTagGroup[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  }
+
+  async resolveEquipmentDuplicate(
+    payload: ResolveDuplicatePayload
+  ): Promise<ResolveDuplicateResult> {
+    const response = await apiClient.post('/maintenance/resolve-duplicate', payload);
+    return unwrapApiData<ResolveDuplicateResult>(response.data);
   }
 
   async fixEquipmentComponentLinks(dryRun = false): Promise<EquipmentLinkFixResult> {
-    const response = await apiClient.post(`${this.baseUrl}/fix-links`, { dry_run: dryRun });
+    const response = await apiClient.post('/maintenance/fix-links', { dry_run: dryRun });
     return unwrapApiData(response.data) as EquipmentLinkFixResult;
   }
 
   async syncEquipmentComponentsToFLOC(dryRun = false): Promise<EquipmentFLOCSyncResult> {
-    const response = await apiClient.post(`${this.baseUrl}/sync-floc`, { dry_run: dryRun });
+    const response = await apiClient.post('/maintenance/sync-floc', { dry_run: dryRun });
     return unwrapApiData(response.data) as EquipmentFLOCSyncResult;
   }
 

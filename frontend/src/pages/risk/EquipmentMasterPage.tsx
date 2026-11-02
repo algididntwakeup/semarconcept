@@ -33,8 +33,9 @@ import ManageAssetModal from '../../features/assets/components/manage-asset/Mana
 import AddComponentModal, {
   type AddComponentPayload,
 } from '../../features/assets/components/AddComponentModal';
+import DuplicateResolutionModal from '../../features/assets/components/DuplicateResolutionModal';
 import { assetService } from '../../services/assetServices';
-import type { EquipmentAssetImportResult } from '../../services/assetServices';
+import type { EquipmentAssetImportResult, DuplicateTagGroup } from '../../services/assetServices';
 import { useNotification } from '../../hooks/useNotification';
 
 const PAGE_SIZE = 10;
@@ -70,10 +71,8 @@ const EquipmentMasterPage = () => {
   const [timeline, setTimeline] = useState<
     { title: string; date: string; description: string }[] | null
   >(null);
-  const [duplicateDiagnosis, setDuplicateDiagnosis] = useState<{
-    duplicate_count: number;
-    duplicates: { tag_number: string; count: number; asset_ids: number[] }[];
-  } | null>(null);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateTagGroup[]>([]);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<EquipmentAssetImportResult | null>(null);
@@ -113,6 +112,11 @@ const EquipmentMasterPage = () => {
   const deleteAssetAsync = deleteAsset.mutateAsync;
   const maintenance = useEquipmentMaintenanceActions();
   const createComponent = useCreateEquipmentComponent(addComponentAsset?.id ?? null);
+  const isMaintenancePending =
+    maintenance.diagnoseDuplicates.isPending ||
+    maintenance.resolveDuplicate.isPending ||
+    maintenance.fixComponentLinks.isPending ||
+    maintenance.syncComponentsToFLOC.isPending;
 
   const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
   const summary = useMemo(
@@ -313,6 +317,10 @@ const EquipmentMasterPage = () => {
     try {
       const result = await operation();
       showNotification(successMessage(result), 'success');
+      await Promise.all([
+        assetsQuery.refetch(),
+        statsQuery.refetch(),
+      ]);
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Equipment utility failed.',
@@ -427,14 +435,21 @@ const EquipmentMasterPage = () => {
 
   const handleDiagnoseDuplicates = async () => {
     try {
-      const result = await maintenance.diagnoseDuplicates.mutateAsync();
-      setDuplicateDiagnosis(result);
-      showNotification(
-        result.duplicate_count === 0
-          ? 'Duplicate tag diagnosis complete: no duplicates found.'
-          : `Duplicate tag diagnosis found ${result.duplicate_count} duplicate tag(s).`,
-        result.duplicate_count === 0 ? 'success' : 'warning'
-      );
+      const groups = await maintenance.diagnoseDuplicates.mutateAsync();
+      const count = Array.isArray(groups) ? groups.length : 0;
+      if (count === 0) {
+        setDuplicateGroups([]);
+        setIsDuplicateModalOpen(false);
+        showNotification('No duplicates found.', 'success');
+      } else {
+        setDuplicateGroups(groups);
+        setIsDuplicateModalOpen(true);
+        showNotification(`Found ${count} duplicate tag group(s).`, 'warning');
+      }
+      await Promise.all([
+        assetsQuery.refetch(),
+        statsQuery.refetch(),
+      ]);
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Unable to diagnose duplicate assets.',
@@ -442,6 +457,26 @@ const EquipmentMasterPage = () => {
       );
     }
   };
+
+  const handleResolveDuplicate = useCallback(
+    async (payload: { kept_asset_id: number; deleted_asset_ids: number[] }) => {
+      try {
+        await maintenance.resolveDuplicate.mutateAsync(payload);
+        showNotification(
+          'Successfully merged data and removed duplicates.',
+          'success'
+        );
+        await Promise.all([assetsQuery.refetch(), statsQuery.refetch()]);
+      } catch (error) {
+        showNotification(
+          error instanceof Error ? error.message : 'Unable to resolve duplicate asset.',
+          'error'
+        );
+        throw error;
+      }
+    },
+    [maintenance.resolveDuplicate, showNotification, assetsQuery, statsQuery]
+  );
 
   const handleClearFile = useCallback(() => {
     setFile(null);
@@ -572,11 +607,7 @@ const EquipmentMasterPage = () => {
       onPlaceholderAction={handlePlaceholderAction}
       onNewEquipment={() => setNewEquipmentOpen(true)}
       onManageDictionary={() => setTaxonomyOpen(true)}
-      isMaintenancePending={
-        maintenance.diagnoseDuplicates.isPending ||
-        maintenance.fixComponentLinks.isPending ||
-        maintenance.syncComponentsToFLOC.isPending
-      }
+      isMaintenancePending={isMaintenancePending}
       isImportPending={maintenance.importAssets.isPending}
       isExportPending={maintenance.exportAssets.isPending}
       isPurging={isPurging}
@@ -679,24 +710,27 @@ const EquipmentMasterPage = () => {
           )}
         </div>
       )}
-      {duplicateDiagnosis && duplicateDiagnosis.duplicate_count > 0 && (
+      {duplicateGroups.length > 0 && !isDuplicateModalOpen && (
         <div
           role="region"
           aria-label="Duplicate asset diagnosis results"
-          className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+          className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4"
         >
-          <p className="text-sm font-semibold text-amber-900">
-            {duplicateDiagnosis.duplicate_count} duplicate tag(s) detected
-          </p>
-          <ul className="mt-2 space-y-1 text-sm text-amber-800">
-            {duplicateDiagnosis.duplicates.map((duplicate) => (
-              <li key={duplicate.tag_number}>
-                <span className="font-medium">{duplicate.tag_number}</span> · {duplicate.count}{' '}
-                records
-                {duplicate.asset_ids.length > 0 && ` · IDs: ${duplicate.asset_ids.join(', ')}`}
-              </li>
-            ))}
-          </ul>
+          <div>
+            <p className="text-sm font-semibold text-amber-900">
+              {duplicateGroups.length} unresolved duplicate tag group(s) detected
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Review and resolve duplicate equipment records to maintain data integrity.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsDuplicateModalOpen(true)}
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-700 transition"
+          >
+            Resolve Duplicates
+          </button>
         </div>
       )}
     </>
@@ -795,7 +829,7 @@ const EquipmentMasterPage = () => {
         </div>
         <AssetDataGrid
           assets={list.assets}
-          isLoading={assetsQuery.isLoading || assetsQuery.isFetching}
+          isLoading={assetsQuery.isLoading || assetsQuery.isFetching || isMaintenancePending}
           error={errorMessage}
           searchValue={search}
           onSearchChange={handleGridSearchChange}
@@ -995,6 +1029,16 @@ const EquipmentMasterPage = () => {
         }}
         onSubmit={handleNewEquipmentSubmit}
         isSubmitting={createEquipment.isPending}
+      />
+
+      <DuplicateResolutionModal
+        open={isDuplicateModalOpen}
+        groups={duplicateGroups}
+        onClose={() => setIsDuplicateModalOpen(false)}
+        onResolve={handleResolveDuplicate}
+        onRevalidate={async () => {
+          await Promise.all([assetsQuery.refetch(), statsQuery.refetch()]);
+        }}
       />
     </main>
   );

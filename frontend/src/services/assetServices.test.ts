@@ -59,10 +59,22 @@ describe('Equipment Master asset service', () => {
   });
 
   it('calls maintenance utility endpoints using their backend request contracts', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({
-      data: { success: true, data: { duplicate_count: 1, duplicates: [] } },
-    });
     vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: [
+            {
+              tag_number: '12-H-1101',
+              duplicate_count: 2,
+              duplicates: [
+                { id: 1, tag_number: '12-H-1101', name: 'HX 1' },
+                { id: 2, tag_number: '12-H-1101', name: 'HX 2' },
+              ],
+            },
+          ],
+        },
+      })
       .mockResolvedValueOnce({
         data: { success: true, data: { affected_links: 3, dry_run: false } },
       })
@@ -77,21 +89,44 @@ describe('Equipment Master asset service', () => {
             cleared_floc_links: 0,
           },
         },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            kept_asset_id: 1,
+            deleted_count: 1,
+            deleted_asset_ids: [2],
+          },
+        },
       });
 
-    await expect(assetService.diagnoseEquipmentDuplicates()).resolves.toMatchObject({
-      duplicate_count: 1,
-    });
+    await expect(assetService.diagnoseEquipmentDuplicates()).resolves.toMatchObject([
+      {
+        tag_number: '12-H-1101',
+        duplicate_count: 2,
+      },
+    ]);
     await expect(assetService.fixEquipmentComponentLinks()).resolves.toMatchObject({
       affected_links: 3,
     });
     await expect(assetService.syncEquipmentComponentsToFLOC()).resolves.toMatchObject({
       checked_assets: 10,
     });
+    await expect(
+      assetService.resolveEquipmentDuplicate({ kept_asset_id: 1, deleted_asset_ids: [2] })
+    ).resolves.toMatchObject({
+      kept_asset_id: 1,
+      deleted_count: 1,
+    });
 
-    expect(apiClient.get).toHaveBeenCalledWith('/assets/diagnose-duplicates');
-    expect(apiClient.post).toHaveBeenNthCalledWith(1, '/assets/fix-links', { dry_run: false });
-    expect(apiClient.post).toHaveBeenNthCalledWith(2, '/assets/sync-floc', { dry_run: false });
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, '/maintenance/diagnose-duplicates');
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, '/maintenance/fix-links', { dry_run: false });
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, '/maintenance/sync-floc', { dry_run: false });
+    expect(apiClient.post).toHaveBeenNthCalledWith(4, '/maintenance/resolve-duplicate', {
+      kept_asset_id: 1,
+      deleted_asset_ids: [2],
+    });
   });
 
   it('sends lifecycle, edit, and delete requests to the Asset routes', async () => {

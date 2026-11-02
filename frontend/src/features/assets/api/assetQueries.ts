@@ -18,6 +18,7 @@ import type {
   EquipmentTaxonomyValue,
   CreateEquipmentTaxonomyValuePayload,
   UpdateEquipmentTaxonomyValuePayload,
+  ResolveDuplicatePayload,
 } from '../../../services/assetServices';
 
 /**
@@ -225,6 +226,11 @@ export const useEquipmentMaintenanceActions = () => {
   const diagnoseDuplicates = useMutation({
     mutationFn: () => assetService.diagnoseEquipmentDuplicates(),
   });
+  const resolveDuplicate = useMutation({
+    mutationFn: (payload: ResolveDuplicatePayload) =>
+      assetService.resolveEquipmentDuplicate(payload),
+    onSuccess: invalidateAssetData,
+  });
   const fixComponentLinks = useMutation({
     mutationFn: (dryRun: boolean) => assetService.fixEquipmentComponentLinks(dryRun),
     onSuccess: invalidateAssetData,
@@ -262,6 +268,7 @@ export const useEquipmentMaintenanceActions = () => {
 
   return {
     diagnoseDuplicates,
+    resolveDuplicate,
     fixComponentLinks,
     syncComponentsToFLOC,
     importAssets,
