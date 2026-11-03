@@ -1374,6 +1374,118 @@ func (h *AssetHandler) PurgeAssets(c *gin.Context) {
 	}))
 }
 
+// ListEquipmentTaxonomy returns the tenant-scoped import dictionary: the
+// canonical Equipment Class/Type values and the aliases that map to them.
+func (h *AssetHandler) ListEquipmentTaxonomy(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+
+	values, err := h.assetService.ListEquipmentTaxonomy(c.Request.Context(), tenantID)
+	if err != nil {
+		utils.LogErrorf("Failed to list equipment taxonomy: %v", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to list equipment taxonomy", err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy retrieved successfully", values))
+}
+
+// CreateEquipmentTaxonomyValue adds one canonical Equipment Class/Type value
+// with its aliases to the tenant dictionary.
+func (h *AssetHandler) CreateEquipmentTaxonomyValue(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+
+	var req request.CreateEquipmentTaxonomyValueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", err.Error()))
+		return
+	}
+	value, err := h.assetService.CreateEquipmentTaxonomyValue(c.Request.Context(), tenantID, &req)
+	if err != nil {
+		utils.LogErrorf("Failed to create equipment taxonomy value: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to create equipment taxonomy value", err.Error()))
+		return
+	}
+	c.JSON(http.StatusCreated, utils.SuccessResponse("Equipment taxonomy value created successfully", value))
+}
+
+// UpdateEquipmentTaxonomyValue edits the name, aliases, and active flag.
+func (h *AssetHandler) UpdateEquipmentTaxonomyValue(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid taxonomy value id", ""))
+		return
+	}
+
+	var req request.UpdateEquipmentTaxonomyValueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request format", err.Error()))
+		return
+	}
+	if err := h.assetService.UpdateEquipmentTaxonomyValue(c.Request.Context(), tenantID, id, &req); err != nil {
+		utils.LogErrorf("Failed to update equipment taxonomy value: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to update equipment taxonomy value", err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy value updated successfully", gin.H{"id": id}))
+}
+
+// DeleteEquipmentTaxonomyValue removes one dictionary entry.
+func (h *AssetHandler) DeleteEquipmentTaxonomyValue(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid taxonomy value id", ""))
+		return
+	}
+	if err := h.assetService.DeleteEquipmentTaxonomyValue(c.Request.Context(), tenantID, id); err != nil {
+		utils.LogErrorf("Failed to delete equipment taxonomy value: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to delete equipment taxonomy value", err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("Equipment taxonomy value deleted successfully", gin.H{"id": id}))
+}
+
+// ReapplyEquipmentTaxonomy recomputes imported assets' canonical class/type
+// labels from their raw values using the current dictionary.
+func (h *AssetHandler) ReapplyEquipmentTaxonomy(c *gin.Context) {
+	tenantID, ok := h.requireTenantContext(c)
+	if !ok {
+		return
+	}
+	userID := utils.GetUserID(c)
+
+	var req struct {
+		DryRun bool `json:"dry_run"`
+	}
+	// The body is optional; an empty body means "apply".
+	_ = c.ShouldBindJSON(&req)
+
+	result, err := h.assetService.ReapplyEquipmentTaxonomy(c.Request.Context(), tenantID, userID, req.DryRun)
+	if err != nil {
+		utils.LogErrorf("Failed to re-apply equipment taxonomy: %v", err)
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to re-apply equipment taxonomy", err.Error()))
+		return
+	}
+	message := "Equipment taxonomy re-applied successfully"
+	if req.DryRun {
+		message = "Equipment taxonomy re-apply preview"
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse(message, result))
+}
+
 // ImportAssets imports assets from file
 func (h *AssetHandler) ImportAssets(c *gin.Context) {
 	tenantID, ok := h.requireTenantContext(c)

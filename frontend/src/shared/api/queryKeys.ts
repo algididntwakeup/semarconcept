@@ -10,6 +10,9 @@ export const assetKeys = {
     list: (params?: Record<string, any>) =>
       [...assetKeys.equipmentMaster.lists(), params ?? {}] as const,
     stats: () => [...assetKeys.equipmentMaster.all(), 'stats'] as const,
+    taxonomy: () => [...assetKeys.equipmentMaster.all(), 'taxonomy'] as const,
+    documents: (equipmentId: string | number) =>
+      [...assetKeys.equipmentMaster.all(), 'documents', String(equipmentId)] as const,
   },
   details: () => [...assetKeys.all, 'detail'] as const,
   detail: (id: string | number) => [...assetKeys.details(), String(id)] as const,

@@ -3,6 +3,7 @@
 package services
 
 import (
+	"backend/app/models"
 	"backend/app/models/request"
 	"backend/app/models/response"
 	"backend/app/repositories"
@@ -56,6 +57,17 @@ type AssetServiceInterface interface {
 	ImportAssets(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error)
 	ImportAssetsFromExcel(ctx context.Context, tenantID int, req *request.AssetImportRequest, userID int, fileData []byte) (interface{}, error)
 	PurgeAssets(ctx context.Context, tenantID int) (int64, error)
+	// ListEquipmentTaxonomy returns the tenant-scoped import dictionary.
+	ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error)
+	// CreateEquipmentTaxonomyValue adds one canonical value with its aliases.
+	CreateEquipmentTaxonomyValue(ctx context.Context, tenantID int, req *request.CreateEquipmentTaxonomyValueRequest) (*models.EquipmentTaxonomyValue, error)
+	// UpdateEquipmentTaxonomyValue edits the name, aliases, and active flag.
+	UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, req *request.UpdateEquipmentTaxonomyValueRequest) error
+	// DeleteEquipmentTaxonomyValue removes one dictionary entry.
+	DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error
+	// ReapplyEquipmentTaxonomy recomputes imported assets' canonical class/type
+	// labels from their raw values using the current dictionary.
+	ReapplyEquipmentTaxonomy(ctx context.Context, tenantID, userID int, dryRun bool) (*EquipmentTaxonomyReapplyResult, error)
 	ExportAssets(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 	ExportAssetsToExcel(ctx context.Context, tenantID int, req *request.AssetExportRequest) ([]byte, string, error)
 }

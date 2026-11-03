@@ -10,9 +10,15 @@ import {
   AssetStatistics,
 } from '../types';
 import type {
+  EquipmentAsset,
   EquipmentAssetListParams,
   EquipmentAssetListResponse,
   EquipmentAssetStats,
+  EquipmentDocument,
+  EquipmentTaxonomyValue,
+  CreateEquipmentTaxonomyValuePayload,
+  UpdateEquipmentTaxonomyValuePayload,
+  ResolveDuplicatePayload,
 } from '../../../services/assetServices';
 
 /**
@@ -109,6 +115,104 @@ export const useDeleteEquipmentAsset = () => {
   });
 };
 
+export const useEquipmentAsset = (assetId: string | number | null, enabled = true) => {
+  return useQuery({
+    queryKey: assetKeys.detail(assetId ?? 'none'),
+    queryFn: (): Promise<EquipmentAsset> => assetService.getEquipmentAsset(assetId as string | number),
+    enabled: enabled && assetId !== null && assetId !== undefined,
+  });
+};
+
+export const useCreateEquipmentComponent = (equipmentId: string | number | null) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof assetService.createEquipmentComponent>[1]) =>
+      assetService.createEquipmentComponent(equipmentId as string | number, payload),
+    onSuccess: () => {
+      // A new Level 7 child changes the equipment detail and the component
+      // lists, so refresh both plus the master list (the "with L7 components"
+      // filter reads from it).
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.components() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.detail(equipmentId ?? 'none') });
+    },
+  });
+};
+
+export const useEquipmentDocuments = (equipmentId: string | number | null, enabled = true) => {
+  return useQuery({
+    queryKey: assetKeys.equipmentMaster.documents(equipmentId ?? 'none'),
+    queryFn: (): Promise<EquipmentDocument[]> =>
+      assetService.getEquipmentDocuments(equipmentId as string | number),
+    enabled: enabled && equipmentId !== null && equipmentId !== undefined,
+  });
+};
+
+export const useUploadEquipmentDocument = (equipmentId: string | number | null) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, category }: { file: File; category?: string }) =>
+      assetService.uploadEquipmentDocument(equipmentId as string | number, file, category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: assetKeys.equipmentMaster.documents(equipmentId ?? 'none'),
+      });
+    },
+  });
+};
+
+export const useEquipmentTaxonomy = () => {
+  return useQuery({
+    queryKey: assetKeys.equipmentMaster.taxonomy(),
+    queryFn: (): Promise<EquipmentTaxonomyValue[]> => assetService.getEquipmentTaxonomy(),
+  });
+};
+
+export const useCreateEquipmentTaxonomyValue = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateEquipmentTaxonomyValuePayload) =>
+      assetService.createEquipmentTaxonomyValue(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.taxonomy() });
+    },
+  });
+};
+
+export const useUpdateEquipmentTaxonomyValue = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateEquipmentTaxonomyValuePayload }) =>
+      assetService.updateEquipmentTaxonomyValue(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.taxonomy() });
+    },
+  });
+};
+
+export const useDeleteEquipmentTaxonomyValue = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => assetService.deleteEquipmentTaxonomyValue(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.taxonomy() });
+    },
+  });
+};
+
+export const useReapplyEquipmentTaxonomy = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dryRun: boolean) => assetService.reapplyEquipmentTaxonomy(dryRun),
+    onSuccess: () => {
+      // Re-applying rewrites stored labels, so refresh the register and stats.
+      queryClient.invalidateQueries({ queryKey: assetKeys.equipmentMaster.all() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: assetKeys.statistics() });
+    },
+  });
+};
+
 export const useEquipmentMaintenanceActions = () => {
   const queryClient = useQueryClient();
   const invalidateAssetData = async () => {
@@ -121,6 +225,11 @@ export const useEquipmentMaintenanceActions = () => {
 
   const diagnoseDuplicates = useMutation({
     mutationFn: () => assetService.diagnoseEquipmentDuplicates(),
+  });
+  const resolveDuplicate = useMutation({
+    mutationFn: (payload: ResolveDuplicatePayload) =>
+      assetService.resolveEquipmentDuplicate(payload),
+    onSuccess: invalidateAssetData,
   });
   const fixComponentLinks = useMutation({
     mutationFn: (dryRun: boolean) => assetService.fixEquipmentComponentLinks(dryRun),
@@ -141,20 +250,31 @@ export const useEquipmentMaintenanceActions = () => {
     onSuccess: invalidateAssetData,
   });
 	const exportAssets = useMutation({
-		mutationFn: (format: 'xlsx' | 'csv' = 'xlsx') => assetService.exportEquipmentAssets(format),
+		mutationFn: ({
+			format = 'xlsx',
+			assetIds,
+		}: { format?: 'xlsx' | 'csv'; assetIds?: Array<string | number> } = {}) =>
+			assetService.exportEquipmentAssets(format, assetIds),
 	});
   const purgeAllAssets = useMutation({
     mutationFn: () => assetService.purgeAllEquipmentAssets(),
     onSuccess: invalidateAssetData,
   });
+  const bulkDeleteAssets = useMutation({
+    mutationFn: ({ assetIds, reason }: { assetIds: Array<string | number>; reason?: string }) =>
+      assetService.bulkDeleteEquipmentAssets(assetIds, reason),
+    onSuccess: invalidateAssetData,
+  });
 
   return {
     diagnoseDuplicates,
+    resolveDuplicate,
     fixComponentLinks,
     syncComponentsToFLOC,
     importAssets,
     exportAssets,
     purgeAllAssets,
+    bulkDeleteAssets,
   };
 };
 

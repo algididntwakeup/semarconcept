@@ -65,13 +65,13 @@ const DashboardPage = () => {
       <section aria-label="Functional location coverage">
         <div className="mb-4 flex items-center gap-2">
           <MapPin size={18} className="text-rose-600" aria-hidden="true" />
-          <h2 className="text-lg font-semibold text-slate-900">Functional Location Coverage</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Equipment Status &amp; Location</h2>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <StatCard title="With Funcloc" count={funcloc.with} isLoading={statsQuery.isLoading}
-            description="Assets linked to a functional location" onClick={() => undefined} />
-          <StatCard title="Without Funcloc" count={funcloc.without} isLoading={statsQuery.isLoading}
-            description="Assets missing a functional location" onClick={() => undefined} />
+          <StatCard title="Installed" count={statsQuery.data?.installed ?? 0} isLoading={statsQuery.isLoading}
+            description="Parent equipment with Installed status" onClick={() => undefined} />
+          <StatCard title="Has Funcloc" count={funcloc.with} isLoading={statsQuery.isLoading}
+            description="Parent equipment linked to a functional location" onClick={() => undefined} />
         </div>
       </section>
 

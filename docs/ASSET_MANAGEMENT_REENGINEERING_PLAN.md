@@ -184,7 +184,7 @@ Exit tercapai untuk cakupan SAAS-01 yang diuji; perluas tenant boundary ke file/
 
 ### AM-01 — Asset Taxonomy, Class-Specific Attributes & Canonical Contract
 
-Status: **next**.
+Status: **in progress** (langkah pertama selesai: kamus import tenant-scoped).
 
 - sepakati taxonomy dan vocabulary `asset/equipment/component`, class-specific attributes, dan public ID;
 - buat OpenAPI contract dan generated/validated DTO mapping;
@@ -192,7 +192,13 @@ Status: **next**.
 - buat versioned SQL migrations dengan FK/unique/check/index;
 - hapus response guessing dan `any` dari vertical slice Registry.
 
-Exit: FE–BE contract test lulus untuk list/get/create/update/retire dan error envelope.
+Selesai sejauh ini:
+
+- **Canonical + alias import dictionary per tenant** (`equipment_taxonomy_values`, tenant-scoped, unique `(tenant_id, kind, canonical_code)`, constraint `kind IN ('class','type')`), di-seed dari kamus bawaan untuk setiap tenant dan dapat ditambah per tenant tanpa mengubah kode;
+- import menyimpan nilai mentah (`rbi_properties.source_class` / `source_type`) dan melaporkan nilai tak terpetakan (`unmapped_class` / `unmapped_type`);
+- endpoint `GET /api/v1/assets/taxonomy` sebagai kontrak awal untuk frontend.
+
+Exit (belum tercapai): FE–BE contract test lulus untuk list/get/create/update/retire dan error envelope.
 
 ### AM-02 — Asset Registry production vertical slice
 

@@ -181,6 +181,16 @@ const ROUTE_CATALOG: readonly RouteManifestItem[] = [
     aliases: ['/asset/hierarchy'],
   },
   {
+    id: 'assets.functional-locations',
+    path: '/functional-locations',
+    title: 'Functional Locations',
+    module: 'assets',
+    description: 'Hierarki Functional Location ISO 14224 (L1-L8) dan peralatan terpasang.',
+    icon: 'AccountTreeIcon',
+    permissions: ['asset:view'],
+    isProtected: true,
+  },
+  {
     id: 'assets.technical-data',
     path: '/assets/technical-data',
     title: 'Technical Data',

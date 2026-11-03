@@ -1,5 +1,5 @@
 // platform/frontend-mui/src/features/assets/components/StatDetailModal.test.tsx
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import StatDetailModal from './StatDetailModal';
@@ -27,12 +27,36 @@ const columnHeaders = () =>
   screen.getAllByRole('columnheader').map((cell) => cell.textContent);
 
 describe('StatDetailModal table', () => {
+  it('lets the user change rows per page and refetches with the new limit', async () => {
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+
+    renderModal();
+
+    const selector = await screen.findByRole('combobox', {
+      name: 'Rows per page for equipment detail',
+    });
+    expect(selector).toHaveValue('10');
+
+    fireEvent.change(selector, { target: { value: '25' } });
+
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 25, page: 1 })
+      )
+    );
+  }, 15000);
+
   it('renders the legacy-aligned columns without a material column', async () => {
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
       page: 1,
-      limit: 8,
+      limit: 10,
     });
 
     renderModal();

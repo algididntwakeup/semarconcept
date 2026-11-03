@@ -233,17 +233,38 @@ type AssetRepository interface {
 	FindByName(ctx context.Context, tenantID int, unitID int, name string) (*models.Asset, error)
 	Update(ctx context.Context, asset *models.Asset) error
 	Delete(ctx context.Context, tenantID int, id int) error
+	// DeleteMany soft-deletes every asset in ids for the tenant and reports how
+	// many rows were affected.
+	DeleteMany(ctx context.Context, tenantID int, ids []int) (int64, error)
 	List(ctx context.Context, tenantID int, query *request.AssetListQuery) ([]models.Asset, int64, error)
 	GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error)
 	UpdateLifecycle(ctx context.Context, tenantID, assetID int, status string, userID int) error
 	DiagnoseDuplicateTags(ctx context.Context, tenantID int) ([]DuplicateAssetTag, error)
 	FixBrokenParentLinks(ctx context.Context, tenantID, userID int, dryRun bool) (int64, error)
 	ValidateFLOCLinks(ctx context.Context, tenantID, userID int, dryRun bool) (*FLOCSyncResult, error)
-	ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error)
+	ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string, assetIDs []int) ([]models.Asset, error)
 	UpsertAssetsFromImport(ctx context.Context, tenantID int, assets []AssetImportRecord, userID int) (created, updated int, err error)
 	FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error)
 	HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error)
 	PurgeAll(ctx context.Context, tenantID int) (int64, error)
+	// ListEquipmentTaxonomy returns the tenant-scoped import dictionary (canonical
+	// Equipment Class/Type values plus their aliases) used to translate workbook
+	// cells during import.
+	ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error)
+	// CreateEquipmentTaxonomyValue adds one canonical value with its aliases.
+	CreateEquipmentTaxonomyValue(ctx context.Context, value *models.EquipmentTaxonomyValue) error
+	// UpdateEquipmentTaxonomyValue updates the name, aliases, and active flag of
+	// one tenant value identified by id.
+	UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error
+	// DeleteEquipmentTaxonomyValue removes one tenant value by id.
+	DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error
+	// ListImportRawTaxonomy returns the raw import class/type values currently
+	// stored on assets, so a dictionary change can be re-applied without
+	// re-importing the workbook.
+	ListImportRawTaxonomy(ctx context.Context, tenantID int) ([]AssetImportRawTaxonomy, error)
+	// ApplyImportTaxonomyLabels rewrites the canonical class/type label of the
+	// given assets using the supplied mapping (asset id -> new labels).
+	ApplyImportTaxonomyLabels(ctx context.Context, tenantID, userID int, updates map[int]AssetTaxonomyLabel, dryRun bool) (int64, error)
 
 	GetSiteByID(ctx context.Context, id int, tenantID int) (*models.Site, error)
 	GetUnitByID(ctx context.Context, id int, tenantID int) (*models.Unit, error)
@@ -268,6 +289,23 @@ type AssetImportRecord struct {
 	ParentTag string
 }
 
+// AssetImportRawTaxonomy is one asset's raw import class/type values together
+// with the currently stored canonical labels, used to re-apply a changed
+// dictionary without re-importing the workbook.
+type AssetImportRawTaxonomy struct {
+	ID          int     `db:"id"`
+	AssetClass  *string `db:"asset_class"`
+	AssetType   *string `db:"asset_type"`
+	SourceClass string  `db:"source_class"`
+	SourceType  string  `db:"source_type"`
+}
+
+// AssetTaxonomyLabel is the canonical class/type pair written back to an asset.
+type AssetTaxonomyLabel struct {
+	AssetClass *string
+	AssetType  *string
+}
+
 // AssetClassCount is one grouped equipment-class aggregate.
 type AssetClassCount struct {
 	Class string `gorm:"column:class" json:"class"`
@@ -281,11 +319,19 @@ type AssetFunclocStats struct {
 }
 
 // AssetStats is the dashboard summary payload: equipment-class aggregates plus
-// functional-location coverage. The object shape keeps room for future metric
-// blocks (for example availability) without adding new endpoints.
+// functional-location coverage and top-level totals. The object shape keeps room
+// for future metric blocks (for example availability) without adding new
+// endpoints. Every aggregate counts only Hierarchy Level 1 rows (parent
+// equipment); Level 2+ rows are sub-components that surface in the data grid.
 type AssetStats struct {
 	Classes []AssetClassCount `json:"classes"`
 	Funcloc AssetFunclocStats `json:"funcloc"`
+	// Total is every parent-equipment row for the tenant.
+	Total int64 `json:"total"`
+	// Equipment excludes Piping and Piping Line, which dominate the registry.
+	Equipment int64 `json:"equipment"`
+	// Installed counts parent equipment whose status is "Installed".
+	Installed int64 `json:"installed"`
 }
 
 type DuplicateAssetTag struct {

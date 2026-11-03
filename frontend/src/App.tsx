@@ -6,6 +6,7 @@ import { store } from './store';
 import { queryClient } from './shared/api';
 import AppRouter from './router/index';
 import { NotificationProvider } from './hooks/useNotification';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 import './App.css';
 
@@ -14,11 +15,13 @@ function App() {
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <NotificationProvider>
-          <BrowserRouter>
-            <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased">
-              <AppRouter />
-            </div>
-          </BrowserRouter>
+          <ThemeProvider>
+            <BrowserRouter>
+              <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased dark:bg-[#0b0f19] dark:text-slate-100 transition-colors duration-200">
+                <AppRouter />
+              </div>
+            </BrowserRouter>
+          </ThemeProvider>
         </NotificationProvider>
       </QueryClientProvider>
     </Provider>

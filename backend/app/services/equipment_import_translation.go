@@ -1,6 +1,11 @@
 package services
 
-import "strings"
+import (
+	"sort"
+	"strings"
+
+	"backend/app/models"
+)
 
 // Data Transformation Layer for the Equipment Master Excel import.
 //
@@ -87,4 +92,141 @@ func translateEquipmentImportCode(dictionary map[string]string, value string) st
 		return translated
 	}
 	return value
+}
+
+// EquipmentTaxonomyResolver translates raw workbook Equipment Class/Type cells
+// to the tenant's canonical label using the tenant-scoped dictionary, so a
+// tenant can teach SEMAR its own vocabulary without a code change.
+//
+// It also falls back to the built-in dictionary when the tenant has no entry,
+// which keeps imports working for a tenant whose dictionary has not been seeded
+// yet, and remembers any value it could not map so the import can report it.
+type EquipmentTaxonomyResolver struct {
+	classByAlias map[string]string
+	typeByAlias  map[string]string
+	unmapped     map[string]map[string]struct{}
+}
+
+// NewEquipmentTaxonomyResolver builds a resolver from the tenant dictionary.
+// The built-in dictionary is always consulted as a fallback.
+func NewEquipmentTaxonomyResolver(values []models.EquipmentTaxonomyValue) *EquipmentTaxonomyResolver {
+	resolver := &EquipmentTaxonomyResolver{
+		classByAlias: make(map[string]string),
+		typeByAlias:  make(map[string]string),
+		unmapped:     map[string]map[string]struct{}{},
+	}
+	for _, value := range values {
+		if !value.IsActive {
+			continue
+		}
+		label := value.Label()
+		aliases := value.AliasList()
+		// The code and canonical name always resolve, even if an operator forgot
+		// to list them as aliases.
+		aliases = append(aliases, value.CanonicalCode, value.CanonicalName, label)
+		switch value.Kind {
+		case models.EquipmentTaxonomyKindClass:
+			resolver.register(resolver.classByAlias, aliases, label)
+		case models.EquipmentTaxonomyKindType:
+			resolver.register(resolver.typeByAlias, aliases, label)
+		}
+	}
+	// Built-in fallback, registered last so a tenant entry always wins. The
+	// parenthesised code is stripped as an extra alias so a workbook that
+	// already carries the long name ("Piping") resolves as well as the code.
+	for raw, label := range equipmentClassTranslations {
+		resolver.register(resolver.classByAlias, []string{raw, label, stripTrailingCode(label)}, label)
+	}
+	for raw, label := range equipmentTypeTranslations {
+		resolver.register(resolver.typeByAlias, []string{raw, label, stripTrailingCode(label)}, label)
+	}
+	return resolver
+}
+
+// stripTrailingCode removes every trailing " (…)" group so both
+// "Piping (PI)" and "Adsorber (Ad) (AD)" also register their plain long name
+// ("Piping", "Adsorber").
+func stripTrailingCode(label string) string {
+	trimmed := strings.TrimSpace(label)
+	for {
+		open := strings.LastIndex(trimmed, "(")
+		if open <= 0 || !strings.HasSuffix(trimmed, ")") {
+			break
+		}
+		next := strings.TrimSpace(trimmed[:open])
+		if next == "" {
+			break
+		}
+		trimmed = next
+	}
+	if trimmed == strings.TrimSpace(label) {
+		return ""
+	}
+	return trimmed
+}
+
+// register maps every alias to the label without overwriting an earlier (tenant)
+// mapping.
+func (r *EquipmentTaxonomyResolver) register(index map[string]string, aliases []string, label string) {
+	for _, alias := range aliases {
+		key := normalizeTaxonomyKey(alias)
+		if key == "" {
+			continue
+		}
+		if _, exists := index[key]; !exists {
+			index[key] = label
+		}
+	}
+}
+
+// ResolveClass returns the canonical Equipment Class label for a raw cell.
+// Known values map to the tenant label; unknown values are returned unchanged
+// and recorded for the import report.
+func (r *EquipmentTaxonomyResolver) ResolveClass(raw string) string {
+	return r.resolve(r.classByAlias, models.EquipmentTaxonomyKindClass, raw)
+}
+
+// ResolveType returns the canonical Equipment Type label for a raw cell.
+func (r *EquipmentTaxonomyResolver) ResolveType(raw string) string {
+	return r.resolve(r.typeByAlias, models.EquipmentTaxonomyKindType, raw)
+}
+
+func (r *EquipmentTaxonomyResolver) resolve(index map[string]string, kind, raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return raw
+	}
+	if label, ok := index[normalizeTaxonomyKey(trimmed)]; ok {
+		return label
+	}
+	if r.unmapped[kind] == nil {
+		r.unmapped[kind] = map[string]struct{}{}
+	}
+	r.unmapped[kind][trimmed] = struct{}{}
+	return raw
+}
+
+// UnmappedValues returns the raw values the resolver could not map, keyed by
+// kind ("class"/"type"). Both keys are always present so the import payload has
+// a stable shape.
+func (r *EquipmentTaxonomyResolver) UnmappedValues() map[string][]string {
+	result := map[string][]string{
+		models.EquipmentTaxonomyKindClass: {},
+		models.EquipmentTaxonomyKindType:  {},
+	}
+	for kind, values := range r.unmapped {
+		list := make([]string, 0, len(values))
+		for value := range values {
+			list = append(list, value)
+		}
+		sort.Strings(list)
+		result[kind] = list
+	}
+	return result
+}
+
+// normalizeTaxonomyKey lower-cases, trims, and collapses internal whitespace so
+// "Carbon  Steel" and "carbon steel" resolve to the same alias.
+func normalizeTaxonomyKey(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(value), " "))
 }

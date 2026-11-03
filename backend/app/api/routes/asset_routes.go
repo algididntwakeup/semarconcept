@@ -14,7 +14,7 @@ import (
 )
 
 // SetupAssetRoutes configures all asset-related routes with authentication, tenant enforcement, and granular RBAC
-func SetupAssetRoutes(router *gin.RouterGroup, db *sqlx.DB, tokenGen utils.TokenGenerator, roleProvider middleware.RBACRoleProvider) {
+func SetupAssetRoutes(router *gin.RouterGroup, db *sqlx.DB, tokenGen utils.TokenGenerator, roleProvider middleware.RBACRoleProvider, storagePath string) {
 
 	// Initialize asset repositories
 	siteRepo := repositories.NewSiteRepository(db)
@@ -26,12 +26,19 @@ func SetupAssetRoutes(router *gin.RouterGroup, db *sqlx.DB, tokenGen utils.Token
 	assetRepo := repositories.NewAssetRepository(db)
 	userRepo := repositories.NewUserRepository(db)
 
+	documentRepo := repositories.NewEquipmentDocumentRepository(db)
+	pipingClassRepo := repositories.NewPipingClassRepository(db)
+	lifecycleLogRepo := repositories.NewEquipmentLifecycleLogRepository(db)
+
 	assetService := services.NewAssetService(
 		siteRepo,
 		unitRepo,
 		AssetRepo,
 		componentRepo,
+		services.WithAssetRelations(pipingClassRepo, lifecycleLogRepo),
 	)
+
+	documentService := services.NewEquipmentDocumentService(documentRepo, storagePath)
 
 	analyticsService := services.NewAnalyticsService(
 		analyticsRepo,
@@ -40,6 +47,7 @@ func SetupAssetRoutes(router *gin.RouterGroup, db *sqlx.DB, tokenGen utils.Token
 	)
 
 	assetHandler := handlers.NewAssetHandler(assetService, analyticsService)
+	documentHandler := handlers.NewEquipmentDocumentHandler(documentService)
 
 	// Apply authentication and strict tenant enforcement (zero-trust: no default fallback)
 	assetGroup := router.Group("")
@@ -48,6 +56,23 @@ func SetupAssetRoutes(router *gin.RouterGroup, db *sqlx.DB, tokenGen utils.Token
 
 	// Register all asset routes with granular RBAC permissions
 	RegisterAssetRoutesWithRBAC(assetGroup, assetHandler, roleProvider)
+	RegisterEquipmentDocumentRoutes(assetGroup, documentHandler, roleProvider)
+}
+
+// RegisterEquipmentDocumentRoutes wires the per-asset file endpoints.
+func RegisterEquipmentDocumentRoutes(router *gin.RouterGroup, h *handlers.EquipmentDocumentHandler, roleProvider middleware.RBACRoleProvider) {
+	rbac := func(permission string) gin.HandlerFunc {
+		if roleProvider != nil {
+			return middleware.RBACMiddleware(roleProvider, permission)
+		}
+		return func(c *gin.Context) { c.Next() }
+	}
+
+	// The equipment endpoints live under /equipments/:id/files and act on the
+	// same Asset record the /assets routes expose.
+	router.GET("/equipments/:id/files", rbac("asset:view"), h.ListEquipmentDocuments)
+	router.POST("/equipments/:id/files", rbac("asset:update"), h.UploadEquipmentDocument)
+	router.DELETE("/equipments/:id/files/:documentId", rbac("asset:update"), h.DeleteEquipmentDocument)
 }
 
 // RegisterAssetRoutesWithRBAC registers asset-related routes with action-level RBAC permissions
@@ -92,6 +117,11 @@ func RegisterAssetRoutesWithRBAC(router *gin.RouterGroup, h *handlers.AssetHandl
 	router.POST("/sync-floc", rbac("asset:update"), h.SyncAssetFLOC)
 	router.GET("/export", rbac("asset:export"), h.ExportAssets)
 	router.POST("/import", rbac("asset:import"), h.ImportAssets)
+	router.GET("/taxonomy", rbac("asset:view"), h.ListEquipmentTaxonomy)
+	router.POST("/taxonomy", rbac("asset:update"), h.CreateEquipmentTaxonomyValue)
+	router.POST("/taxonomy/reapply", rbac("asset:update"), h.ReapplyEquipmentTaxonomy)
+	router.PUT("/taxonomy/:id", rbac("asset:update"), h.UpdateEquipmentTaxonomyValue)
+	router.DELETE("/taxonomy/:id", rbac("asset:update"), h.DeleteEquipmentTaxonomyValue)
 
 	Asset := router.Group("/Asset")
 	{

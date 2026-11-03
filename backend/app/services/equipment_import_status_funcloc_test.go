@@ -22,20 +22,21 @@ func TestNormalizeInstallationStatus(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"active becomes installed", "Active", "Installed"},
-		{"in service becomes installed", "In Service", "Installed"},
-		{"case insensitive", "ACTIVE", "Installed"},
-		{"case insensitive in service", "in service", "Installed"},
-		{"surrounding whitespace", "  Active  ", "Installed"},
+		{"installed becomes installed", "Installed", "Installed"},
+		{"installed lower case", "installed", "Installed"},
+		{"installed upper case", "INSTALLED", "Installed"},
+		{"surrounding whitespace", "  Installed  ", "Installed"},
+		{"available stays available", "Available", "Available"},
+		{"available lower case", "available", "Available"},
 		{"blank becomes available", "", "Available"},
 		{"whitespace becomes available", "   ", "Available"},
 		{"9999 becomes available", "9999", "Available"},
 		{"-9999 becomes available", "-9999", "Available"},
 		{"N/A becomes available", "N/A", "Available"},
 		{"NULL becomes available", "NULL", "Available"},
+		{"active is not installed", "Active", "Available"},
+		{"in service is not installed", "In Service", "Available"},
 		{"unknown value becomes available", "Maintenance", "Available"},
-		{"already installed becomes available without active token", "Installed", "Available"},
-		{"already available stays available", "Available", "Available"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,8 +124,8 @@ func TestAssetService_ImportAssetsFromXLSX_NormalizesStatusAndParsesFuncloc(t *t
 		assert.NoError(t, book.SetCellValue("Equipment Master", cell, field))
 	}
 	rows := [][]interface{}{
-		{"TAG-1", "JI-JL-AG-11-PW (INLET SEPARATION)", "10\"-PG-12009-3C3-P", "Active", "PI", "CA"},
-		{"TAG-2", "68-FWS-68-T-1108", "1\"-VH-11002-1C1", "In Service", "VE", "SE"},
+		{"TAG-1", "JI-JL-AG-11-PW (INLET SEPARATION)", "10\"-PG-12009-3C3-P", "Installed", "PI", "CA"},
+		{"TAG-2", "68-FWS-68-T-1108", "1\"-VH-11002-1C1", "installed", "VE", "SE"},
 		{"TAG-3", "9999", "9999", "", "HX", "ST"},
 		{"TAG-4", "", "", "Available", "TA", "FR"},
 	}

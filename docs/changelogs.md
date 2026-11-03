@@ -2,14 +2,390 @@
 
 Format ini mencatat perubahan terverifikasi, bukan target roadmap.
 
-## Unreleased — 1 October 2026
+## Unreleased — 6 October 2026
+
+### Interactive Duplicate Resolution System & Smart Merge (Diagnose Duplicates Upgrade)
+
+**Backend — Grouped Diagnosis, Smart Merge, & Soft-Delete Resolution (`/api/v1/maintenance/*`)**
+
+- Modifikasi `POST /api/v1/maintenance/diagnose-duplicates` (dan `GET`):
+  - Mengembalikan struktur data berkelompok per `tag_number` yang kembar: `[]DuplicateTagGroup` dengan array detail aset lengkap (`DuplicateAssetDetail` meliputi ID, Tag Number, Name, Description, Asset Class, Asset Type, Status, Created At, Updated At).
+- Endpoint `POST /api/v1/maintenance/resolve-duplicate` dengan **Smart Merge**:
+  - Menerima payload: `{ "kept_asset_id": number, "deleted_asset_ids": number[] }`.
+  - Validasi: `kept_asset_id` wajib positif, `deleted_asset_ids` tidak boleh kosong, dan `kept_asset_id` tidak boleh tercantum dalam `deleted_asset_ids`.
+  - **Smart Merge Logic**: Sebelum soft-delete dieksekusi, backend menarik seluruh objek JSONB `rbi_properties` dari aset-aset duplikat (`deleted_asset_ids`). Melakukan algoritma Deep Merge rekursif (`map[string]interface{}`) untuk mengisi key/properti yang masih kosong (`nil` atau string kosong `""`) pada `kept_asset` menggunakan nilai dari aset duplikat.
+  - **Aturan Prioritas**: Nilai yang sudah terisi di `kept_asset` tidak pernah ditimpa oleh data dari aset yang dihapus.
+  - Pembaruan `rbi_properties` disimpan ke `kept_asset` di dalam transaksi database sebelum anak komponen di-re-parent dan aset duplikat di-soft-delete (`status = 'deleted'`).
+  - Routing: Didukung di `backend/app/api/routes/router.go` dengan RBAC permission `asset:update`.
+- Unit Tests:
+  - `backend/app/services/maintenance_service_test.go`: Pengujian GORM mock untuk grouping diagnosis, pencegahan payload tidak valid, verifikasi keabsahan aset yang dipertahankan, Smart Merge deep merge priority, re-parenting anak, dan eksekusi soft delete.
+  - `backend/app/api/handlers/maintenance_handler_test.go`: Pengujian controller/handler Gin untuk HTTP status, validasi JSON payload, tenant context, dan respon JSON.
+
+**Frontend — `<DuplicateResolutionModal />` & Smart Merge UI**
+
+- Komponen `<DuplicateResolutionModal />` (`frontend/src/features/assets/components/DuplicateResolutionModal.tsx`):
+  - Hanya terbuka jika pemanggilan diagnosa menghasilkan duplikat (`duplicateGroups.length > 0`). Jika 0 duplikat, hanya memunculkan toast `"No duplicates found."`.
+  - Menampilkan Accordion per `tag_number` duplikat dilengkapi badge jumlah duplikat serta opsi collapse/expand.
+  - Banner informasi Smart Merge di bagian atas modal: `"Smart Merge: Missing properties in your kept asset will be safely filled using data from the deleted duplicates."`
+  - Tabel perbandingan di dalam setiap accordion: Kolom ID, Asset Details (Name & Description), Class / Type, Status (badge berwarna), dan Created At (tanggal terformat).
+  - Tombol aksi per baris: `"Keep & Merge Data"` dengan ikon `GitMerge`.
+  - Loading State per baris: Menampilkan `<LoaderCircle />` dengan teks `"Merging..."` pada baris yang sedang diproses dan menonaktifkan seluruh tombol aksi lainnya di dalam modal agar pengguna tidak menekan tombol berulang.
+  - Action Wiring & Revalidation: Memanggil `POST /api/v1/maintenance/resolve-duplicate`, menghapus kelompok tag tersebut dari tampilan modal setelah sukses, memanggil `revalidate` data tabel utama dan kartu statistik, serta menutup modal otomatis bila seluruh duplikat telah terselesaikan.
+  - Toast notification sukses spesifik: `toast.success("Successfully merged data and removed duplicates.")`.
+- Wiring & Modifikasi di `frontend/src/services/assetServices.ts` & `frontend/src/features/assets/api/assetQueries.ts`:
+  - Type definitions: `DuplicateAssetDetail`, `DuplicateTagGroup`, `ResolveDuplicatePayload`, `ResolveDuplicateResult`.
+  - Methods: `diagnoseEquipmentDuplicates` dan `resolveEquipmentDuplicate`.
+  - Mutation hook: `resolveDuplicate` dalam `useEquipmentMaintenanceActions` yang meng-invalidate cache query aset.
+- Pengujian Frontend:
+  - `frontend/src/features/assets/components/DuplicateResolutionModal.test.tsx`: Pengujian banner Smart Merge, tombol Keep & Merge Data, accordion toggling, resolusi baris, pemblokiran tombol saat in-flight loading, penanganan error, dan penutupan modal.
+  - `frontend/src/pages/risk/EquipmentMasterPage.test.tsx`: Pengujian integrasi penuh dari klik menu dropdown "Diagnose duplicates", pembukaan modal, interaksi per baris, dan toast sukses spesifik.
+  - Verifikasi: `pnpm typecheck` (0 error) dan `pnpm test:run` (180 tes lulus di 24 test suite).
+  - Container Docker `semar-backend` dan `semar-frontend` berhasil di-rebuild dan berjalan sehat (healthy).
+- Pengujian Frontend:
+  - `frontend/src/features/assets/components/DuplicateResolutionModal.test.tsx`: 7 tes vitest menguji rendering, accordion toggling, resolusi baris, pemblokiran tombol saat in-flight loading, penanganan error, dan penutupan modal.
+  - `frontend/src/pages/risk/EquipmentMasterPage.test.tsx`: Pengujian integrasi penuh dari klik menu dropdown "Diagnose duplicates", pembukaan modal, interaksi per baris, dan penutupan.
+  - Verifikasi: `pnpm typecheck` (0 error) dan `pnpm test:run` (180 tes lulus di 24 test suite).
+  - Container Docker `semar-backend` dan `semar-frontend` berhasil di-rebuild dan berjalan sehat (healthy).
+
+
+### Petualangan 1: Mass Data Cleaning Utilities (Equipment Master Maintenance)
+
+**Backend — Maintenance Service & Controller (`POST /api/v1/maintenance/*`)**
+
+- Service baru `MaintenanceService` (`backend/app/services/maintenance_service.go`):
+  - `POST /api/v1/maintenance/diagnose-duplicates`: Menggunakan GORM query untuk mencari aset dengan `tag_number` yang sama (duplikat), mengelompokkan per tag yang memiliki `COUNT(*) > 1`, dan mengambil daftar ID aset yang terlibat.
+  - `POST /api/v1/maintenance/fix-links`: Logika auto-linking komponen Level 7 dengan `parent_id` kosong. Mencocokkan `tag_number` komponen yang mengandung `tag_number` aset induk (memilih kecocokan tag terpanjang/paling spesifik), dan meng-update `parent_id` ke ID aset induk.
+  - `POST /api/v1/maintenance/sync-floc`: Bulk update komponen Level 7 yang telah memiliki `parent_id` tetapi `installed_floc_id`-nya kosong atau berbeda dengan aset induknya. Menyalin `installed_floc_id` dan status `has_funcloc` dari induk ke komponen anak.
+- Controller/Handler baru `MaintenanceHandler` (`backend/app/api/handlers/maintenance_handler.go`) dengan tenant context zero-trust enforcement dan audit log update.
+- Routing didaftarkan di `backend/app/api/routes/router.go` pada group `/api/v1/maintenance` dengan RBAC permission (`asset:view` untuk diagnosa, `asset:update` untuk fix links dan sync floc).
+- Unit test terpadu: `backend/app/services/maintenance_service_test.go` dengan `go-sqlmock` mencakup ketiga endpoint.
+
+**Frontend — API Wiring, Feedback, dan Auto-Refresh**
+
+- Menghubungkan client service `frontend/src/services/assetServices.ts` ke endpoint baru:
+  - `diagnoseEquipmentDuplicates` memanggil `POST /maintenance/diagnose-duplicates`.
+  - `fixEquipmentComponentLinks` memanggil `POST /maintenance/fix-links`.
+  - `syncEquipmentComponentsToFLOC` memanggil `POST /maintenance/sync-floc`.
+- Indikator Loading: Selama salah satu proses maintenance berlangsung (`isMaintenancePending`), tombol dropdown Maintenance dinonaktifkan (`disabled`) untuk mencegah klik ganda dan `AssetDataGrid` menampilkan state loading/skeleton.
+- Notifikasi Hasil: Menampilkan toast notification informatif:
+  - Diagnosa duplikat: status sukses (bila tidak ada duplikat) atau peringatan (menampilkan jumlah duplikat yang ditemukan).
+  - Fix links & Sync FLOC: toast sukses yang merangkum jumlah tautan yang diperbaiki dan komponen yang disinkronisasi.
+- Data Refresh: Memanggil `refetch` data aset (`assetsQuery.refetch()` dan `statsQuery.refetch()`) seketika operasi selesai agar tabel dan ringkasan kartu langsung menampilkan data terkini.
+- Validasi: `go build ./...`, `go test ./...` (100% lulus), `pnpm typecheck` (0 error), `pnpm test:run` (23 file, 172 test lulus 100%), dan container Docker di-rebuild serta running sehat.
+
+### Equipment Master: Add Component modal & API integration prep
+
+**UI — `AddComponentModal`**
+
+- Judul dinamis `Add Component to {Parent Tag Number}` (mis. `Add Component to 1"-AI-12002-1G1`).
+- Section `Component Identity` dengan badge ikon dokumen hijau.
+- Grid 2 kolom: **Functional Location (Optional)** (placeholder `e.g., TUBE-SECTION`) dan **Tag Name \*** (placeholder `e.g., 01`, wajib). Field lebar penuh: **Description** (textarea) dan **Component Type (Asset Type Mapping) \*** (dropdown wajib).
+- Footer: **Close** (putih) dan **Save Component** (hijau solid, spinner saat menyimpan).
+- `noValidate` dipakai agar pesan validasi konsisten dari modal (bukan bubble browser).
+- Katalog `componentTypes.ts` menurunkan opsi tipe dari kelas induk (Heat Exchanger → Shell/Channel/Tube Bundle/Tube/Head/Nozzle/Baffle/Tubesheet; Pressure Vessel, Storage Tank, Piping, Filter, Heater punya daftar masing-masing) dengan fallback ke seluruh katalog bila kelas tak dikenal. `code` mencerminkan konstanta `component_type` di model Go.
+
+**Integrasi API (persiapan)**
+
+- `assetService.createEquipmentComponent(equipmentId, payload)` → `POST /assets/equipments/:id/components`; hook `useCreateEquipmentComponent` meng-invalidate daftar equipment-master, komponen, dan detail aset.
+- Row action **Add Component** kini membuka modal (bukan lagi navigasi ke `/assets/hierarchy`).
+- Saat Save: payload dikirim dengan `component_class` **diwarisi dari kelas induk** (komponen Level 7 tidak membawa kelas sendiri), lalu modal ditutup, toast sukses muncul, dan baris tabel di-refresh **hanya bila filter "with L7 components" aktif**.
+- Ditambahkan filter **"with L7 components"** pada grid (memanfaatkan param `hierarchy_level` yang sudah didukung backend) sehingga perilaku refresh punya kondisi nyata.
+
+**Catatan backend (belum diimplementasikan, sesuai urutan permintaan)**
+
+- `POST /api/v1/equipments/:id/components` masih 404 (diverifikasi live). Model `Asset` sudah punya `ParentID` self-referencing; model `Component` sudah punya `AssetID` (kolom `equipment_id`).
+- Keputusan desain yang perlu diambil saat mengerjakan Golang: komponen Level 7 sebaiknya dibuat sebagai **baris `assets` anak** (`parent_id` = ID induk, `rbi_properties["General.Hierarchy Level"]="7"`) agar filter "with L7 components" benar-benar menampilkannya; tabel `components` terpisah tidak akan muncul pada filter level 7 yang membaca `assets`.
+
+Validasi: `pnpm typecheck`, `pnpm test:run` (23 file, 172 test; termasuk 9 test `AddComponentModal` dan alur penuh Add Component → toast → tutup modal).
+
+### Equipment Master: relational fetching & audit trail (Langkah 3)
+
+**Relational fetching (GET /api/v1/assets/Asset/:id)**
+
+- Tabel master baru `piping_classes` (tenant-scoped: code, material, corrosion allowance, pipe schedule, rating class, nominal pipe size) + seeder default (A1A, A1B, D1A, K1A) yang di-backfill untuk setiap tenant.
+- Aset direferensikan lewat `rbi_properties["Component Design.Piping Class"]` (fallback ke `design_conditions` / `specifications`). Service me-resolve master tersebut dan menyisipkan objek **`linked_data`** ke response detail: `{ piping_class_code, cards: [{ key, title, subtitle, source, properties[] }] }`.
+- Null safety: `linked_data` **dihilangkan** sepenuhnya bila aset tidak punya relasi, sehingga UI bisa menyembunyikan seluruh area. Kode yang tidak dikenal tetap dilaporkan sebagai satu properti (tanpa error), dan kegagalan lookup master tidak menggagalkan request.
+
+**Audit trail (PUT /api/v1/assets/Asset/:id)**
+
+- Aksi baru `UPDATE_ASSET` ditambahkan ke model + CHECK constraint `chk_lifecycle_action` (constraint lama hanya mengizinkan aksi lifecycle, sehingga entri audit akan ditolak DB).
+- Repository baru `EquipmentLifecycleLogRepository` (append-only) untuk `equipment_lifecycle_logs`.
+- `UpdateAsset` mengambil snapshot sebelum mutasi, membandingkan field yang dapat diaudit (description, asset_class, asset_type, lifecycle_status, rbi_properties), lalu menulis satu entri berisi `action=UPDATE_ASSET`, `old_value`, `new_value`, `remarks` (daftar field berubah), `created_by` (user dari auth) dan `created_at`. Tidak ada perubahan → tidak ada entri. Kegagalan menulis audit **tidak** menggagalkan save.
+
+**Frontend**
+
+- Tipe `EquipmentLinkedData` + kartu; tab Risk Analysis menghapus hardcode dan merender kartu dari `linked_data.cards` (judul, subtitle/source, grid properti), dengan badge jumlah field dihitung dari data. Area `Available Linked Data` disembunyikan bila kosong/null, dan ada status loading.
+
+Bukti live: aset tanpa referensi → `linked_data` tidak ada; setelah diarahkan ke `A1A` → kartu `Design & Material` berisi Material/Corrosion Allowance/Pipe Schedule/Rating Class/Nominal Pipe Size; kode `ZZ9` → kartu menampilkan referensinya saja. Dua PUT menghasilkan dua entri `UPDATE_ASSET` dengan `created_by=1` dan ringkasan perubahan.
+
+Validasi: `go build`, `go vet`, `go test ./app/...` (termasuk test linked data: kartu terbentuk, tanpa relasi → nil, kode tak dikenal; dan audit: entri tertulis, tanpa perubahan → tidak ada, gagal audit tetap sukses), `pnpm typecheck`, `pnpm test:run` (22 file, 162 test).
+
+### Equipment Master: document & image upload infrastructure
+
+Tab Image dan File kini memakai backend sungguhan, bukan dummy state.
+
+**Skema & migrasi**
+
+- Model `EquipmentDocument` (`equipment_documents`): `id`, `tenant_id`, `equipment_id` (FK ke assets), `file_name`, `file_url`, `file_type`, `file_size`, `uploaded_at`, `uploaded_by`. AutoMigrate + constraint `file_type IN ('Image','Document','Drawing','Report','Datasheet','Certificate')` dan index `(tenant_id, equipment_id, uploaded_at DESC)`.
+
+**API**
+
+- `POST /api/v1/assets/equipments/:id/files` — multipart; validasi ekstensi (PDF, DOCX, XLSX, PNG, JPG/JPEG) dan batas 10 MB; menyimpan file ke volume `storage/uploads/equipments/<id>/` dengan nama UUID; metadata ditulis ke tabel. Gagal metadata → file dihapus (tidak ada orphan).
+- `GET /api/v1/assets/equipments/:id/files` — daftar dokumen aset (tenant-scoped, terbaru dulu).
+- `DELETE /api/v1/assets/equipments/:id/files/:documentId` — hapus metadata + file fisik.
+- Folder uploads sudah diserve di `/static/uploads` (sudah ada di router), sehingga `file_url` bisa langsung dibuka.
+
+**Frontend**
+
+- Service `getEquipmentDocuments`, `uploadEquipmentDocument` (FormData + progress), `deleteEquipmentDocument`; hook React Query `useEquipmentDocuments` dan `useUploadEquipmentDocument`.
+- Tab Image & File: dropzone mengunggah lewat API dengan spinner + persentase, daftar dirender dari GET (nama file sebagai tautan ke `file_url`), badge kategori/ukuran/tanggal tetap, dan tombol hapus dengan konfirmasi. Dummy `SAMPLE_DOCUMENTS` tidak lagi dipakai.
+- `Add External Link` untuk sementara memberi notifikasi bahwa tautan belum disimpan di server (belum ada kolomnya).
+
+Bukti live: upload PNG (Image) dan PDF (Drawing) → 201 dengan `file_url` benar; GET mengembalikan 2 dokumen; `/static/uploads/...` mengembalikan isi file; `.exe` ditolak 400; delete menghapus baris **dan** file di disk.
+
+Validasi: `go build`, `go vet`, `go test ./app/...` (termasuk test upload: validasi ekstensi/ukuran, image tetap Image, cleanup saat metadata gagal), `pnpm typecheck`, dan `pnpm test:run` (22 file, 161 test).
+
+### Equipment Master: Manage Asset — API wiring (GET & PUT)
+
+Integrasi backend untuk modal Manage Asset. Backend ternyata sudah siap dari pekerjaan sebelumnya, jadi langkah ini fokus pada verifikasi kontrak dan penyambungan frontend.
+
+- **PUT `/api/v1/assets/Asset/:id`** menerima kolom dasar (`description`, `asset_class`, `asset_type`, …) **dan** objek `rbi_properties`; service **merge** ke map tersimpan sehingga key hasil import (`source_class`, `level6_funcloc`, `parent_funcloc`) tidak hilang. Repository menulis `rbi_properties = :rbi_properties` lewat GORM.
+- **GET `/api/v1/assets/Asset/:id`** mengembalikan seluruh kolom aset dengan `rbi_properties` sudah ter-parse sebagai objek JSON (bukan string).
+- Frontend: service `getEquipmentAsset(id)` + hook `useEquipmentAsset`, dan modal memanggilnya saat dibuka untuk **pre-fill** form. Baris grid dipakai sebagai seed instan, lalu respons API menimpa **sekali** per aset (dijaga ref) agar respons yang terlambat tidak menimpa input yang sedang diketik.
+- Field **Equipment Inspection** (Equipment Status + Enable Interval Based Inspection) kini ikut terikat ke form dan tersimpan sebagai `Equipment Inspection.<label>`.
+- Kontrol field diekstrak ke `ManageAssetFieldControl.tsx` agar tab Risk Analysis memakai binding form yang sama.
+- Tombol `Save Data Source` mengirim kolom + `rbi_properties` lewat PUT, menampilkan toast sukses, dan me-refetch register; kegagalan menampilkan pesan error dari backend.
+
+Bukti live: `GET` detail mengembalikan `rbi_properties` bertipe objek (24 kolom); `PUT` dengan hanya 3 key baru tetap mempertahankan `source_class` dan `level6_funcloc`, serta mengubah `description`. Statistik tetap `total 1767, installed 397, funcloc 397, equipment 233`.
+
+Validasi: `go build`, `go vet`, `go test ./app/...`, `pnpm typecheck`, dan `pnpm test:run` (22 file, 161 test).
+
+### Equipment Master: Manage Asset Fase 4 + simpan nyata ke rbi_properties
+
+**Fase 4 — Risk Analysis & Linked Data**
+
+- Sub-tab `Risk Analysis` aktif: header `Available Linked Data` dengan ikon layers hijau dan badge hijau `12 field(s) available`.
+- Dua kartu read-only: **Operating Conditions (Stream INSTRUMENT AIR • daily)** dengan ikon api, blok abu-abu berisi `System: Corrosion System #02-63…` dan `Circuit: CC #07-02-63…`, plus teks miring `No operating parameters available for this scenario.`; dan **Design & Material** dengan ikon kunci pas biru, `Source: Piping Class Master`, serta grid read-only (Corrosion Allowance 1.6, Pipe Schedule SCH160, Rating Class 150#RF, Nominal Pipe Size 1).
+- Accordion `Equipment Inspection` berisi form Equipment Status (dropdown) dan Enable Interval Based Inspection (radio YES/NO).
+- Finalisasi UI: area konten memakai `overflow-auto`, header dan footer dibuat `sticky` dengan latar solid, dan footer menyediakan `Cancel`, `Close`, serta `Save Data Source` yang selalu terlihat.
+
+**Simpan nyata (poin 2 & 3)**
+
+- Backend `UpdateAssetRequest` kini menerima `rbi_properties` dan `UpdateAsset` **menggabungkannya** (merge) ke map yang tersimpan, bukan menimpanya — key hasil import seperti `parent_funcloc`, `level6_funcloc`, `source_class`, `source_type` tetap aman saat form menyimpan sebagian field.
+- Tombol `Save Data Source` mengirim kolom aset + `rbi_properties` lewat `PUT /assets/Asset/:id` lalu me-refetch register; toast sukses/gagal ditampilkan.
+- `Add External Link` diganti dari `window.prompt` menjadi dialog kecil dengan validasi URL (`http(s)://`), dan tombol `Apply` pada Detail Specs kini memberi umpan balik toast.
+
+Bukti live: menyimpan `Equipment Design.Weld Efficiency` saja tetap mempertahankan `level6_funcloc` dan `parent_funcloc` pada aset terpasang; statistik tetap `total 1767, installed 397, funcloc 397, equipment 233`.
+
+Validasi: `go build`, `go vet`, `go test ./app/...` (termasuk test merge rbi_properties), `pnpm typecheck`, dan `pnpm test:run` (22 file, 161 test).
+
+### Equipment Master: Manage Asset Fase 3 (Image & File tabs)
+
+- Komponen baru `UploadDropzone` (dipakai bersama): kotak bergaris putus-putus dengan ikon unggah, judul, subteks, dan teks link hijau `Click or drag & drop to upload`. Mendukung klik maupun drag & drop.
+- **Tab Image:** header `[{Tag Number}] Image` + tombol `Save Data Source`; action bar berisi `Image Annotations (0 images)` di kiri dan tombol hijau `Upload Image` di kanan; dropzone dengan teks `No images yet` dan subteks `Upload P&ID drawings, maps, or photos to annotate and link with asset locations`. Gambar yang di-drop masuk state lokal dan muncul sebagai grid thumbnail nama file.
+- **Tab File:** area upload berisi dropdown `Category` (Document, Drawing, Report, Datasheet, Certificate), tombol `Add External Link` di kanan atas, dan dropzone untuk PDF/DOCX/XLSX; di bawahnya accordion `Files (n)` dengan list view.
+- **List item:** ikon dokumen atau tautan, nama file (atau URL), badge kategori berwarna (DRAWING ungu, REPORT biru, CERTIFICATE hijau, DATASHEET amber, DOCUMENT slate), ukuran file (mis. `3.3 MB`), dan tanggal unggah (mis. `30 Sept 2026`). Data awal memakai array dummy 5 baris.
+- **UI state:** file yang di-drop disimpan di `useState` (belum ada API call). Menambah file langsung memperbarui hitungan `Files (n)`/`Image Annotations (n)` dan merender item baru; halaman menampilkan toast info dan `console.log` bahwa file ditahan lokal.
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (22 file, 157 test) lulus; test baru mencakup formatter ukuran/tanggal, warna badge, dropzone Image, list File, penambahan file hasil drop, dan buka/tutup accordion.
+
+### Equipment Master: Manage Asset Fase 2 (Design & Operating Data)
+
+- Komponen baru `ManageAssetAccordion`: header abu-abu terang dengan toggle ikon **minus/plus hijau** di kanan, dipakai membungkus semua kelompok form.
+- **Design Data → Equipment Design**: Equipment Type (disabled karena sudah diisi di General Data), Design Code (select), Equipment Start Date (datepicker), Design Pressure (psig), Design Temperature (°F), Weld Efficiency, dan Post Weld Heat Treatment (radio YES/NO).
+- **Operating Data** kini layout dua kolom:
+  - Kiri: accordion `Fluid Inventory` (Equipment Vapor Volume (m³), Equipment Liquid Volume (m³), Total Equipment Mass (kg)) dan `Equipment Fluid Definition` (Process Fluid, select).
+  - Kanan: accordion `Fluid Definition` (Consequence Model, select) dan card placeholder `Detail Specs` bergaya list vertikal (Furnished Thickness, Corrosion Allowance, Pipe Schedule) dengan tombol kecil **Apply** hijau di tiap baris.
+- **Binding JSONB:** seluruh field Design & Operating masuk ke `rbi_properties`. Field yang sudah punya key export memakai key yang sama agar round-trip (`Component Design.Design Code` / `Design Pressure` / `Design Temperature`), sisanya memakai konvensi import `Category.Label` (mis. `Equipment Design.Weld Efficiency`, `Fluid Inventory.Total Equipment Mass (kg)`, `Equipment Fluid Definition.Process Fluid`, `Fluid Definition.Consequence Model`). Katalog field kini menyimpan `input` (text/number/date/select/radio) sehingga modal merender kontrol yang tepat.
+- `Equipment Type` di Design hanya cerminan kolom `asset_type` (tidak menulis key JSONB terpisah).
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (21 file, 149 test) lulus; test baru mencakup pemetaan Design/Operating ke kategori JSONB, accordion Design, layout dua kolom Operating + Detail Specs, serta buka/tutup accordion.
+
+### Equipment Master: Manage Asset modal (Fase 1 — kerangka UI & navigasi)
+
+Aksi **Manage Asset** kini membuka modal besar baru, bukan kartu detail ringkas.
+
+- Komponen `ManageAssetModal` (fullscreen 90% layar, `max-w-6xl`) dengan header `Manage Asset — {Tag Number}`.
+- **Navigasi level 1 (tipe konten):** tab `Data Source` (ikon titik hijau), `Image`, dan `File`.
+- **Navigasi level 2 (kategori data):** pill `General Data`, `Design Data`, `Operating Data`, `Risk Analysis`, `Other Data`, hanya tampil saat tab Data Source aktif.
+- **General Data:** Equipment ID (read-only), Funcloc, Description, Equipment Class, Equipment Type.
+- **Other Data:** accordion `Equipment References` berisi Asset ID, P&ID Drawing No., Inspection Drawing No., Jurisdiction Registration No., Juris Serial No., Latitude (degrees(decimal)), Longitude (degrees(decimal)), Elevation (m).
+- Kategori/tab yang belum dikerjakan menampilkan placeholder, bukan form kosong yang menyesatkan.
+- **State & binding:** React Hook Form (`useForm`) dengan katalog field di `manage-asset/manageAssetFields.ts`. Field asset memetakan ke kolom (`description`, `asset_class`, `asset_type`), sedangkan Funcloc dan seluruh Equipment References memetakan ke `rbi_properties` dengan key persis seperti import/export: `parent_funcloc` dan `Equipment References.<Label>` (mis. `Equipment References.P&ID Drawing No.`). Fungsi `manageAssetFormFromRow` (hidrasi) dan `manageAssetPayloadFromForm` (pecah ke `columns` + `rbiProperties`) menjaga round-trip.
+- Fase 1 masih kerangka: tombol `Save` memunculkan toast jumlah field yang siap disimpan dan menutup modal, belum mengirim request.
+
+Catatan: project frontend ini **Vite + React** (bukan Next.js), jadi modal dibuat sebagai komponen React biasa mengikuti pola modal yang sudah ada.
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (21 file, 145 test) lulus; test baru `ManageAssetModal.test.tsx` mencakup hidrasi, split payload ke kolom + key JSONB, tab/sub-navigasi, dan accordion Equipment References.
+
+### Equipment Master: dynamic Lifecycle menu and lifecycle action modals
+
+- Menu **Lifecycle ▾** per baris kini dinamis mengikuti status aset:
+  - **Available** → `Install` (pin hijau), `Send to repair` (obeng oranye), `Retire` (kotak oranye), `Condemn` (dilarang merah);
+  - **Installed** → `Relocate` (node biru), `Uninstall` (X merah), `Send to repair`, `Retire`, `Condemn`.
+- Komponen baru `LifecycleActionModal` untuk `Install`/`Relocate`: judul dinamis (`Install Equipment to Hierarchy` / `Relocate Equipment`), tag aset di bawah judul, kotak pencarian `Search Functional Location...`, kotak **Active Selection** (default “Click a node below to select”), daftar node placeholder yang bisa difilter, serta tombol `Cancel` dan `Confirm [Action]`.
+- Komponen baru `LifecycleConfirmModal` untuk `Uninstall`/`Send to repair`/`Retire`/`Condemn`: judul `Are you sure you want to [action] this asset?` dengan tombol `Cancel` dan `Confirm`.
+- Wiring: keduanya masih staged UI — `Confirm` hanya memunculkan toast success dan menutup modal, tanpa API call.
+
+Validasi: `pnpm typecheck` dan `pnpm test:run` (20 file, 140 test) lulus; test grid diperbarui untuk opsi dinamis per status dan alur modal.
+
+### Equipment Master: merge Location and Status into one grid column
+
+Kolom **Status** di Data Grid digabung ke kolom **Location / Status** (urutan kolom: Tag Number / Equipment, Description, Class / Type, Location / Status, Action).
+
+- Baris pertama sel menampilkan lokasi dari **funcloc level 6** (`rbi_properties.level6_funcloc`, dengan fallback `installed_funcloc` / `General.Installed FunLoc`). Suffix `(TAG)` dibuang karena menduplikasi kolom tag.
+- Baris kedua menampilkan badge status (`Installed` / `Available`).
+- Dinamis: kalau aset punya lokasi, lokasi di atas lalu status di bawah; kalau tidak ada lokasi, hanya status yang tampil. Header `Status` lama dihapus.
+
+Validasi: test grid diperbarui (`Location / Status` header, lokasi + status, serta kasus tanpa lokasi), `pnpm typecheck`, dan `pnpm test:run` (2 test EquipmentToolbar hanya timeout saat mesin sibuk dan lulus saat dijalankan sendiri).
+
+### Equipment Master: apply dictionary changes to existing equipment
+
+Sebelumnya, mengedit kamus hanya berpengaruh pada import berikutnya — label yang sudah tersimpan di tabel aset tidak berubah, jadi tabel tetap menampilkan nama lama meskipun kamus sudah diganti.
+
+- Tombol **Apply to equipment** di modal Import dictionary: menghitung ulang `asset_class`/`asset_type` tiap aset hasil import dari nilai mentahnya (`rbi_properties.source_class` / `source_type`) memakai kamus terkini, tanpa import ulang. Ada pratinjau (`dry_run`) dan laporan jumlah baris yang berubah + nilai yang masih unmapped.
+- Endpoint `POST /api/v1/assets/taxonomy/reapply` (permission `asset:update`).
+- Cakupan aman: hanya aset yang punya nilai mentah hasil import yang disentuh, jadi aset buatan manual tidak ikut berubah.
+- Baris tanpa tipe di workbook tetap mewarisi class (mengikuti perilaku import) alih-alih dikosongkan.
+- Kartu **Equipment** kini memisahkan Piping/Piping Line berdasarkan **kode kanonik** (`PI`, `PL`) di label, bukan hanya nama kelas. Jadi mengganti nama kelas di kamus (mis. `Piping Line (PL)` → `Onshore Pipelines (PL)`) tidak lagi memindahkan baris tersebut ke Equipment.
+
+Bukti live: setelah kamus diubah (`PL` → Onshore Pipelines, plus tipe `PM`/`PG`), re-apply mengubah 9 aset PL — 5 baris yang tipe-nya kosong terisi kembali — dan kartu Equipment tetap 233 (bukan 242). Kartu `Onshore Pipelines (PL)` menampilkan 9 baris dengan tipe `Gas Pipelines (Onshore) (PG)` dan `Multiphase Pipelines (Onshore) (PM)`.
+
+Validasi: `go test ./app/...` (termasuk test re-apply: label berubah, fallback tipe, dry-run, unmapped), `pnpm typecheck`, `pnpm test:run`.
+
+### Global performance & architecture audit (dev environment, backend, frontend)
+
+Audit tanpa fitur baru atas keluhan aplikasi berat/lambat saat load, termasuk saat belum ada data aset. Fokus pada tiga area dan perbaikan yang diverifikasi runtime.
+
+**Docker & dev environment**
+
+- `backend/.air.toml`: polling dimatikan (`poll = false`) dan `exclude_dir` diperluas (`keys`, `scripts`, `modules`, `cmd`). Investigasi lanjutan menunjukkan polling Air (258 file/detik melalui bind mount Windows) menjenuhkan filesystem 9p Docker Desktop: `ls /app/src` dari dalam container memburuk dari 0,13 dtk (host) menjadi 20–75 dtk, dan Vite stuck di `D state` (`p9_client_rpc`) sehingga seluruh request lewat Vite (HTML, tabel via proxy `/api`) timeout 10–47 dtk. Setelah polling dimatikan: `ls /app/src` kembali ±2 dtk, Vite sehat (`S state`), dan request kembali 0,05–0,45 dtk.
+- `docker-compose.dev.yml`: `CHOKIDAR_USEPOLLING` default `false` (dapat di-override per developer via `.env`). Percobaan mengaktifkan polling Vite justru memperparah kondisi 9p karena chokidar men-stat ±78.310 file `node_modules` setiap interval; tanpa polling, Vite memakai inotify dan request stabil. Konsekuensi: HMR/rebuild otomatis bergantung pada inotify dan mungkin tidak terdeteksi pada sebagian bind mount Windows — lakukan refresh manual atau nyalakan polling sementara bila diperlukan.
+- `frontend/vite.config.ts`: pola `ignored` diperbaiki menjadi level direktori (`**/node_modules`, `**/.git`, `**/dist`, `**/coverage`, `**/.pnpm-store`, `**/.next`). Pola lama (`**/node_modules/**`) tidak mencegah watcher masuk ke direktori `node_modules`, sehingga chokidar tetap menelusuri ±78 ribu file saat polling aktif.
+- Catatan: pengukuran awal sempat tercemar instance uji paralel; angka final diambil dari container nyata dengan counter CPU per-proses dan pengukuran latensi end-to-end.
+
+**Backend**
+
+- `logger_middleware.go` (middleware global): `LogHeaders` menjadi opt-in (`REKSOLINDO_LOG_HEADERS=true`) karena membangun map seluruh header + format map bersarang di setiap request mahal; blok `fmt.Printf` dump seluruh header pada preflight auth dihapus (mengabaikan log level dan berpotensi membocorkan `Authorization`), diganti log `DEBUG` ringkas yang hanya aktif saat `DEBUG_CORS=true`.
+- `router.go` `CORSMiddleware`: header statis (allow-headers, methods, expose-headers, max-age) di-precompute sekali di closure, bukan dibangun ulang per request.
+- `utils/jwt.go`: `blacklistedJTIs` map kini dilindungi `sync.RWMutex` di semua akses (validate/blacklist/refresh/cleanup/stats), menghilangkan risiko concurrent map read-write panic pada jalur request.
+- Menghapus paket duplikat mati `backend/app/api/middleware/` (tidak diimpor siapa pun; router memakai `backend/app/middleware`).
+
+**Frontend**
+
+- `LoginPage`: grafik dekoratif recharts diekstrak ke `LoginPerformanceChart.tsx` dan dimuat `React.lazy` + `Suspense`, sehingga bundle login turun dari ±399 KB menjadi ±13 KB; recharts (±396 KB) menjadi chunk terpisah yang dimuat setelah form interaktif.
+- `websocketMiddleware`: auto-connect saat login/refresh dinonaktifkan selama route backend `/ws` belum terdaftar (sebelumnya setiap login memicu 404 beruntun dengan retry 10× @5 dtk). Dapat diaktifkan kembali dengan `VITE_WS_ENABLED=true`; URL juga diselaraskan dengan `VITE_WS_BASE_URL` dari compose.
+- `index.html`: dua stylesheet Google Fonts Material Icons dan script debug-nya dihapus (tidak ada pemakaian ligature `material-icons` di `src/`; ikon memakai komponen lucide/MUI), mengurangi render-blocking request eksternal.
+
+Validasi: `go build ./...`, `go vet ./...`, `go test ./...` lulus; `pnpm typecheck`, `pnpm test:run` (128 test, 19 file) dan `vite build` lulus; runtime health endpoint, HMR, dan pengukuran CPU dijalankan pada stack dev.
+
+### Equipment Master: Import dictionary UI (manage class/type aliases)
+
+UI untuk mengelola kamus import per tenant, sehingga operator bisa memetakan kode workbook tanpa menyentuh database.
+
+- Tombol **Import dictionary** di toolbar Equipment Master membuka modal dengan tab Equipment Class / Equipment Type, daftar nilai kanonik beserta chip alias-nya.
+- Tambah/edit/hapus mapping dari UI (kode, nama kanonik, alias, aktif/nonaktif). Kode dikunci saat edit agar label aset yang tersimpan tidak berubah.
+- Setelah import, nilai yang tak terpetakan (`unmapped_class` / `unmapped_type`) ditampilkan sebagai saran sekali-klik di bagian atas modal: klik nilai → form terisi otomatis dengan kode mentahnya.
+- Service frontend baru: `getEquipmentTaxonomy`, `createEquipmentTaxonomyValue`, `updateEquipmentTaxonomyValue`, `deleteEquipmentTaxonomyValue` + hook TanStack Query (`useEquipmentTaxonomy`, `useCreate/Update/DeleteEquipmentTaxonomyValue`).
+- Backend: endpoint CRUD `POST/PUT/DELETE /api/v1/assets/taxonomy(/:id)` (permission `asset:update`), dengan normalisasi alias (trim, buang duplikat, selalu sertakan kode & nama).
+
+Validasi: `go test ./app/...`, `pnpm typecheck`, dan `pnpm test:run` lulus (termasuk `EquipmentTaxonomyModal.test.tsx` dan CRUD service backend).
+
+### Equipment Master: tenant-scoped import dictionary (canonical + aliases)
+
+Sebelumnya kamus class/type import **hardcoded di Go** dan global untuk semua tenant, jadi tenant baru tidak bisa memakai kode workbook-nya sendiri tanpa mengubah kode. Sekarang import memakai **kamus per tenant** di database.
+
+- Model & tabel baru `equipment_taxonomy_values` (tenant-scoped): `kind` (`class`/`type`), `canonical_code`, `canonical_name`, dan `aliases` (JSONB). Unique per `(tenant_id, kind, canonical_code)` dengan constraint `kind IN ('class','type')`.
+- Seeder idempoten mengisi kamus bawaan untuk **setiap tenant** saat seeding maupun setiap startup (backfill), jadi tenant lama langsung bisa import. Entri tenant yang sudah ada tidak ditimpa.
+- Import memuat kamus tenant sekali per file lalu me-resolve tiap sel: cocok → label kanonik `Nama (KODE)`; tidak cocok → nilai asli dipertahankan **dan dilaporkan** di hasil import (`unmapped_class`, `unmapped_type`) untuk dipetakan menyusul. Fallback ke kamus bawaan bila tenant belum punya entri.
+- Provenance: nilai mentah sel disimpan di `rbi_properties.source_class` / `source_type` (bukan hanya hasil terjemahan), sehingga remap bisa dilakukan tanpa import ulang.
+- Endpoint baru `GET /api/v1/assets/taxonomy` mengembalikan kamus tenant untuk frontend.
+- Bukti multitenant: menambahkan alias `PG → Process Gas (PG)` hanya lewat satu baris di tabel tenant membuat baris `PG` pada file yang sama ter-resolve (sebelumnya muncul di `unmapped_type`), tanpa perubahan kode.
+- Catatan: nama panjang yang sudah ada di workbook kini dikanonikalisasi (mis. `Pressure Vessels` → `Pressure Vessels (VE)`); test lama yang mengunci perilaku "nama panjang dibiarkan apa adanya" diperbarui.
+
+Validasi: import ulang file sumber tetap menghasilkan `total 1767, installed 397, funcloc 397, equipment 233`; `go build`, `go vet`, `go test ./app/...` lulus (termasuk test resolver tenant, alias, dan pelaporan unmapped).
+
+### Equipment Master: single-code type labels in the New Equipment form
+
+Label Equipment Type di modal "New Equipment" disederhanakan menjadi satu kode saja (`Carbon Steel (CA)`, `Separator (SE)`, `Shell And Tube (ST)`, `Fixed Roof (FR)`, dst) — sebelumnya kode tercetak dua kali (`Carbon Steel (Ca) (CA)`). Dua sisa yang belum ikut diseragamkan juga dirapikan: tipe Heat Exchangers (`Shell And Tube (St) (ST)` → `Shell And Tube (ST)`, dst) dan spasi ganda pada `Surge Drum  (SD)` → `Surge Drum (SD)`. Test yang membaca opsi dropdown (`EquipmentToolbar`, `EquipmentMasterPage`) diperbarui mengikuti label baru. Nilai `asset_type` hasil import dari Excel tidak diubah pada langkah ini.
+
+### Equipment Master: class cards open an empty table
+
+Gejala: mengklik kartu kelas spesifik (`Heat Exchangers`, `Piping`, `Storage Tanks`, `Piping Line`, dst) menampilkan tabel kosong.
+
+Penyebab: `GetAssetStats` mengembalikan label kelas yang sudah dinormalisasi `INITCAP(LOWER(...))` (mis. `Piping (Pi)`, `Heat Exchangers (Hx)`), sedangkan nilai tersimpan di DB memakai kode huruf besar (mis. `Piping (PI)`). Kartu mengirim label hasil normalisasi itu kembali sebagai filter `equipment_class`, dan repository memakai **exact match** `asset_class = $n`, sehingga tidak ada baris yang cocok.
+
+Perbaikan:
+
+- `GetAssetStats` kini mengembalikan label kelas **apa adanya** (`BTRIM(asset_class)`), jadi label kartu selalu identik dengan nilai tersimpan dan dengan filter list.
+- Filter `equipment_class` di `AssetRepository.List` dibuat case- dan whitespace-insensitive (`LOWER(BTRIM(asset_class)) = LOWER(BTRIM($n))`), sehingga perbedaan casing tidak lagi menghasilkan tabel kosong.
+
+Verifikasi live (setelah restart backend), kartu → isi tabel:
+
+```
+Filters And Strainers (FS)   47 →   47
+Heat Exchangers (HX)         56 →   56
+Heaters And Boilers (HB)      1 →    1
+Piping (PI)                1525 → 1525
+Piping Line (PL)              9 →    9
+Pressure Vessels (VE)        89 →   89
+Storage Tanks (TA)           40 →   40
+```
+
+Ringkasan tetap: `total 1767, installed 397, funcloc 397, equipment 233`. Validasi: `go build`, `go vet`, dan `go test ./app/...` lulus; `pnpm typecheck` lulus dan `pnpm test:run` lulus 34/35. Satu kegagalan (`opens the New Equipment modal`) berasal dari perubahan label tipe yang belum di-commit di `frontend/src/features/assets/data/equipmentTaxonomy.ts`, bukan dari perubahan ini.
+
+### Equipment Master: fix Installed/Has Funcloc loss on import and export
+
+Gejala: setelah "remove all equipment" lalu import ulang file yang sama, kartu `Installed` dan `Has Funcloc` menjadi 0 (harusnya 397), padahal sebelumnya terbaca. Penyebabnya dua regresi terpisah:
+
+- **Status dipaksa `Available`.** `NormalizeInstallationStatus` (commit `a61f97e`) hanya mengenali `Active`/`In Service` sebagai Installed dan memaksa semua nilai lain menjadi `Available`. File Equipment Master justru berisi literal `Installed`, sehingga 397 baris Installed ikut menjadi `Available`. Aturan dikembalikan menjadi dua nilai saja: `Installed` (case-insensitive) → `Installed`, semua nilai lain (termasuk `Available`, kosong, `9999`, `N/A`) → `Available`. Alias `Active`/`In Service` dihapus agar tidak menutupi ketidakcocokan data.
+- **Export tidak bisa di-import ulang (round-trip).** Export menulis `lifecycle_status` sebagai `parent_funcloc`/`level6_funcloc` mentah dengan header `parent_funcloc`/`level6_funcloc`, sedangkan importer mengenali `Status`, `Parent FunLoc`, dan `Installed FunLoc`. Akibatnya export → purge → import menghapus status Installed dan seluruh cakupan Funcloc. Export kini menulis kolom `Status` (dari `lifecycle_status`, fallback `status`), `Parent FunLoc` (kode bare dari `parent_funcloc`), dan `Installed FunLoc` (kode bare dari `level6_funcloc`), dan tidak lagi menambahkan kolom duplikat `parent_funcloc`/`level6_funcloc`.
+
+Perbaikan statistik terkait:
+
+- `GetAssetStats` kini membaca status instalasi dari `COALESCE(NULLIF(lifecycle_status, ''), status)` (sama seperti filter list dan UI) alih-alih hanya kolom `status`.
+- Kartu `Equipment` menghitung ulang Piping/Piping Line dari label ber-kode, mis. `Piping (PI)`, `Piping Line (PL)`, sehingga `Equipment` = 233 (bukan 1767).
+
+Verifikasi: import ulang file sumber dan round-trip export → purge → import keduanya menghasilkan `total 1767, installed 397, funcloc 397, equipment 233`. Test baru `TestAssetService_ExportImportRoundTripKeepsStatusAndFuncloc` mengunci perilaku ini; `go build`, `go vet`, `go test ./app/...`, `pnpm typecheck`, dan `pnpm test:run` lulus.
+
+### Equipment Master summary cards, rows-per-page, and wider tables
+
+- Kartu ringkasan (`Total`, `Installed`, `Equipment`, `Has Funcloc`) kini **dapat diklik** dan membuka `StatDetailModal` dengan filter yang cocok, sehingga angka kartu sama dengan baris tabel: keempatnya memfilter `hierarchy_level=1` (equipment induk), dan kartu `Installed` menambah filter status `Installed`.
+- Urutan kartu: **Total → Installed → Equipment → Has Funcloc** di depan, baru diikuti kartu kelas (Piping, Pressure Vessels, dst).
+- Backend: `AssetListQuery` menerima `hierarchy_level` (1–8) dan repository memfilter `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1')` sehingga "level 7/komponen" hanya muncul saat difilter dan kartu ringkasan konsisten dengan `GetAssetStats`.
+- Ditambahkan pemilih **Rows per page** (10/25/50/100) pada Data Grid Equipment Master dan pada tabel `StatDetailModal`; mengubah nilai akan mereset ke halaman 1 dan memuat ulang dengan `limit` baru.
+- Tabel diperlebar agar tombol aksi muat: Data Grid `min-w-[860px]` → `min-w-[1120px]` (kolom checkbox + aksi), modal detail `max-w-5xl` → `max-w-[95rem]` dengan tabel `min-w-[1050px]` → `min-w-[1240px]`.
+- Validasi: test frontend baru (urutan kartu ringkasan, klik kartu `Installed` memfilter `hierarchy_level=1` + status, klik `Total` tanpa filter status, rows-per-page grid & modal), `pnpm typecheck`, `go build ./...`, `go test ./app/...`, dan `pnpm test:run`.
+
+### Equipment Master grid columns, row selection, and Data Transfer scopes
+
+- Kolom Data Grid disusun ulang menjadi: **checkbox**, **Tag Number / Equipment** (sub-teks kode tipe, mis. `Carbon Steel - CA`, warna berbeda), **Description**, **Class / Type** (sub-teks tipe ber-kode, mis. `Carbon Steel (CA)`, warna grey), **Status** (badge hijau `Installed` / abu lainnya), dan **Action**. Kolom `Lifecycle` dihapus dari header grid (dropdown Lifecycle tetap ada di kolom Action).
+- Kode singkatan dipulihkan di frontend (`frontend/src/features/assets/data/equipmentDisplayCodes.ts`) karena DB menyimpan label polos hasil transformasi import (`PI` → `Piping`, `CA` → `Carbon Steel`). Catatan: label yang berasal dari beberapa kode (mis. `Carbon Steel` dari `CA`/`CS`) hanya menampilkan kode utama; penyimpanan kode mentah masuk daftar rework backend.
+- Checkbox per baris + checkbox "select all" di header, dengan selection bar berisi **Download selected** dan **Remove selected** (dengan konfirmasi), plus **Clear selection**. Seleksi dibatasi ke baris yang terlihat di halaman.
+- Filter status di header grid diganti menjadi `All statuses` / `Installed` / `Available` / `Sent to repair` / `Retired` / `Condemned` (label aksesibilitas: "Filter equipment by status").
+- Menu **Data Transfer** dibagi menjadi 4 kelompok: **Equipment**, **Component**, **All Asset**, dan **Data Source**. Baru **Equipment** yang terhubung penuh (Import Equipment, Export Equipment XLSX/CSV); tiga kelompok lain tampil sebagai placeholder `Feature [mode] [group] is under development`.
+- Backend: export kini memfilter `asset_ids` (`ListAssetsForExport` menerima daftar ID) sehingga "Download selected" hanya mengunduh baris tercentang; `BulkDeleteAssets` yang sebelumnya stub (hanya menghitung) kini melakukan **soft delete nyata** lewat `DeleteMany` (status `deleted`, tenant-scoped, dedup ID, melaporkan `skipped_count`).
+- Validasi: test backend baru (`TestAssetService_BulkDeleteAssetsSoftDeletesAndDeduplicates`, `TestAssetService_BulkDeleteAssetsReportsSkippedRows`, `TestAssetService_ExportAssetsForwardsSelectedIDs`), test frontend baru (pemetaan kode class/type, checkbox + selection actions, kolom Status menggantikan Lifecycle, 4 kelompok Data Transfer, download/remove selected di halaman), `pnpm typecheck`, `go test ./app/...`, dan `pnpm test:run`.
+- TODO (rework backend berikutnya): wire penuh 3 kelompok Data Transfer (Component, All Asset, Data Source) termasuk filter scope export/import dan format Data Source; simpan kode mentah equipment agar label ambigu tidak hilang.
+- Catatan operasional: perubahan sempat tidak tampak di browser karena Vite dev server menyajikan cache lama; solusinya `docker restart semar-frontend` lalu hard refresh.
+
+### Equipment Master stat card accuracy and dynamic icons
+
+- Memperbaiki akar masalah angka kartu yang terlalu besar: import menyimpan **equipment induk sebagai Hierarchy Level 1** dan **sub-komponen sebagai Level 2** (mis. `PV-101 SHELL`), tetapi agregasi lama menghitung semua baris. Storage Tanks tampil 114 (seharusnya 40) dan Pressure Vessels 216 (seharusnya 89). `GetAssetStats` kini membatasi semua agregat ke `COALESCE(rbi_properties->>'General.Hierarchy Level','1') = '1'`.
+- Pengelompokan super-class **Equipment vs Piping/Pipeline** kini dihitung dinamis dan case-insensitive dari nilai mentah: `LOWER(BTRIM(asset_class)) IN ('piping','piping line','pipeline')` masuk kategori Piping/Pipeline, sisanya Equipment. Dengan begitu `Equipment + Piping + Piping Line = Total` selalu terjaga (data saat ini: 240 + 1528 + 9 = 1777) dan varian kapital seperti `Pipeline`/`PIPING LINE` tetap tergolong benar.
+- Menggabungkan variasi kapital kelas yang diimpor tidak konsisten (`Pressure Vessels` 89 + `Pressure vessels` 7, `Heat Exchangers` 56 + `Heat exchangers` 8) lewat `INITCAP(LOWER(BTRIM(asset_class)))`, sehingga satu kelas logis tampil sebagai satu kartu.
+- `AssetStats` diperluas dengan `total`, `equipment`, dan `installed`. Semua dihitung pada Level 1: `total` = seluruh equipment induk (1777), `equipment` = equipment induk di luar Piping & Piping Line (240), `installed` = equipment induk berstatus `Installed` (404), dan `funcloc.with` = equipment induk ber-FLOC (400).
+- Frontend: kartu **`Without Funcloc` dihapus** dan diganti kartu **`Installed`**; ditambahkan kartu **`Total`** dan **`Equipment`**; kartu `With Funcloc` dinamai ulang menjadi `Has Funcloc`. Perubahan yang sama diterapkan pada Dashboard (`Equipment Status & Location`).
+- Ikon kartu kini dinamis (`frontend/src/features/assets/components/statCardIcons.ts`): `Total` → Layers3, `Equipment` → Cog, `Piping` → Cable, `Piping Line` → Route, `Installed` → PackageCheck, `Has Funcloc` → MapPin; kelas lain (Storage Tanks, Pressure Vessels, Heat Exchangers, Filters & Strainers, Heaters & Boilers) tetap memakai Boxes.
+- Validasi: unit test repository (`TestAssetRepository_GetAssetStatsAggregatesTenantRows`, kini juga mengunci bentuk pengelompokan Piping/Pipeline) dan handler (`TestGetAssetStatsReturnsExactTenantAggregate`) diperbarui untuk query Level 1 + field baru; test frontend kartu (`Total`, `Equipment`, `Installed`, `Has Funcloc`, dan absennya `Without Funcloc`) serta test pemetaan ikon. Verifikasi live-DB: Storage Tanks 40, Pressure Vessels 96, Total 1777, Equipment 240, Installed 404, Has Funcloc 400, dan invariant 240 + 1528 + 9 = 1777.
+- Catatan: legacy menampilkan Pressure Vessels 89 karena memisahkan `Pressure vessels` (7) sebagai kelas terpisah; setelah penggabungan case, angka menjadi 96.
 
 ### ISO 14224 functional-location & lifecycle schema (models + migration only)
 
 - Menambahkan model `FunctionalLocation` (`backend/app/models/functional_location.go`) dengan pola **adjacency list**: `ID`, `TenantID`, `ParentID` (self-reference), `Code`, `Description`, `Level` (ISO 14224, 1–8), `IsActive`, timestamps, dan relasi `Parent`/`Children`. Validasi `Validate()` menolak tenant/code kosong, level di luar 1–8, dan node yang menjadi parent dirinya sendiri.
 - Menambahkan model `EquipmentLifecycleLog` (`backend/app/models/equipment_lifecycle_log.go`) sebagai audit trail lifecycle: `EquipmentID`, `Action`, `OldValue`, `NewValue`, `Remarks`, `TenantID`, `CreatedBy`, `CreatedAt`. Enum action dibatasi konstanta: `Relocate`, `Install`, `Uninstall`, `Repair`, `Retire`, `Condemn`, `Send to repair` (mengikuti menu UI Lifecycle, ditambah `Retire` & `Send to repair` sesuai keputusan).
 - **Rename kolom Asset**: `functional_location_id` → `installed_floc_id`, dengan relasi GORM `InstalledFloc *FunctionalLocation` (FK `InstalledFlocID`). Rename mengubah makna FK dari self-reference ke `assets` menjadi referensi ke tabel `functional_locations`; seluruh raw SQL repository (`Create`/`Update`/`List`/search/sort/`ValidateFLOCLinks`/upsert) diarahkan ulang ke tabel baru.
-- Migration (`backend/app/database/migration.go`): rename kolom dijalankan **sebelum** `AutoMigrate`; menambahkan tabel `functional_locations` & `equipment_lifecycle_logs`, `CHECK (level BETWEEN 1 AND 8)`, `CHECK (action IN (...))`, index unik `(tenant_id, code)`, index `installed_floc_id`, dan index timeline `(equipment_id, created_at DESC)`. Migrasi idempoten: membersihkan kolom legacy `functional_location_id` bila masih tertinggal (dan kosong), serta membangun ulang `idx_floc_tenant_code` sebagai UNIQUE bila sebelumnya non-unique.
+- Migration (`backend/app/database/migration.go`): rename kolom dijalankan **sebelum** `AutoMigrate`; menambahkan tabel `functional_locations` & `equipment_lifecycle_logs`, `CHECK (level BETWEEN 1 AND 8)`, `CHECK (action IN (...))`, index unik `(tenant_id, code)`, index `installed_floc_id`, dan index timeline `(equipment_id, created_at DESC)`. Migrasi idempoten: rename kolom legacy dijaga dengan pengecekan `information_schema` sehingga database yang sudah termigrasi tidak memunculkan error driver tiap boot, membersihkan kolom legacy `functional_location_id` bila masih tertinggal (dan kosong), serta membangun ulang `idx_floc_tenant_code` sebagai UNIQUE bila sebelumnya non-unique. Boot ulang backend terverifikasi bersih (0 ERROR/FATAL/WARN).
 - Model request/response Asset diperbarui: `FunctionalLocationID` → `InstalledFlocID` (`json:"installed_floc_id"`); tipe frontend `EquipmentAsset` memakai `installed_floc_id`.
 - Validasi: unit test model (`TestFunctionalLocationValidate`, `TestFunctionalLocationRejectsSelfParent`, `TestIsValidEquipmentLifecycleAction`, `TestEquipmentLifecycleLogValidate`, `TestNewModelTableNames`), `gofmt`, `go build ./...`, `go vet`, `go test ./app/models/... ./app/repositories/... ./app/services/...`.
 - Verifikasi runtime (stack dev, backend restart menjalankan migrasi): kedua tabel terbentuk; `chk_floc_level_range` menolak level 9, `chk_lifecycle_action` menolak action `Explode`, unique `(tenant_id, code)` menolak duplikat, adjacency list menerima parent→child, dan kolom lama `functional_location_id` sudah tidak ada (hanya `installed_floc_id`). `/health` mengembalikan 200.

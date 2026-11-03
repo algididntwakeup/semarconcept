@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	gormPostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -207,6 +208,26 @@ func (r *assetRepository) Delete(ctx context.Context, tenantID int, id int) erro
 	return nil
 }
 
+// DeleteMany soft-deletes every listed asset in one statement, scoped to the
+// tenant. Soft delete (status = 'deleted') keeps the row for audit while
+// removing it from every list, stats, and export query.
+func (r *assetRepository) DeleteMany(ctx context.Context, tenantID int, ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	query := `UPDATE assets SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $1 AND id = ANY($2) AND COALESCE(status, '') <> 'deleted'`
+	result, err := r.db.ExecContext(ctx, query, tenantID, pq.Array(ids))
+	if err != nil {
+		return 0, fmt.Errorf("delete assets: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("delete assets rows affected: %w", err)
+	}
+	return rows, nil
+}
+
 // HasActiveComponents checks if the asset has related components
 func (r *assetRepository) HasActiveComponents(ctx context.Context, tenantID int, id int) (bool, error) {
 	query := `SELECT COUNT(*) FROM components WHERE equipment_id = $1 AND tenant_id = $2 AND status != 'deleted'`
@@ -275,8 +296,10 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 		assetType = req.Type
 	}
 	if req.EquipmentClass != "" {
-		query += fmt.Sprintf(` AND asset_class = $%d`, argIdx)
-		countQuery += fmt.Sprintf(` AND asset_class = $%d`, argIdx)
+		// Case- and whitespace-insensitive so a card label always finds its
+		// rows even if the stored casing differs.
+		query += fmt.Sprintf(` AND LOWER(BTRIM(asset_class)) = LOWER(BTRIM($%d))`, argIdx)
+		countQuery += fmt.Sprintf(` AND LOWER(BTRIM(asset_class)) = LOWER(BTRIM($%d))`, argIdx)
 		args = append(args, req.EquipmentClass)
 		argIdx++
 	}
@@ -295,6 +318,16 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 		query += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, argIdx)
 		countQuery += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, argIdx)
 		args = append(args, lifecycleStatus)
+		argIdx++
+	}
+
+	// HierarchyLevel filters parent equipment ("1") versus sub-components ("2"
+	// and deeper). A missing level is treated as "1", matching GetAssetStats.
+	if req.HierarchyLevel != "" {
+		levelExpr := `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1')`
+		query += fmt.Sprintf(` AND %s = $%d`, levelExpr, argIdx)
+		countQuery += fmt.Sprintf(` AND %s = $%d`, levelExpr, argIdx)
+		args = append(args, req.HierarchyLevel)
 		argIdx++
 	}
 
@@ -330,34 +363,75 @@ func (r *assetRepository) List(ctx context.Context, tenantID int, req *request.A
 	return assets, total, nil
 }
 
-// GetAssetStats aggregates non-deleted assets by their imported equipment class
-// and by functional-location presence for the dashboard summary.
+// GetAssetStats aggregates non-deleted parent equipment (Hierarchy Level 1) by
+// their imported equipment class, plus functional-location coverage and totals
+// for the dashboard summary.
+//
+// Imported workbooks mark parent equipment as Hierarchy Level 1 and their
+// sub-components as Level 2+ (for example "PV-101 SHELL"). Counting every row
+// inflated the class cards (Storage Tanks 114 instead of 40), so all aggregates
+// here are restricted to Level 1 and group classes case-insensitively, because
+// the same class is imported with inconsistent capitalisation
+// ("Pressure Vessels" vs "Pressure vessels").
+//
+// Equipment is the super-class of every Level 1 row that is not Piping or
+// Piping Line, so Equipment + Piping + Piping Line always equals Total.
 func (r *assetRepository) GetAssetStats(ctx context.Context, tenantID int) (AssetStats, error) {
 	stats := AssetStats{Classes: make([]AssetClassCount, 0)}
 	db, err := r.getGormDB()
 	if err != nil {
 		return stats, err
 	}
+	// parentEquipmentExpr keeps rows whose hierarchy level is missing or "1".
+	const parentEquipmentExpr = `COALESCE(NULLIF(BTRIM(rbi_properties->>'General.Hierarchy Level'), ''), '1') = '1'`
+	// classLabel is the exact stored class value (for example "Piping (PI)").
+	// The card sends this label straight back as the equipment_class filter, so
+	// it must match the rows verbatim; normalising the casing here produced
+	// "Piping (Pi)", which no longer matched the stored value and left every
+	// class card opening an empty table.
+	const classLabel = `BTRIM(asset_class)`
+	// pipingClassesExpr decides the Equipment vs Piping/Pipeline split. The
+	// canonical code in the label (PI, PL) is authoritative, so renaming a class
+	// in the import dictionary ("Piping Line (PL)" -> "Onshore Pipelines (PL)")
+	// does not silently move those rows into Equipment. Bare names are still
+	// accepted so pre-translation rows keep working.
+	const pipingClassesExpr = `(
+		LOWER(REGEXP_REPLACE(BTRIM(asset_class), '\s*\([^)]*\)\s*$', '')) IN ('piping', 'piping line', 'pipeline')
+		OR UPPER(BTRIM(asset_class)) ~ '\((PI|PL)\)$'
+	)`
+	// installedExpr reads the same status column as the list filter and the UI:
+	// the relational lifecycle_status first, then the legacy status column.
+	const installedExpr = `COALESCE(NULLIF(lifecycle_status, ''), status) = 'Installed'`
 	err = db.WithContext(ctx).Model(&models.Asset{}).
-		Select("BTRIM(asset_class) AS class, COUNT(*) AS count").
-		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL", tenantID).
-		Group("BTRIM(asset_class)").Order("BTRIM(asset_class)").Scan(&stats.Classes).Error
+		Select(classLabel+" AS class, COUNT(*) AS count").
+		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND NULLIF(BTRIM(asset_class), '') IS NOT NULL AND "+parentEquipmentExpr, tenantID).
+		Group(classLabel).Order(classLabel).Scan(&stats.Classes).Error
 	if err != nil {
 		return stats, fmt.Errorf("aggregate equipment class statistics: %w", err)
 	}
 
-	type funclocRow struct {
-		With    int64 `gorm:"column:with_funcloc"`
-		Without int64 `gorm:"column:without_funcloc"`
+	type summaryRow struct {
+		Total     int64 `gorm:"column:total"`
+		Equipment int64 `gorm:"column:equipment"`
+		Installed int64 `gorm:"column:installed"`
+		With      int64 `gorm:"column:with_funcloc"`
+		Without   int64 `gorm:"column:without_funcloc"`
 	}
-	var row funclocRow
+	var row summaryRow
 	err = db.WithContext(ctx).Model(&models.Asset{}).
-		Select("COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc, COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc").
-		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted'", tenantID).
+		Select(`COUNT(*) AS total,
+			COUNT(*) FILTER (WHERE NOT (`+pipingClassesExpr+`)) AS equipment,
+			COUNT(*) FILTER (WHERE `+installedExpr+`) AS installed,
+			COUNT(*) FILTER (WHERE has_funcloc) AS with_funcloc,
+			COUNT(*) FILTER (WHERE NOT has_funcloc) AS without_funcloc`).
+		Where("tenant_id = ? AND COALESCE(status, '') <> 'deleted' AND "+parentEquipmentExpr, tenantID).
 		Scan(&row).Error
 	if err != nil {
-		return stats, fmt.Errorf("aggregate functional location statistics: %w", err)
+		return stats, fmt.Errorf("aggregate equipment summary statistics: %w", err)
 	}
+	stats.Total = row.Total
+	stats.Equipment = row.Equipment
+	stats.Installed = row.Installed
 	stats.Funcloc = AssetFunclocStats{With: row.With, Without: row.Without}
 	return stats, nil
 }
@@ -471,7 +545,7 @@ func (r *assetRepository) ValidateFLOCLinks(ctx context.Context, tenantID, userI
 	return result, nil
 }
 
-func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error) {
+func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string, assetIDs []int) ([]models.Asset, error) {
 	query := `SELECT * FROM assets WHERE tenant_id = $1 AND COALESCE(status, '') <> 'deleted'`
 	args := []interface{}{tenantID}
 	if assetType != "" {
@@ -481,6 +555,12 @@ func (r *assetRepository) ListAssetsForExport(ctx context.Context, tenantID int,
 	if status != "" {
 		args = append(args, status)
 		query += fmt.Sprintf(` AND COALESCE(NULLIF(lifecycle_status, ''), status) = $%d`, len(args))
+	}
+	// When explicit IDs are supplied (for example "download selected rows"),
+	// restrict the export to those rows.
+	if len(assetIDs) > 0 {
+		args = append(args, pq.Array(assetIDs))
+		query += fmt.Sprintf(` AND id = ANY($%d)`, len(args))
 	}
 	query += ` ORDER BY id`
 	assets := make([]models.Asset, 0)
@@ -682,6 +762,136 @@ func (r *assetRepository) PurgeAll(ctx context.Context, tenantID int) (int64, er
 		return 0, fmt.Errorf("purge all assets for tenant %d: %w", tenantID, err)
 	}
 	return result.RowsAffected()
+}
+
+// ListEquipmentTaxonomy returns the tenant's import dictionary ordered by kind
+// and canonical code. The import resolves raw workbook cells against it so each
+// tenant can carry its own vocabulary.
+func (r *assetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	values := make([]models.EquipmentTaxonomyValue, 0)
+	err := r.db.SelectContext(ctx, &values, `
+		SELECT id, tenant_id, kind, canonical_code, canonical_name, aliases, is_active, created_at, updated_at
+		FROM equipment_taxonomy_values
+		WHERE tenant_id = $1 AND is_active = TRUE
+		ORDER BY kind, canonical_code`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list equipment taxonomy for tenant %d: %w", tenantID, err)
+	}
+	return values, nil
+}
+
+// CreateEquipmentTaxonomyValue inserts one canonical value with its aliases.
+func (r *assetRepository) CreateEquipmentTaxonomyValue(ctx context.Context, value *models.EquipmentTaxonomyValue) error {
+	if value == nil {
+		return fmt.Errorf("create equipment taxonomy value: %w", utils.ErrValidation)
+	}
+	err := r.db.GetContext(ctx, value, `
+		INSERT INTO equipment_taxonomy_values (tenant_id, kind, canonical_code, canonical_name, aliases, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		RETURNING id, created_at, updated_at`,
+		value.TenantID, value.Kind, value.CanonicalCode, value.CanonicalName, value.Aliases, value.IsActive)
+	if err != nil {
+		return fmt.Errorf("create equipment taxonomy value %q: %w", value.CanonicalCode, err)
+	}
+	return nil
+}
+
+// UpdateEquipmentTaxonomyValue updates the name, aliases, and active flag of one
+// tenant value identified by id.
+func (r *assetRepository) UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE equipment_taxonomy_values
+		SET canonical_name = $1, aliases = $2, is_active = $3, updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = $4 AND id = $5`, name, aliases, isActive, tenantID, id)
+	if err != nil {
+		return fmt.Errorf("update equipment taxonomy value %d: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update equipment taxonomy value %d rows affected: %w", id, err)
+	}
+	if rows == 0 {
+		return utils.ErrAssetNotFound
+	}
+	return nil
+}
+
+// DeleteEquipmentTaxonomyValue removes one tenant value by id.
+func (r *assetRepository) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM equipment_taxonomy_values WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+	if err != nil {
+		return fmt.Errorf("delete equipment taxonomy value %d: %w", id, err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete equipment taxonomy value %d rows affected: %w", id, err)
+	}
+	if rows == 0 {
+		return utils.ErrAssetNotFound
+	}
+	return nil
+}
+
+// ListImportRawTaxonomy returns the raw import class/type values stored on the
+// tenant's assets. Only imported rows carry source_class/source_type, so this
+// naturally scopes a re-apply to imported equipment.
+func (r *assetRepository) ListImportRawTaxonomy(ctx context.Context, tenantID int) ([]AssetImportRawTaxonomy, error) {
+	rows := make([]AssetImportRawTaxonomy, 0)
+	err := r.db.SelectContext(ctx, &rows, `
+		SELECT id,
+		       asset_class,
+		       asset_type,
+		       COALESCE(rbi_properties->>'source_class', '') AS source_class,
+		       COALESCE(rbi_properties->>'source_type', '') AS source_type
+		FROM assets
+		WHERE tenant_id = $1
+		  AND COALESCE(status, '') <> 'deleted'
+		  AND (rbi_properties ? 'source_class' OR rbi_properties ? 'source_type')`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list import raw taxonomy for tenant %d: %w", tenantID, err)
+	}
+	return rows, nil
+}
+
+// ApplyImportTaxonomyLabels rewrites the canonical class/type labels of the
+// given assets. When dryRun is true it only counts the rows it would change.
+func (r *assetRepository) ApplyImportTaxonomyLabels(ctx context.Context, tenantID, userID int, updates map[int]AssetTaxonomyLabel, dryRun bool) (int64, error) {
+	if len(updates) == 0 {
+		return 0, nil
+	}
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin taxonomy re-apply transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var affected int64
+	for id, label := range updates {
+		var result sql.Result
+		if dryRun {
+			// Count only: a no-op UPDATE tells us whether the row exists.
+			result, err = tx.ExecContext(ctx, `
+				UPDATE assets SET asset_class = asset_class
+				WHERE tenant_id = $1 AND id = $2 AND COALESCE(status, '') <> 'deleted'`, tenantID, id)
+		} else {
+			result, err = tx.ExecContext(ctx, `
+				UPDATE assets SET asset_class = $1, asset_type = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
+				WHERE tenant_id = $4 AND id = $5 AND COALESCE(status, '') <> 'deleted'`,
+				label.AssetClass, label.AssetType, userID, tenantID, id)
+		}
+		if err != nil {
+			return 0, fmt.Errorf("apply taxonomy label to asset %d: %w", id, err)
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("apply taxonomy label to asset %d rows affected: %w", id, err)
+		}
+		affected += rows
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit taxonomy re-apply: %w", err)
+	}
+	return affected, nil
 }
 
 func (r *assetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {

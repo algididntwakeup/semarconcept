@@ -20,22 +20,63 @@ func TestAssetRepository_GetAssetStatsAggregatesTenantRows(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT BTRIM\(asset_class\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL GROUP BY BTRIM\(asset_class\) ORDER BY BTRIM\(asset_class\)`).
+	mock.ExpectQuery(`SELECT BTRIM\(asset_class\) AS class, COUNT\(\*\) AS count FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted' AND NULLIF\(BTRIM\(asset_class\), ''\) IS NOT NULL AND COALESCE\(NULLIF\(BTRIM\(rbi_properties->>'General\.Hierarchy Level'\), ''\), '1'\) = '1' GROUP BY BTRIM\(asset_class\) ORDER BY BTRIM\(asset_class\)`).
 		WithArgs(42).
-		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping", int64(12)).AddRow("Storage Tanks", int64(7)))
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FILTER \(WHERE has_funcloc\) AS with_funcloc, COUNT\(\*\) FILTER \(WHERE NOT has_funcloc\) AS without_funcloc FROM "assets" WHERE tenant_id = \$1 AND COALESCE\(status, ''\) <> 'deleted'`).
+		WillReturnRows(sqlmock.NewRows([]string{"class", "count"}).AddRow("Piping (PI)", int64(12)).AddRow("Storage Tanks (TA)", int64(7)))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) AS total, COUNT\(\*\) FILTER \(WHERE NOT \(\(\s*LOWER\(REGEXP_REPLACE\(BTRIM\(asset_class\), '\\s\*\\\(\[\^\)\]\*\\\)\\s\*\$', ''\)\) IN \('piping', 'piping line', 'pipeline'\)\s*OR UPPER\(BTRIM\(asset_class\)\) ~ '\\\(\(PI\|PL\)\\\)\$'\s*\)\)\) AS equipment, COUNT\(\*\) FILTER \(WHERE COALESCE\(NULLIF\(lifecycle_status, ''\), status\) = 'Installed'\) AS installed, COUNT\(\*\) FILTER \(WHERE has_funcloc\) AS with_funcloc,`).
 		WithArgs(42).
-		WillReturnRows(sqlmock.NewRows([]string{"with_funcloc", "without_funcloc"}).AddRow(int64(1500), int64(200)))
+		WillReturnRows(sqlmock.NewRows([]string{"total", "equipment", "installed", "with_funcloc", "without_funcloc"}).
+			AddRow(int64(1777), int64(240), int64(404), int64(400), int64(1377)))
 	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
 	require.NoError(t, err)
 	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
 	stats, err := repo.GetAssetStats(context.Background(), 42)
 	require.NoError(t, err)
 	require.Equal(t, []AssetClassCount{
-		{Class: "Piping", Count: 12},
-		{Class: "Storage Tanks", Count: 7},
+		{Class: "Piping (PI)", Count: 12},
+		{Class: "Storage Tanks (TA)", Count: 7},
 	}, stats.Classes)
-	require.Equal(t, AssetFunclocStats{With: 1500, Without: 200}, stats.Funcloc)
+	require.Equal(t, int64(1777), stats.Total)
+	require.Equal(t, int64(240), stats.Equipment)
+	require.Equal(t, int64(404), stats.Installed)
+	require.Equal(t, AssetFunclocStats{With: 400, Without: 1377}, stats.Funcloc)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAssetRepository_DeleteManySoftDeletesTenantRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Two ids are passed as a single pq.Array argument; the statement reports
+	// one affected row.
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE assets SET status = 'deleted', updated_at = CURRENT_TIMESTAMP`)).
+		WithArgs(42, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
+	require.NoError(t, err)
+	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
+
+	affected, err := repo.DeleteMany(context.Background(), 42, []int{7, 8})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), affected)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAssetRepository_DeleteManySkipsEmptyInput(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	gdb, err := gorm.Open(gormPostgres.New(gormPostgres.Config{Conn: db}), &gorm.Config{})
+	require.NoError(t, err)
+	repo := NewAssetRepository(sqlx.NewDb(db, "sqlmock"), gdb)
+
+	// No ids means no query at all.
+	affected, err := repo.DeleteMany(context.Background(), 42, nil)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), affected)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

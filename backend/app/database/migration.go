@@ -17,8 +17,21 @@ func MigrateAll(db *gorm.DB) error {
 	// points at functional_locations. Existing data is all NULL in current
 	// deployments, so the rename preserves the column's meaning as "the FLOC
 	// where this equipment is installed".
-	if err := db.Exec(`ALTER TABLE assets RENAME COLUMN functional_location_id TO installed_floc_id`).Error; err != nil {
-		utils.Warnf("Could not rename assets.functional_location_id (already renamed?): %v", err)
+	//
+	// The rename is guarded by an existence check so a database that already
+	// migrated does not emit a spurious driver error on every boot; the guard
+	// also handles a fresh database that has no assets table yet.
+	var legacyFlocColumnExists bool
+	row := db.Raw(`SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'assets' AND column_name = 'functional_location_id'
+	)`).Row()
+	if err := row.Scan(&legacyFlocColumnExists); err != nil {
+		utils.Warnf("Could not check for legacy assets.functional_location_id column: %v", err)
+	} else if legacyFlocColumnExists {
+		if err := db.Exec(`ALTER TABLE assets RENAME COLUMN functional_location_id TO installed_floc_id`).Error; err != nil {
+			utils.Warnf("Could not rename assets.functional_location_id: %v", err)
+		}
 	}
 
 	// Run all models in a single call to handle complex relationships and circular foreign keys
@@ -38,6 +51,9 @@ func MigrateAll(db *gorm.DB) error {
 		&models.AuditLog{},
 		&models.TaxonomyCategory{},
 		&models.TaxonomyAttribute{},
+		&models.EquipmentTaxonomyValue{},
+		&models.EquipmentDocument{},
+		&models.PipingClass{},
 		&models.Menu{},
 		&models.MenuAccessLog{},
 	)
@@ -92,7 +108,7 @@ func MigrateAll(db *gorm.DB) error {
 	if err := db.Exec(`ALTER TABLE equipment_lifecycle_logs DROP CONSTRAINT IF EXISTS chk_lifecycle_action`).Error; err != nil {
 		utils.Warnf("Could not drop existing lifecycle action constraint: %v", err)
 	}
-	if err := db.Exec(`ALTER TABLE equipment_lifecycle_logs ADD CONSTRAINT chk_lifecycle_action CHECK (action IN ('Relocate','Install','Uninstall','Repair','Retire','Condemn','Send to repair'))`).Error; err != nil {
+	if err := db.Exec(`ALTER TABLE equipment_lifecycle_logs ADD CONSTRAINT chk_lifecycle_action CHECK (action IN ('Relocate','Install','Uninstall','Repair','Retire','Condemn','Send to repair','UPDATE_ASSET'))`).Error; err != nil {
 		utils.Errorf("Failed to add equipment_lifecycle_logs action constraint: %v", err)
 		return err
 	}
@@ -114,6 +130,28 @@ func MigrateAll(db *gorm.DB) error {
 	}
 	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_assets_has_funcloc ON assets (has_funcloc)`).Error; err != nil {
 		utils.Errorf("Failed to create assets.has_funcloc index: %v", err)
+		return err
+	}
+	// Attached files: the type is a closed set and the list is always read per
+	// equipment, so both are enforced/optimised here.
+	if err := db.Exec(`ALTER TABLE equipment_documents DROP CONSTRAINT IF EXISTS chk_equipment_documents_type`).Error; err != nil {
+		utils.Warnf("Could not drop existing equipment_documents type constraint: %v", err)
+	}
+	if err := db.Exec(`ALTER TABLE equipment_documents ADD CONSTRAINT chk_equipment_documents_type CHECK (file_type IN ('Image','Document','Drawing','Report','Datasheet','Certificate'))`).Error; err != nil {
+		utils.Errorf("Failed to add equipment_documents type constraint: %v", err)
+		return err
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_equipment_documents_tenant_equipment ON equipment_documents (tenant_id, equipment_id, uploaded_at DESC)`).Error; err != nil {
+		utils.Errorf("Failed to create equipment_documents lookup index: %v", err)
+		return err
+	}
+	// Tenant-scoped import dictionary: the kind is a closed set and every value
+	// resolves at most once per tenant, so the import mapping stays deterministic.
+	if err := db.Exec(`ALTER TABLE equipment_taxonomy_values DROP CONSTRAINT IF EXISTS chk_equipment_taxonomy_kind`).Error; err != nil {
+		utils.Warnf("Could not drop existing equipment_taxonomy_values kind constraint: %v", err)
+	}
+	if err := db.Exec(`ALTER TABLE equipment_taxonomy_values ADD CONSTRAINT chk_equipment_taxonomy_kind CHECK (kind IN ('class', 'type'))`).Error; err != nil {
+		utils.Errorf("Failed to add equipment_taxonomy_values kind constraint: %v", err)
 		return err
 	}
 	// Backfill rows imported before the flag existed: an asset has a functional

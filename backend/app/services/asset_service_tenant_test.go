@@ -73,6 +73,11 @@ func (m *MockAssetRepository) FindByID(ctx context.Context, tenantID, id int) (*
 	return args.Get(0).(*models.Asset), args.Error(1)
 }
 
+func (m *MockAssetRepository) Update(ctx context.Context, asset *models.Asset) error {
+	args := m.Called(ctx, asset)
+	return args.Error(0)
+}
+
 func (m *MockAssetRepository) FindByTag(ctx context.Context, tenantID, unitID int, tag string) (*models.Asset, error) {
 	args := m.Called(ctx, tenantID, unitID, tag)
 	if args.Get(0) == nil {
@@ -81,12 +86,18 @@ func (m *MockAssetRepository) FindByTag(ctx context.Context, tenantID, unitID in
 	return args.Get(0).(*models.Asset), args.Error(1)
 }
 
-func (m *MockAssetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string) ([]models.Asset, error) {
-	args := m.Called(ctx, tenantID, assetType, status)
+func (m *MockAssetRepository) ListAssetsForExport(ctx context.Context, tenantID int, assetType, status string, assetIDs []int) ([]models.Asset, error) {
+	args := m.Called(ctx, tenantID, assetType, status, assetIDs)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]models.Asset), args.Error(1)
+}
+
+// DeleteMany mirrors the repository contract for bulk soft delete.
+func (m *MockAssetRepository) DeleteMany(ctx context.Context, tenantID int, ids []int) (int64, error) {
+	args := m.Called(ctx, tenantID, ids)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockAssetRepository) FindByTagNumber(ctx context.Context, tenantID int, tagNumber string) (*models.Asset, error) {
@@ -104,6 +115,52 @@ func (m *MockAssetRepository) UpsertAssetsFromImport(ctx context.Context, tenant
 
 func (m *MockAssetRepository) PurgeAll(ctx context.Context, tenantID int) (int64, error) {
 	args := m.Called(ctx, tenantID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+// ListEquipmentTaxonomy mirrors the repository contract. Tests that do not care
+// about the tenant dictionary get an empty list, which makes the resolver fall
+// back to the built-in dictionary; tests that set an expectation get its value.
+func (m *MockAssetRepository) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	if expectation := m.ExpectedCalls; expectation != nil {
+		for _, call := range expectation {
+			if call.Method == "ListEquipmentTaxonomy" {
+				args := m.Called(ctx, tenantID)
+				if args.Get(0) == nil {
+					return nil, args.Error(1)
+				}
+				return args.Get(0).([]models.EquipmentTaxonomyValue), args.Error(1)
+			}
+		}
+	}
+	return []models.EquipmentTaxonomyValue{}, nil
+}
+
+func (m *MockAssetRepository) CreateEquipmentTaxonomyValue(ctx context.Context, value *models.EquipmentTaxonomyValue) error {
+	args := m.Called(ctx, value)
+	return args.Error(0)
+}
+
+func (m *MockAssetRepository) UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, name string, aliases models.JSONBArray, isActive bool) error {
+	args := m.Called(ctx, tenantID, id, name, aliases, isActive)
+	return args.Error(0)
+}
+
+func (m *MockAssetRepository) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
+	args := m.Called(ctx, tenantID, id)
+	return args.Error(0)
+}
+
+func (m *MockAssetRepository) ListImportRawTaxonomy(ctx context.Context, tenantID int) ([]repositories.AssetImportRawTaxonomy, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repositories.AssetImportRawTaxonomy), args.Error(1)
+}
+
+func (m *MockAssetRepository) ApplyImportTaxonomyLabels(ctx context.Context, tenantID, userID int, updates map[int]repositories.AssetTaxonomyLabel, dryRun bool) (int64, error) {
+	args := m.Called(ctx, tenantID, userID, updates, dryRun)
 	return args.Get(0).(int64), args.Error(1)
 }
 
@@ -158,7 +215,7 @@ func TestAssetService_ExportAssetsToExcel_WritesTwoTierEquipmentWorkbook(t *test
 	pressure := 12.5
 	tag := "PV-101"
 	name := "Reactor"
-	assetRepo.On("ListAssetsForExport", ctx, 42, "", "").Return([]models.Asset{{
+	assetRepo.On("ListAssetsForExport", ctx, 42, "", "", []int(nil)).Return([]models.Asset{{
 		ID:                  101,
 		TenantID:            42,
 		TagNumber:           &tag,
@@ -284,6 +341,80 @@ func mustExportStyleID(t *testing.T, workbook *excelize.File, cell string) int {
 	return styleID
 }
 
+// TestAssetService_ExportImportRoundTripKeepsStatusAndFuncloc guards the bug
+// where an exported workbook re-imported into a fresh database lost the
+// Installed status and Has Funcloc coverage: the export must write the Status
+// and Parent/Installed FunLoc columns the importer understands.
+func TestAssetService_ExportImportRoundTripKeepsStatusAndFuncloc(t *testing.T) {
+	ctx := context.Background()
+	installed := "Installed"
+	available := "Available"
+	assetClass := "Piping (PI)"
+	assetType := "Carbon Steel (Ca) (CA)"
+	parentTag := `1"-AI-12001-1G1`
+	childTag := `1"-AI-12002-1G1`
+	name := "Instrument"
+	exportAssets := []models.Asset{
+		{
+			ID: 101, TenantID: 42, TagNumber: &parentTag, Name: name, Status: &installed,
+			AssetClass: &assetClass, AssetType: &assetType,
+			HasFuncloc: true,
+			RBIProperties: models.JSONBMap{
+				"General.Hierarchy Level": "1",
+				"parent_funcloc":          "JI-JL-AG-11-PW (INLET SEPARATION)",
+				"level6_funcloc":          `1"-CI-66002-6S0 (1"-AI-12001-1G1)`,
+			},
+		},
+		{
+			ID: 102, TenantID: 42, TagNumber: &childTag, Name: name, Status: &available,
+			AssetClass: &assetClass, AssetType: &assetType,
+			RBIProperties: models.JSONBMap{"General.Hierarchy Level": "2"},
+		},
+	}
+
+	exportRepo := new(MockAssetRepository)
+	exportRepo.On("ListAssetsForExport", ctx, 42, "", "", []int(nil)).Return(exportAssets, nil)
+	exportService := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), exportRepo, new(MockComponentRepository))
+	data, _, err := exportService.ExportAssets(ctx, 42, &request.AssetExportRequest{})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	// The exported headers must line up with the importer's recognized fields.
+	book, err := excelize.OpenReader(bytes.NewReader(data))
+	assert.NoError(t, err)
+	statusColumn := mustExportColumn(t, book, "Status")
+	parentFunclocColumn := mustExportColumn(t, book, "Parent FunLoc")
+	installedFunclocColumn := mustExportColumn(t, book, "Installed FunLoc")
+	assert.Equal(t, "Installed", mustExportCell(t, book, statusColumn+"3"))
+	assert.Equal(t, "JI-JL-AG-11-PW", mustExportCell(t, book, parentFunclocColumn+"3"))
+	assert.Equal(t, `1"-CI-66002-6S0`, mustExportCell(t, book, installedFunclocColumn+"3"))
+	assert.NoError(t, book.Close())
+
+	// Re-importing the export must rebuild the same status and funcloc flags.
+	importRepo := new(MockAssetRepository)
+	importRepo.On("UpsertAssetsFromImport", ctx, 42, mock.MatchedBy(func(records []repositories.AssetImportRecord) bool {
+		if len(records) != 2 {
+			return false
+		}
+		first, second := records[0].Asset, records[1].Asset
+		if first.Status == nil || *first.Status != "Installed" || !first.HasFuncloc {
+			return false
+		}
+		if first.RBIProperties["parent_funcloc"] != "JI-JL-AG-11-PW" {
+			return false
+		}
+		if first.RBIProperties["level6_funcloc"] != `1"-CI-66002-6S0 (1"-AI-12001-1G1)` {
+			return false
+		}
+		return second.Status != nil && *second.Status == "Available" && !second.HasFuncloc
+	}), 7).Return(2, 0, nil).Once()
+	importService := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), importRepo, new(MockComponentRepository))
+	result, err := importService.ImportAssets(ctx, 42, &request.AssetImportRequest{}, 7, data)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, result.(map[string]interface{})["imported_count"])
+	importRepo.AssertExpectations(t)
+}
+
 func findCSVExportColumn(t *testing.T, categories, headers []string, category, header string) int {
 	t.Helper()
 	currentCategory := ""
@@ -336,6 +467,7 @@ func TestAssetService_ImportAssetsFromXLSX_MapsTwoTierHeadersAndUpserts(t *testi
 	assert.Equal(t, map[string]interface{}{
 		"created_count": 1, "updated_count": 0, "imported_count": 1, "total_count": 1,
 		"errors": []string{}, "validate_only": false,
+		"unmapped_class": []string{"Pressure Vessel"}, "unmapped_type": []string{"Vessel"},
 	}, result)
 	assetRepo.AssertExpectations(t)
 }
@@ -796,4 +928,115 @@ func TestAssetService_PurgeAssets(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1537), deleted)
 	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_BulkDeleteAssetsSoftDeletesAndDeduplicates(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	// Duplicate and invalid IDs are collapsed before hitting the repository.
+	assetRepo.On("DeleteMany", ctx, tenantID, []int{7, 8}).Return(int64(1), nil).Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := svc.BulkDeleteAssets(ctx, tenantID, &request.BulkAssetOperationRequest{
+		AssetIDs:  []int{7, 8, 7, 0, -3},
+		AssetType: "Asset",
+		Operation: "delete",
+		Reason:    "bulk cleanup of obsolete equipment",
+	}, 9)
+	assert.NoError(t, err)
+
+	payload, ok := result.(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), payload["deleted_count"])
+	assert.Equal(t, 5, payload["total_count"])
+	assert.Equal(t, int64(1), payload["skipped_count"])
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_BulkDeleteAssetsReportsSkippedRows(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	assetRepo.On("DeleteMany", ctx, tenantID, []int{11, 12}).Return(int64(2), nil).Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	result, err := svc.BulkDeleteAssets(ctx, tenantID, &request.BulkAssetOperationRequest{
+		AssetIDs:  []int{11, 12},
+		AssetType: "Asset",
+		Operation: "delete",
+		Reason:    "remove decommissioned equipment records",
+	}, 9)
+	assert.NoError(t, err)
+
+	payload, ok := result.(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, int64(2), payload["deleted_count"])
+	assert.Equal(t, int64(0), payload["skipped_count"])
+	assetRepo.AssertExpectations(t)
+}
+
+func TestAssetService_ExportAssetsForwardsSelectedIDs(t *testing.T) {
+	ctx := context.Background()
+	tenantID := 42
+	assetRepo := new(MockAssetRepository)
+	// The selected IDs must reach the repository so "download selected" only
+	// exports the checked rows.
+	assetRepo.On("ListAssetsForExport", ctx, tenantID, "", "", []int{5, 6}).
+		Return([]models.Asset{{ID: 5, TenantID: tenantID, Name: "Row five"}, {ID: 6, TenantID: tenantID, Name: "Row six"}}, nil).
+		Once()
+
+	svc := services.NewAssetService(new(MockSiteRepository), new(MockUnitRepository), assetRepo, new(MockComponentRepository))
+	data, filename, err := svc.ExportAssets(ctx, tenantID, &request.AssetExportRequest{
+		AssetType:  "Asset",
+		ExportType: "full",
+		Format:     "csv",
+		AssetIDs:   []int{5, 6},
+	})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+	assert.Contains(t, filename, ".csv")
+	assetRepo.AssertExpectations(t)
+}
+
+// TestAssetService_UpdateAssetMergesRBIProperties proves a Manage Asset save
+// merges the submitted rbi_properties keys instead of replacing the map, so
+// import-written keys (funcloc, source_class) survive a partial form save.
+func TestAssetService_UpdateAssetMergesRBIProperties(t *testing.T) {
+	ctx := context.Background()
+	tenantID, userID, assetID := 1, 10, 77
+	mockSiteRepo := new(MockSiteRepository)
+	mockUnitRepo := new(MockUnitRepository)
+	mockAssetRepo := new(MockAssetRepository)
+	mockCompRepo := new(MockComponentRepository)
+	svc := services.NewAssetService(mockSiteRepo, mockUnitRepo, mockAssetRepo, mockCompRepo)
+
+	existing := &models.Asset{
+		ID:       assetID,
+		TenantID: tenantID,
+		Name:     "Feed Pump",
+		RBIProperties: models.JSONBMap{
+			"parent_funcloc": "JI-JL-AG-11-PW",
+			"source_class":   "PI",
+		},
+	}
+	mockAssetRepo.On("FindByID", ctx, tenantID, assetID).Return(existing, nil)
+	mockAssetRepo.On("Update", ctx, mock.MatchedBy(func(asset *models.Asset) bool {
+		// New keys are written, untouched import keys survive, and the parent
+		// funcloc submitted by the form is overwritten.
+		return asset.RBIProperties["Equipment Design.Weld Efficiency"] == "0.85" &&
+			asset.RBIProperties["source_class"] == "PI" &&
+			asset.RBIProperties["parent_funcloc"] == "JI-JL-AG-99-ZZ"
+	})).Return(nil).Once()
+
+	req := &request.UpdateAssetRequest{
+		RBIProperties: map[string]interface{}{
+			"parent_funcloc":                   "JI-JL-AG-99-ZZ",
+			"Equipment Design.Weld Efficiency": "0.85",
+		},
+	}
+	res, err := svc.UpdateAsset(ctx, tenantID, assetID, req, userID)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	mockAssetRepo.AssertExpectations(t)
 }

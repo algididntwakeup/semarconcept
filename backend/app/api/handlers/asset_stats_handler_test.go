@@ -66,7 +66,10 @@ func TestGetAssetStatsReturnsExactTenantAggregate(t *testing.T) {
 			{Class: "Piping", Count: 12},
 			{Class: "Storage Tanks", Count: 7},
 		},
-		Funcloc: repositories.AssetFunclocStats{With: 1500, Without: 200},
+		Funcloc:   repositories.AssetFunclocStats{With: 1500, Without: 200},
+		Total:     1777,
+		Equipment: 240,
+		Installed: 404,
 	}}
 	handler := handlers.NewAssetHandler(service, nil)
 	recorder := httptest.NewRecorder()
@@ -78,7 +81,7 @@ func TestGetAssetStatsReturnsExactTenantAggregate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, 42, service.tenantID)
-	require.JSONEq(t, `{"success":true,"message":"Asset statistics retrieved successfully","data":{"classes":[{"class":"Piping","count":12},{"class":"Storage Tanks","count":7}],"funcloc":{"with":1500,"without":200}}}`, recorder.Body.String())
+	require.JSONEq(t, `{"success":true,"message":"Asset statistics retrieved successfully","data":{"classes":[{"class":"Piping","count":12},{"class":"Storage Tanks","count":7}],"funcloc":{"with":1500,"without":200},"total":1777,"equipment":240,"installed":404}}`, recorder.Body.String())
 }
 
 func TestGetAssetStatsReturnsJSONInternalError(t *testing.T) {

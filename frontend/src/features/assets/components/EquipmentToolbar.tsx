@@ -1,19 +1,29 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, FileDown, FileUp, Plus, Trash2, Wrench } from 'lucide-react';
+import { BookMarked, ChevronDown, FileDown, FileUp, Plus, Trash2, Wrench } from 'lucide-react';
 
 export interface EquipmentToolbarProps {
   onDiagnoseDuplicates: () => void;
   onFixComponentLinks: () => void;
   onSyncComponentsToFLOC: () => void;
   onClearAllEquipment: () => void;
+  /** Import for the Equipment group (the only group wired today). */
   onImport: () => void;
+  /** Export for the Equipment group. */
   onExport: (format: 'xlsx' | 'csv') => void;
+  /** Placeholder hook for the not-yet-wired data-transfer groups. */
+  onPlaceholderAction?: (label: string) => void;
   onNewEquipment: () => void;
+  /** Opens the tenant import dictionary (class/type aliases). */
+  onManageDictionary: () => void;
   isMaintenancePending?: boolean;
   isImportPending?: boolean;
   isExportPending?: boolean;
   isPurging?: boolean;
 }
+
+/** Data Transfer is split into four scopes; only Equipment is wired for now. */
+export const DATA_TRANSFER_GROUPS = ['Equipment', 'Component', 'All Asset', 'Data Source'] as const;
+export type DataTransferGroup = (typeof DATA_TRANSFER_GROUPS)[number];
 
 interface DropdownMenuProps {
   label: string;
@@ -94,7 +104,9 @@ const EquipmentToolbar = ({
   onClearAllEquipment,
   onImport,
   onExport,
+  onPlaceholderAction,
   onNewEquipment,
+  onManageDictionary,
   isMaintenancePending = false,
   isImportPending = false,
   isExportPending = false,
@@ -172,6 +184,10 @@ const EquipmentToolbar = ({
     >
       {(close) => (
         <>
+          {/* Equipment is the only scope wired end-to-end today. */}
+          <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Equipment
+          </p>
           <button
             type="button"
             role="menuitem"
@@ -183,7 +199,7 @@ const EquipmentToolbar = ({
             className={menuItemClass}
           >
             <FileUp size={15} aria-hidden="true" />
-            {isImportPending ? 'Importing…' : 'Import'}
+            {isImportPending ? 'Importing…' : 'Import Equipment'}
           </button>
           <button
             type="button"
@@ -196,7 +212,7 @@ const EquipmentToolbar = ({
             className={menuItemClass}
           >
             <FileDown size={15} aria-hidden="true" />
-            Export XLSX
+            Export Equipment XLSX
           </button>
           <button
             type="button"
@@ -209,11 +225,48 @@ const EquipmentToolbar = ({
             className={menuItemClass}
           >
             <FileDown size={15} aria-hidden="true" />
-            Export CSV
+            Export Equipment CSV
           </button>
+
+          {/* Remaining scopes are staged UI; the backend rework is tracked separately. */}
+          {(['Component', 'All Asset', 'Data Source'] as const).map((group) => (
+            <div key={group} className="mt-1 border-t border-slate-100 pt-1">
+              <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                {group}
+              </p>
+              {(['Import', 'Export'] as const).map((mode) => (
+                <button
+                  key={`${group}-${mode}`}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    close();
+                    onPlaceholderAction?.(`${mode} ${group}`);
+                  }}
+                  className={`${menuItemClass} text-slate-500`}
+                >
+                  {mode === 'Import' ? (
+                    <FileUp size={15} aria-hidden="true" />
+                  ) : (
+                    <FileDown size={15} aria-hidden="true" />
+                  )}
+                  {mode} {group}
+                </button>
+              ))}
+            </div>
+          ))}
         </>
       )}
     </DropdownMenu>
+
+    <button
+      type="button"
+      onClick={onManageDictionary}
+      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+    >
+      <BookMarked size={16} aria-hidden="true" />
+      Import dictionary
+    </button>
 
     <button
       type="button"

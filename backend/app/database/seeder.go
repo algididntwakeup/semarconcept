@@ -48,6 +48,14 @@ func (s *Seeder) SeedAll() error {
 		return err
 	}
 
+	if err := s.SeedEquipmentTaxonomyForAllTenants(); err != nil {
+		return err
+	}
+
+	if err := s.SeedPipingClassesForAllTenants(); err != nil {
+		return err
+	}
+
 	if err := s.SeedMenuItems(); err != nil {
 		return err
 	}

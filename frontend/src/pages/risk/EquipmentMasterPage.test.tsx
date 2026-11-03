@@ -15,17 +15,29 @@ vi.mock('../../services/assetServices', async (importOriginal) => {
       getEquipmentAssetStats: vi.fn(),
       getEquipmentAssets: vi.fn(),
       diagnoseEquipmentDuplicates: vi.fn(),
+      resolveEquipmentDuplicate: vi.fn(),
       fixEquipmentComponentLinks: vi.fn(),
       syncEquipmentComponentsToFLOC: vi.fn(),
       importEquipmentAssets: vi.fn(),
       exportEquipmentAssets: vi.fn(),
       purgeAllEquipmentAssets: vi.fn(),
+      bulkDeleteEquipmentAssets: vi.fn(),
       createEquipmentAsset: vi.fn(),
+      createEquipmentComponent: vi.fn(),
+      updateEquipmentAsset: vi.fn(),
+      getEquipmentAsset: vi.fn(),
     },
   };
 });
 
 const renderPage = () => {
+  // Detail fetch mirrors the row the grid returns; individual tests can override.
+  vi.mocked(assetService.getEquipmentAsset).mockImplementation(async (id) => ({
+    id: Number(id),
+    tag_number: 'P-101',
+    description: 'Main process pump',
+    asset_class: 'Piping (PI)',
+  }));
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
@@ -53,6 +65,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping', count: 2 }],
       funcloc: { with: 1, without: 1 },
+      total: 5,
+      equipment: 3,
+      installed: 4,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
@@ -64,6 +79,20 @@ describe('EquipmentMasterPage API integration', () => {
     renderPage();
 
     const card = await screen.findByRole('button', { name: 'Piping: 2' });
+    // Summary cards reflect the API totals and replace the old "Without Funcloc".
+    expect(screen.getByRole('button', { name: 'Total: 5' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Equipment: 3' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Installed: 4' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Has Funcloc: 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Without Funcloc/ })).not.toBeInTheDocument();
+
+    // Summary cards lead the list in the requested order, before class cards.
+    const cardLabels = screen
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+      .filter((label): label is string => Boolean(label && /^[A-Za-z ].+: \d/.test(label)));
+    expect(cardLabels.slice(0, 4)).toEqual(['Total: 5', 'Installed: 4', 'Equipment: 3', 'Has Funcloc: 1']);
+
     const registers = screen.getAllByRole('region', { name: 'Equipment register' });
     const register = registers[registers.length - 1];
     expect(card.compareDocumentPosition(register) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -75,7 +104,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('downloads selected XLSX and CSV formats from the Data Transfer dropdown', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -103,14 +132,18 @@ describe('EquipmentMasterPage API integration', () => {
     expect(transferButton).toHaveAttribute('aria-expanded', 'false');
 
     openDataTransferMenu();
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export XLSX' }));
-    await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(1, 'xlsx'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export Equipment XLSX' }));
+    await waitFor(() =>
+      expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(1, 'xlsx', undefined)
+    );
     expect(downloadedFilename).toBe('equipment-master.xlsx');
     expect(await screen.findByText('Equipment export downloaded.')).toBeInTheDocument();
 
     openDataTransferMenu();
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export CSV' }));
-    await waitFor(() => expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(2, 'csv'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Export Equipment CSV' }));
+    await waitFor(() =>
+      expect(assetService.exportEquipmentAssets).toHaveBeenNthCalledWith(2, 'csv', undefined)
+    );
     expect(downloadedFilename).toBe('equipment-master.csv');
 
     clickSpy.mockRestore();
@@ -118,7 +151,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('closes the Data Transfer menu without exporting when dismissed', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -145,6 +178,9 @@ describe('EquipmentMasterPage API integration', () => {
         { class: 'Storage Tanks', count: 3 },
       ],
       funcloc: { with: 4, without: 1 },
+      total: 5,
+      equipment: 3,
+      installed: 4,
     });
     vi.mocked(assetService.getEquipmentAssets).mockImplementation(async (params = {}) => ({
       assets:
@@ -172,18 +208,83 @@ describe('EquipmentMasterPage API integration', () => {
     expect(screen.getAllByText('P-101')).toHaveLength(2);
   }, 15000);
 
-  it('runs maintenance utilities from the Maintenance dropdown and shows toasts', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+  it('opens the detail modal filtered to parent equipment when a summary card is clicked', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping', count: 2 }],
+      funcloc: { with: 1, without: 1 },
+      total: 5,
+      equipment: 3,
+      installed: 4,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [{ id: 1, tag_number: 'P-101', name: 'Installed pump', lifecycle_status: 'Installed' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Installed: 4' }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    // Installed card must restrict to parent equipment AND Installed status.
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ hierarchy_level: '1', lifecycle_status: 'Installed', page: 1 })
+      )
+    );
+
+    // Total card only restricts the hierarchy level.
+    fireEvent.click(screen.getByRole('button', { name: 'Close asset details' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Total: 5' }));
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ hierarchy_level: '1', lifecycle_status: undefined })
+      )
+    );
+  }, 15000);
+
+  it('changes the rows per page for the register and refetches with the new limit', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+      total: 0,
+      equipment: 0,
+      installed: 0,
+    });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
       page: 1,
       limit: 10,
     });
-    vi.mocked(assetService.diagnoseEquipmentDuplicates).mockResolvedValue({
-      duplicate_count: 0,
-      duplicates: [],
+
+    renderPage();
+
+    const pageSizeSelect = await screen.findByRole('combobox', {
+      name: 'Rows per page for equipment register',
     });
+    expect(pageSizeSelect).toHaveValue('10');
+
+    fireEvent.change(pageSizeSelect, { target: { value: '50' } });
+
+    await waitFor(() =>
+      expect(assetService.getEquipmentAssets).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 50, page: 1 })
+      )
+    );
+  }, 15000);
+
+  it('runs maintenance utilities from the Maintenance dropdown and shows toasts', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.diagnoseEquipmentDuplicates).mockResolvedValue([]);
     vi.mocked(assetService.fixEquipmentComponentLinks).mockResolvedValue({
       affected_links: 2,
       dry_run: false,
@@ -201,7 +302,7 @@ describe('EquipmentMasterPage API integration', () => {
     openMaintenanceMenu();
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Diagnose duplicates' }));
     expect(
-      await screen.findByText('Duplicate tag diagnosis complete: no duplicates found.')
+      await screen.findByText('No duplicates found.')
     ).toBeInTheDocument();
     expect(assetService.diagnoseEquipmentDuplicates).toHaveBeenCalledOnce();
 
@@ -220,10 +321,84 @@ describe('EquipmentMasterPage API integration', () => {
     expect(assetService.syncEquipmentComponentsToFLOC).toHaveBeenCalledWith(false);
   }, 15000);
 
+  it('opens DuplicateResolutionModal when duplicates are found and resolves them', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.diagnoseEquipmentDuplicates).mockResolvedValue([
+      {
+        tag_number: '12-H-1101',
+        duplicate_count: 2,
+        duplicates: [
+          {
+            id: 101,
+            asset_id: 101,
+            tenant_id: 1,
+            tag_number: '12-H-1101',
+            name: 'Heat Exchanger Primary',
+            status: 'active',
+            has_funcloc: true,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+          },
+          {
+            id: 102,
+            asset_id: 102,
+            tenant_id: 1,
+            tag_number: '12-H-1101',
+            name: 'Heat Exchanger Copy',
+            status: 'draft',
+            has_funcloc: false,
+            created_at: '2026-01-02T00:00:00Z',
+            updated_at: '2026-01-02T00:00:00Z',
+          },
+        ],
+      },
+    ]);
+    vi.mocked(assetService.resolveEquipmentDuplicate).mockResolvedValue({
+      kept_asset_id: 101,
+      deleted_count: 1,
+      deleted_asset_ids: [102],
+    });
+
+    renderPage();
+
+    openMaintenanceMenu();
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Diagnose duplicates' }));
+
+    expect(await screen.findByText('Resolve Duplicate Equipment Tags')).toBeInTheDocument();
+    expect(screen.getByText(/Smart Merge:/i)).toBeInTheDocument();
+    expect(screen.getByText('12-H-1101')).toBeInTheDocument();
+    expect(screen.getByText('Heat Exchanger Primary')).toBeInTheDocument();
+    expect(screen.getByText('Heat Exchanger Copy')).toBeInTheDocument();
+
+    const keepButtons = screen.getAllByRole('button', { name: /Keep & Merge Data/i });
+    expect(keepButtons).toHaveLength(2);
+    fireEvent.click(keepButtons[0]);
+
+    await waitFor(() => {
+      expect(assetService.resolveEquipmentDuplicate).toHaveBeenCalledWith({
+        kept_asset_id: 101,
+        deleted_asset_ids: [102],
+      });
+    });
+
+    expect(
+      await screen.findByText('Successfully merged data and removed duplicates.')
+    ).toBeInTheDocument();
+  }, 15000);
+
   it('keeps Manage Asset and Add Component working from the Manage dropdown', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [
@@ -239,34 +414,102 @@ describe('EquipmentMasterPage API integration', () => {
       page: 1,
       limit: 10,
     });
-    const assignSpy = vi.fn();
-    const originalLocation = window.location;
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: { ...originalLocation, assign: assignSpy },
-    });
-
     renderPage();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Manage P-101' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Manage Asset' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Feed Pump')).toBeInTheDocument();
+    // The Manage Asset modal opens with the tag in its title and the form bound.
+    expect(
+      within(dialog).getByRole('heading', { name: 'Manage Asset — P-101' })
+    ).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Description')).toHaveValue('Main process pump');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     await userEvent.click(screen.getByRole('button', { name: 'Manage P-101' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Component' }));
-    expect(assignSpy).toHaveBeenCalledWith('/assets/hierarchy');
-
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: originalLocation,
-    });
+    // Add Component now opens its own modal instead of navigating away.
+    const addDialog = await screen.findByRole('dialog');
+    expect(
+      within(addDialog).getByRole('heading', { name: 'Add Component to P-101' })
+    ).toBeInTheDocument();
+    expect(within(addDialog).getByLabelText(/Tag Name/)).toBeInTheDocument();
+    expect(within(addDialog).getByRole('button', { name: 'Save Component' })).toBeInTheDocument();
   }, 15000);
+
+  it('adds a component from the row menu, inheriting the parent class', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Heat Exchangers', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 1,
+      installed: 1,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        {
+          id: 42,
+          tag_number: '1\"-AI-12002-1G1',
+          name: 'Air Cooler',
+          asset_class: 'Heat Exchangers',
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.createEquipmentComponent).mockResolvedValue({
+      id: 900,
+      name: '01',
+      component_type: 'tube_bundle',
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Manage 1"-AI-12002-1G1/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Component' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByRole('heading', { name: 'Add Component to 1"-AI-12002-1G1' })
+    ).toBeInTheDocument();
+
+    await userEvent.type(within(dialog).getByLabelText(/Tag Name/), '01');
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText(/Component Type \(Asset Type Mapping\)/),
+      'tube_bundle'
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Component' }));
+
+    await waitFor(() =>
+      expect(assetService.createEquipmentComponent).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          name: '01',
+          component_type: 'tube_bundle',
+          // Level 7 component descends the parent's class.
+          component_class: 'Heat Exchangers',
+        })
+      )
+    );
+    expect(
+      await screen.findByText('Component 01 added to 1"-AI-12002-1G1.')
+    ).toBeInTheDocument();
+    // The modal closes on success.
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Add Component to 1"-AI-12002-1G1' })
+      ).not.toBeInTheDocument()
+    );
+  }, 20000);
 
   it('shows a placeholder toast and captures the id for the Manage → Edit Asset wiring', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
@@ -284,13 +527,18 @@ describe('EquipmentMasterPage API integration', () => {
     ).toBeInTheDocument();
   }, 15000);
 
-  it('shows a placeholder toast for Lifecycle row actions', async () => {
+  it('opens the Install modal from a Lifecycle row action and confirms with a toast', async () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Piping (PI)', count: 1 }],
       funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
-      assets: [{ id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)' }],
+      assets: [
+        { id: 7, tag_number: 'P-101', name: 'Feed Pump', asset_class: 'Piping (PI)', status: 'Available' },
+      ],
       total: 1,
       page: 1,
       limit: 10,
@@ -299,12 +547,90 @@ describe('EquipmentMasterPage API integration', () => {
     renderPage();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Lifecycle P-101' }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Relocate' }));
-    expect(await screen.findByText('Feature Relocate is under development')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Install' }));
+
+    // The placement modal opens with the asset tag and a Confirm action.
+    expect(
+      await screen.findByRole('heading', { name: 'Install Equipment to Hierarchy' })
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Install' }));
+
+    expect(await screen.findByText(/Install request for P-101 staged/)).toBeInTheDocument();
+  }, 15000);
+
+  it('confirms a simple Lifecycle action through the confirmation modal', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 1, without: 0 },
+      total: 1,
+      equipment: 0,
+      installed: 1,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        { id: 8, tag_number: 'P-202', name: 'Feed Pump', asset_class: 'Piping (PI)', status: 'Installed' },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Lifecycle P-202' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Are you sure you want to uninstall this asset?' })
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText('P-202 marked as uninstall.')).toBeInTheDocument();
+  }, 15000);
+
+  it('saves the Manage Asset form through the API and refetches the register', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [{ class: 'Piping (PI)', count: 1 }],
+      funcloc: { with: 0, without: 1 },
+      total: 1,
+      equipment: 1,
+      installed: 0,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        { id: 9, tag_number: 'P-909', name: 'P-909', description: 'Old', asset_class: 'Piping (PI)' },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+    vi.mocked(assetService.updateEquipmentAsset).mockResolvedValue({ id: 9, tag_number: 'P-909' });
+
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Manage P-909' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Manage Asset' }));
+    const dialog = await screen.findByRole('dialog');
+
+    await userEvent.clear(within(dialog).getByLabelText('Description'));
+    await userEvent.type(within(dialog).getByLabelText('Description'), 'Rebuilt pump');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save Data Source' }));
+
+    await waitFor(() =>
+      expect(assetService.updateEquipmentAsset).toHaveBeenCalledWith(
+        9,
+        expect.objectContaining({
+          columns: expect.objectContaining({ description: 'Rebuilt pump' }),
+          rbiProperties: expect.objectContaining({ parent_funcloc: '' }),
+        })
+      )
+    );
+    // The register is refetched so the grid shows the saved value.
+    await waitFor(() => expect(assetService.getEquipmentAssets).toHaveBeenCalledTimes(2));
   }, 15000);
 
   it('shows file preview with name and size and allows clearing with the X button', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -331,7 +657,7 @@ describe('EquipmentMasterPage API integration', () => {
   });
 
   it('accepts a CSV file through the hidden import input and uploads it', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -368,6 +694,9 @@ describe('EquipmentMasterPage API integration', () => {
     vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
       classes: [{ class: 'Pressure Vessels (VE)', count: 3 }],
       funcloc: { with: 2, without: 1 },
+      total: 3,
+      equipment: 3,
+      installed: 2,
     });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
@@ -388,7 +717,7 @@ describe('EquipmentMasterPage API integration', () => {
     await userEvent.selectOptions(screen.getByLabelText(/Equipment Class/), 'Pressure Vessels (VE)');
     await userEvent.selectOptions(
       screen.getByLabelText('Equipment Type'),
-      'Separator (Se) (SE)'
+      'Separator (SE)'
     );
     await userEvent.type(screen.getByLabelText(/Asset ID \/ Tag Number/), '12-V-1104');
     await userEvent.click(screen.getByRole('button', { name: 'Save Equipment' }));
@@ -398,7 +727,7 @@ describe('EquipmentMasterPage API integration', () => {
         expect.objectContaining({
           tag_number: '12-V-1104',
           asset_class: 'Pressure Vessels (VE)',
-          asset_type: 'Separator (Se) (SE)',
+          asset_type: 'Separator (SE)',
         })
       )
     );
@@ -406,7 +735,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('rejects a file whose extension is neither XLSX nor CSV', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -429,7 +758,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('shows import failure details, automatically resets uploader, and imports on submit', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -481,7 +810,7 @@ describe('EquipmentMasterPage API integration', () => {
   }, 15000);
 
   it('rejects files larger than 100 MB with an error notification', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,
@@ -507,8 +836,68 @@ describe('EquipmentMasterPage API integration', () => {
     expect(assetService.importEquipmentAssets).not.toHaveBeenCalled();
   });
 
+  it('downloads and removes only the selected equipment rows', async () => {
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+      total: 0,
+      equipment: 0,
+      installed: 0,
+    });
+    vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
+      assets: [
+        { id: 41, tag_number: 'P-41', name: 'P-41', asset_class: 'Piping', status: 'Installed' },
+        { id: 42, tag_number: 'P-42', name: 'P-42', asset_class: 'Piping', status: 'Available' },
+      ],
+      total: 2,
+      page: 1,
+      limit: 10,
+    });
+    const blob = new Blob(['selected export']);
+    vi.mocked(assetService.exportEquipmentAssets).mockResolvedValue({
+      blob,
+      filename: 'selected.xlsx',
+    });
+    vi.mocked(assetService.bulkDeleteEquipmentAssets).mockResolvedValue({
+      deleted_count: 1,
+      total_count: 1,
+      skipped_count: 0,
+    });
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:selected'),
+      revokeObjectURL: vi.fn(),
+    });
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select P-41' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download selected' }));
+    await waitFor(() =>
+      expect(assetService.exportEquipmentAssets).toHaveBeenCalledWith('xlsx', ['41'])
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove selected' }));
+    await waitFor(() =>
+      expect(assetService.bulkDeleteEquipmentAssets).toHaveBeenCalledWith(
+        ['41'],
+        expect.any(String)
+      )
+    );
+    expect(await screen.findByText('Removed 1 equipment record(s).')).toBeInTheDocument();
+
+    clickSpy.mockRestore();
+    confirmSpy.mockRestore();
+    vi.unstubAllGlobals();
+  }, 15000);
+
   it('triggers purgeAllEquipmentAssets from the Maintenance dropdown after user confirms', async () => {
-    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 } });
+    vi.mocked(assetService.getEquipmentAssetStats).mockResolvedValue({ classes: [], funcloc: { with: 0, without: 0 }, total: 0, equipment: 0, installed: 0 });
     vi.mocked(assetService.getEquipmentAssets).mockResolvedValue({
       assets: [],
       total: 0,

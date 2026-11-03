@@ -27,6 +27,12 @@ export interface EquipmentAssetFunclocStats {
 export interface EquipmentAssetStats {
   classes: EquipmentAssetStat[];
   funcloc: EquipmentAssetFunclocStats;
+  /** Every parent-equipment (Hierarchy Level 1) row for the tenant. */
+  total: number;
+  /** Parent equipment excluding Piping and Piping Line. */
+  equipment: number;
+  /** Parent equipment whose status is Installed. */
+  installed: number;
 }
 
 export interface EquipmentAsset {
@@ -50,6 +56,51 @@ export interface EquipmentAsset {
   installed_floc_id?: string | number | null;
   parent_floc?: string | null;
   has_funcloc?: boolean | null;
+  /** Relational summary from the API; absent when the asset has no links. */
+  linked_data?: EquipmentLinkedData | null;
+}
+
+/** One read-only label/value pair in a linked-data card. */
+export interface EquipmentLinkedDataProperty {
+  label: string;
+  value: string;
+}
+
+/** One read-only card rendered in the Risk Analysis tab. */
+export interface EquipmentLinkedDataCard {
+  key: string;
+  title: string;
+  subtitle?: string;
+  source?: string;
+  properties: EquipmentLinkedDataProperty[];
+}
+
+/** Relational summary attached to an asset detail. */
+export interface EquipmentLinkedData {
+  piping_class_code?: string;
+  cards: EquipmentLinkedDataCard[];
+}
+
+/** A child component of an equipment asset (Hierarchy Level 7). */
+export interface EquipmentComponent {
+  id: string | number;
+  asset_id?: string | number;
+  name: string;
+  component_code?: string | null;
+  component_type?: string | null;
+  component_class?: string | null;
+  material?: string | null;
+  location_description?: string | null;
+  status?: string | null;
+}
+
+/** Payload for creating a component under a parent equipment asset. */
+export interface CreateEquipmentComponentPayload {
+  name: string;
+  component_type: string;
+  component_class?: string;
+  location_description?: string;
+  specifications?: Record<string, unknown>;
 }
 
 export interface EquipmentAssetListParams {
@@ -58,6 +109,7 @@ export interface EquipmentAssetListParams {
   search?: string;
   lifecycle_status?: string;
   equipment_class?: string;
+  hierarchy_level?: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
   search_field?: 'tag_number' | 'class' | 'type' | 'material' | 'parent_floc' | 'status';
   sort_by?: 'tag_number' | 'asset_class' | 'asset_type' | 'materials' | 'parent_floc' | 'status';
   sort_order?: 'asc' | 'desc';
@@ -68,6 +120,41 @@ export interface EquipmentAssetListResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+export interface DuplicateAssetDetail {
+  id: number;
+  asset_id: number;
+  tenant_id: number;
+  tag_number: string;
+  name: string;
+  description?: string;
+  asset_class?: string;
+  asset_type?: string;
+  status?: string;
+  lifecycle_status?: string;
+  parent_id?: number;
+  installed_floc_id?: number;
+  has_funcloc: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DuplicateTagGroup {
+  tag_number: string;
+  duplicate_count: number;
+  duplicates: DuplicateAssetDetail[];
+}
+
+export interface ResolveDuplicatePayload {
+  kept_asset_id: number;
+  deleted_asset_ids: number[];
+}
+
+export interface ResolveDuplicateResult {
+  kept_asset_id: number;
+  deleted_count: number;
+  deleted_asset_ids: number[];
 }
 
 export interface EquipmentDuplicateDiagnosis {
@@ -95,6 +182,57 @@ export interface EquipmentAssetImportResult {
   total_count: number;
   errors: string[];
   validate_only: boolean;
+  /** Raw workbook values that matched no dictionary entry (import dictionary). */
+  unmapped_class?: string[];
+  unmapped_type?: string[];
+}
+
+/** One canonical Equipment Class/Type value plus the aliases that map to it. */
+export interface EquipmentTaxonomyValue {
+  id: number;
+  tenant_id: number;
+  kind: 'class' | 'type';
+  canonical_code: string;
+  canonical_name: string;
+  aliases: string[];
+  is_active: boolean;
+}
+
+export interface CreateEquipmentTaxonomyValuePayload {
+  kind: 'class' | 'type';
+  canonical_code: string;
+  canonical_name: string;
+  aliases?: string[];
+  is_active?: boolean;
+}
+
+export interface UpdateEquipmentTaxonomyValuePayload {
+  canonical_name: string;
+  aliases?: string[];
+  is_active?: boolean;
+}
+
+/** Summary of a dictionary re-apply run against existing imported assets. */
+export interface EquipmentTaxonomyReapplyResult {
+  checked_count: number;
+  updated_count: number;
+  unmapped_class: string[];
+  unmapped_type: string[];
+  dry_run: boolean;
+}
+
+/** One file attached to an asset, as returned by the documents API. */
+export interface EquipmentDocument {
+  id: number;
+  tenant_id: number;
+  equipment_id: number;
+  file_name: string;
+  /** Public path served by the backend, e.g. /static/uploads/equipments/42/….pdf */
+  file_url: string;
+  file_type: 'Image' | 'Document' | 'Drawing' | 'Report' | 'Datasheet' | 'Certificate';
+  file_size: number;
+  uploaded_at: string;
+  uploaded_by?: number;
 }
 
 const unwrapApiData = <T,>(value: unknown): T => {
@@ -194,7 +332,13 @@ class AssetService {
   async getEquipmentAssetStats(): Promise<EquipmentAssetStats> {
     const response = await apiClient.get(`${this.baseUrl}/stats`);
     const payload = unwrapApiData<unknown>(response.data);
-    const empty: EquipmentAssetStats = { classes: [], funcloc: { with: 0, without: 0 } };
+    const empty: EquipmentAssetStats = {
+      classes: [],
+      funcloc: { with: 0, without: 0 },
+      total: 0,
+      equipment: 0,
+      installed: 0,
+    };
     if (!payload || typeof payload !== 'object') {
       return empty;
     }
@@ -205,6 +349,9 @@ class AssetService {
         with: Number(candidate.funcloc?.with) || 0,
         without: Number(candidate.funcloc?.without) || 0,
       },
+      total: Number(candidate.total) || 0,
+      equipment: Number(candidate.equipment) || 0,
+      installed: Number(candidate.installed) || 0,
     };
   }
 
@@ -226,8 +373,101 @@ class AssetService {
     return unwrapApiData(response.data);
   }
 
+  /**
+   * Loads one asset with its full columns and parsed rbi_properties, so the
+   * Manage Asset form can pre-fill from the authoritative record.
+   */
+  async getEquipmentAsset(assetId: string | number): Promise<EquipmentAsset> {
+    const response = await apiClient.get(`${this.baseUrl}/Asset/${assetId}`);
+    return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
+  /** Lists the files attached to an asset (images, drawings, reports, …). */
+  async getEquipmentDocuments(equipmentId: string | number): Promise<EquipmentDocument[]> {
+    const response = await apiClient.get(`${this.baseUrl}/equipments/${equipmentId}/files`);
+    const data = unwrapApiData<EquipmentDocument[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  }
+
+  /** Uploads one file for an asset; `category` narrows non-image kinds. */
+  async uploadEquipmentDocument(
+    equipmentId: string | number,
+    file: File,
+    category?: string,
+    onUploadProgress?: (progress: number) => void
+  ): Promise<EquipmentDocument> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (category) formData.append('category', category);
+    const response = await apiClient.post(
+      `${this.baseUrl}/equipments/${equipmentId}/files`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+        onUploadProgress: (event) => {
+          if (event.total) onUploadProgress?.(Math.round((event.loaded * 100) / event.total));
+        },
+      }
+    );
+    return unwrapApiData<EquipmentDocument>(response.data);
+  }
+
+  async deleteEquipmentDocument(
+    equipmentId: string | number,
+    documentId: number
+  ): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/equipments/${equipmentId}/files/${documentId}`);
+  }
+
+  /**
+   * Saves the Manage Asset form: asset columns plus the rbi_properties keys.
+   * The backend merges rbi_properties, so keys the form does not own survive.
+   */
+  async updateEquipmentAsset(
+    assetId: string | number,
+    payload: { columns: Record<string, string>; rbiProperties: Record<string, string> }
+  ): Promise<EquipmentAsset> {
+    const response = await apiClient.put(`${this.baseUrl}/Asset/${assetId}`, {
+      ...payload.columns,
+      rbi_properties: payload.rbiProperties,
+    });
+    return unwrapApiData<EquipmentAsset>(response.data);
+  }
+
   async deleteEquipmentAsset(assetId: string | number): Promise<void> {
     await apiClient.delete(`${this.baseUrl}/Asset/${assetId}`);
+  }
+
+  /**
+   * Soft-deletes the selected equipment in one request. The backend marks the
+   * rows as deleted so they disappear from lists, stats, and exports.
+   */
+  async bulkDeleteEquipmentAssets(
+    assetIds: Array<string | number>,
+    reason = 'Removed from Equipment Master selection'
+  ): Promise<{ deleted_count: number; total_count: number; skipped_count: number }> {
+    const ids = assetIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const response = await apiClient.delete(`${this.baseUrl}/bulk-delete`, {
+      data: {
+        asset_ids: ids,
+        asset_type: 'Asset',
+        operation: 'delete',
+        reason: reason.trim().length >= 10 ? reason : 'Removed from Equipment Master selection',
+      },
+    });
+    const payload = unwrapApiData<{
+      deleted_count?: number;
+      total_count?: number;
+      skipped_count?: number;
+    }>(response.data);
+    return {
+      deleted_count: Number(payload?.deleted_count ?? 0),
+      total_count: Number(payload?.total_count ?? ids.length),
+      skipped_count: Number(payload?.skipped_count ?? 0),
+    };
   }
 
   /**
@@ -271,19 +511,83 @@ class AssetService {
     return unwrapApiData<EquipmentAsset>(response.data);
   }
 
-  async diagnoseEquipmentDuplicates(): Promise<EquipmentDuplicateDiagnosis> {
-    const response = await apiClient.get(`${this.baseUrl}/diagnose-duplicates`);
-    return unwrapApiData(response.data) as EquipmentDuplicateDiagnosis;
+  /**
+   * Creates a child component under a parent equipment asset. The endpoint
+   * lives under /equipments/:id/components and maps to the components table via
+   * the parent asset id, so the component descends the parent's identity.
+   */
+  async createEquipmentComponent(
+    equipmentId: string | number,
+    payload: CreateEquipmentComponentPayload
+  ): Promise<EquipmentComponent> {
+    const response = await apiClient.post(
+      `${this.baseUrl}/equipments/${equipmentId}/components`,
+      {
+        asset_id: Number(equipmentId),
+        name: payload.name,
+        component_type: payload.component_type,
+        component_class: payload.component_class,
+        location_description: payload.location_description,
+        specifications: payload.specifications,
+      }
+    );
+    return unwrapApiData<EquipmentComponent>(response.data);
+  }
+
+  async diagnoseEquipmentDuplicates(): Promise<DuplicateTagGroup[]> {
+    const response = await apiClient.post('/maintenance/diagnose-duplicates');
+    const data = unwrapApiData<DuplicateTagGroup[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  }
+
+  async resolveEquipmentDuplicate(
+    payload: ResolveDuplicatePayload
+  ): Promise<ResolveDuplicateResult> {
+    const response = await apiClient.post('/maintenance/resolve-duplicate', payload);
+    return unwrapApiData<ResolveDuplicateResult>(response.data);
   }
 
   async fixEquipmentComponentLinks(dryRun = false): Promise<EquipmentLinkFixResult> {
-    const response = await apiClient.post(`${this.baseUrl}/fix-links`, { dry_run: dryRun });
+    const response = await apiClient.post('/maintenance/fix-links', { dry_run: dryRun });
     return unwrapApiData(response.data) as EquipmentLinkFixResult;
   }
 
   async syncEquipmentComponentsToFLOC(dryRun = false): Promise<EquipmentFLOCSyncResult> {
-    const response = await apiClient.post(`${this.baseUrl}/sync-floc`, { dry_run: dryRun });
+    const response = await apiClient.post('/maintenance/sync-floc', { dry_run: dryRun });
     return unwrapApiData(response.data) as EquipmentFLOCSyncResult;
+  }
+
+  async getEquipmentTaxonomy(): Promise<EquipmentTaxonomyValue[]> {
+    const response = await apiClient.get(`${this.baseUrl}/taxonomy`);
+    const data = unwrapApiData<EquipmentTaxonomyValue[]>(response.data);
+    return Array.isArray(data) ? data : [];
+  }
+
+  async createEquipmentTaxonomyValue(
+    payload: CreateEquipmentTaxonomyValuePayload
+  ): Promise<EquipmentTaxonomyValue> {
+    const response = await apiClient.post(`${this.baseUrl}/taxonomy`, payload);
+    return unwrapApiData<EquipmentTaxonomyValue>(response.data);
+  }
+
+  async updateEquipmentTaxonomyValue(
+    id: number,
+    payload: UpdateEquipmentTaxonomyValuePayload
+  ): Promise<void> {
+    await apiClient.put(`${this.baseUrl}/taxonomy/${id}`, payload);
+  }
+
+  async deleteEquipmentTaxonomyValue(id: number): Promise<void> {
+    await apiClient.delete(`${this.baseUrl}/taxonomy/${id}`);
+  }
+
+  /**
+   * Recompute imported assets' canonical class/type labels from their raw
+   * values using the current dictionary. Pass dryRun to preview the count.
+   */
+  async reapplyEquipmentTaxonomy(dryRun = false): Promise<EquipmentTaxonomyReapplyResult> {
+    const response = await apiClient.post(`${this.baseUrl}/taxonomy/reapply`, { dry_run: dryRun });
+    return unwrapApiData<EquipmentTaxonomyReapplyResult>(response.data);
   }
 
   async importEquipmentAssets(
@@ -323,9 +627,22 @@ class AssetService {
     }
   }
 
-  async exportEquipmentAssets(format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ blob: Blob; filename: string }> {
+  async exportEquipmentAssets(
+    format: 'xlsx' | 'csv' = 'xlsx',
+    assetIds?: Array<string | number>
+  ): Promise<{ blob: Blob; filename: string }> {
+    const ids = (assetIds ?? [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
     const response = await apiClient.get(`${this.baseUrl}/export`, {
-      params: { asset_type: 'Asset', export_type: 'full', format },
+      params: {
+        asset_type: 'Asset',
+        export_type: 'full',
+        format,
+        ...(ids.length > 0 ? { asset_ids: ids } : {}),
+      },
+      // Repeat asset_ids as asset_ids=1&asset_ids=2 for the Gin query binder.
+      paramsSerializer: { indexes: null },
       responseType: 'blob',
     });
     const disposition = response.headers?.['content-disposition'] as string | undefined;

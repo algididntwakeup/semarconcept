@@ -29,7 +29,24 @@ type AssetService struct {
 	unitRepo      repositories.UnitRepository
 	AssetRepo     repositories.AssetRepository
 	componentRepo repositories.ComponentRepository
-	logger        utils.Logger
+	// Optional relations, wired by the router. When nil, relational fetching and
+	// the audit trail degrade gracefully instead of failing the request.
+	pipingClassRepo  repositories.PipingClassRepository
+	lifecycleLogRepo repositories.EquipmentLifecycleLogRepository
+	logger           utils.Logger
+}
+
+// AssetServiceOption customises the service without changing the base
+// constructor signature used across the codebase and tests.
+type AssetServiceOption func(*AssetService)
+
+// WithAssetRelations wires the piping-class master (relational fetching) and
+// the lifecycle log (audit trail).
+func WithAssetRelations(pipingClassRepo repositories.PipingClassRepository, lifecycleLogRepo repositories.EquipmentLifecycleLogRepository) AssetServiceOption {
+	return func(s *AssetService) {
+		s.pipingClassRepo = pipingClassRepo
+		s.lifecycleLogRepo = lifecycleLogRepo
+	}
 }
 
 // NewAssetService creates a new asset service instance
@@ -38,14 +55,21 @@ func NewAssetService(
 	unitRepo repositories.UnitRepository,
 	AssetRepo repositories.AssetRepository,
 	componentRepo repositories.ComponentRepository,
+	options ...AssetServiceOption,
 ) AssetServiceInterface {
-	return &AssetService{
+	service := &AssetService{
 		siteRepo:      siteRepo,
 		unitRepo:      unitRepo,
 		AssetRepo:     AssetRepo,
 		componentRepo: componentRepo,
 		logger:        utils.NewLogger(),
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 // ===== EXISTING SITE OPERATIONS =====
@@ -418,7 +442,106 @@ func (s *AssetService) GetAsset(ctx context.Context, tenantID, assetID int) (*re
 	if err != nil {
 		return nil, err
 	}
-	return s.AssetToResponse(asset), nil
+	assetResponse := s.AssetToResponse(asset)
+	assetResponse.LinkedData = s.buildLinkedData(ctx, tenantID, asset)
+	return assetResponse, nil
+}
+
+// buildLinkedData resolves the master entities the asset references and renders
+// them as read-only cards. It returns nil when nothing is linked so the UI can
+// hide the whole "Available Linked Data" area, and never fails the request: a
+// missing master row simply produces no card.
+func (s *AssetService) buildLinkedData(ctx context.Context, tenantID int, asset *models.Asset) *response.AssetLinkedData {
+	if asset == nil || s.pipingClassRepo == nil {
+		return nil
+	}
+
+	linked := &response.AssetLinkedData{Cards: make([]response.LinkedDataCard, 0)}
+
+	// Piping class reference. The code may live in rbi_properties (the Manage
+	// Asset form key) or in the legacy design/specification maps.
+	code := firstNonEmptyString(
+		jsonbStringValue(asset.RBIProperties, "Component Design.Piping Class"),
+		jsonbStringValue(asset.DesignConditions, "piping_class"),
+		jsonbStringValue(asset.Specifications, "piping_class"),
+	)
+	if code == "" {
+		return nil
+	}
+	linked.PipingClassCode = code
+
+	class, err := s.pipingClassRepo.FindByCode(ctx, tenantID, code)
+	if err != nil {
+		// A lookup failure must not break the asset detail; log and continue.
+		utils.LogWarnf("Linked data: piping class lookup failed for %q: %v", code, err)
+		return linked
+	}
+	if class == nil {
+		// Unknown code: report the reference so the UI can still show it.
+		linked.Cards = append(linked.Cards, response.LinkedDataCard{
+			Key:      "piping-class",
+			Title:    "Design & Material",
+			Subtitle: "Source: Piping Class Master",
+			Source:   "Piping Class Master",
+			Properties: []response.LinkedDataProperty{
+				{Label: "Piping Class", Value: code},
+			},
+		})
+		return linked
+	}
+
+	properties := make([]response.LinkedDataProperty, 0, 5)
+	if class.Material != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Material", Value: class.Material})
+	}
+	if class.CorrosionAllowance != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Corrosion Allowance", Value: class.CorrosionAllowance})
+	}
+	if class.PipeSchedule != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Pipe Schedule", Value: class.PipeSchedule})
+	}
+	if class.RatingClass != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Rating Class", Value: class.RatingClass})
+	}
+	if class.NominalPipeSize != "" {
+		properties = append(properties, response.LinkedDataProperty{Label: "Nominal Pipe Size", Value: class.NominalPipeSize})
+	}
+
+	linked.Cards = append(linked.Cards, response.LinkedDataCard{
+		Key:        "piping-class",
+		Title:      "Design & Material",
+		Subtitle:   "Source: Piping Class Master",
+		Source:     "Piping Class Master",
+		Properties: properties,
+	})
+	return linked
+}
+
+// jsonbStringValue reads a trimmed string from a JSONB map, tolerating a missing
+// key or a non-string value.
+func jsonbStringValue(properties models.JSONBMap, key string) string {
+	if properties == nil {
+		return ""
+	}
+	value, ok := properties[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+// firstNonEmptyString returns the first non-empty value.
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, req *request.UpdateAssetRequest, userID int) (*response.AssetResponse, error) {
@@ -426,6 +549,10 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 	if err != nil {
 		return nil, err
 	}
+
+	// Snapshot the auditable state before the request mutates it, so the audit
+	// entry can describe exactly what changed.
+	before := assetAuditSnapshot(existingAsset)
 
 	if req.UnitID != nil && *req.UnitID > 0 {
 		if _, err := s.unitRepo.FindByID(ctx, tenantID, *req.UnitID); err != nil {
@@ -528,6 +655,16 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 	if req.Metadata != nil {
 		existingAsset.Metadata = models.JSONBMap(req.Metadata)
 	}
+	// Merge rather than replace: the Manage Asset form submits only the keys it
+	// owns, so unrelated import keys must survive a save.
+	if len(req.RBIProperties) > 0 {
+		if existingAsset.RBIProperties == nil {
+			existingAsset.RBIProperties = models.JSONBMap{}
+		}
+		for key, value := range req.RBIProperties {
+			existingAsset.RBIProperties[key] = value
+		}
+	}
 
 	existingAsset.UpdatedBy = &userID
 	existingAsset.UpdatedAt = time.Now()
@@ -536,7 +673,103 @@ func (s *AssetService) UpdateAsset(ctx context.Context, tenantID, assetID int, r
 		return nil, err
 	}
 
+	// Append an audit entry only when the save actually changed something.
+	s.recordAssetUpdateAudit(ctx, tenantID, assetID, userID, before, existingAsset)
+
 	return s.AssetToResponse(existingAsset), nil
+}
+
+// assetAuditSnapshot captures the fields the Manage Asset form can change, plus
+// the rbi_properties map, as a comparable snapshot.
+func assetAuditSnapshot(asset *models.Asset) map[string]string {
+	snapshot := map[string]string{
+		"description":      derefString(asset.Description),
+		"asset_class":      derefString(asset.AssetClass),
+		"asset_type":       derefString(asset.AssetType),
+		"lifecycle_status": derefString(asset.LifecycleStatus),
+		"rbi_properties":   canonicalJSON(asset.RBIProperties),
+	}
+	return snapshot
+}
+
+// recordAssetUpdateAudit writes an UPDATE_ASSET entry when the snapshot differs.
+// A nil repository (service built without relations) skips the write.
+func (s *AssetService) recordAssetUpdateAudit(ctx context.Context, tenantID, assetID, userID int, before map[string]string, after *models.Asset) {
+	if s.lifecycleLogRepo == nil || after == nil {
+		return
+	}
+	afterSnapshot := assetAuditSnapshot(after)
+
+	changedFields := make([]string, 0, len(afterSnapshot))
+	for key, newValue := range afterSnapshot {
+		if before[key] != newValue {
+			changedFields = append(changedFields, key)
+		}
+	}
+	if len(changedFields) == 0 {
+		return
+	}
+	sort.Strings(changedFields)
+
+	oldValue := summariseAuditValues(before, changedFields)
+	newValue := summariseAuditValues(afterSnapshot, changedFields)
+	remarks := "Manage Asset save; changed: " + strings.Join(changedFields, ", ")
+
+	entry := &models.EquipmentLifecycleLog{
+		TenantID:    tenantID,
+		EquipmentID: assetID,
+		Action:      models.LifecycleActionUpdateAsset,
+		OldValue:    &oldValue,
+		NewValue:    &newValue,
+		Remarks:     &remarks,
+	}
+	if userID > 0 {
+		entry.CreatedBy = &userID
+	}
+	if err := s.lifecycleLogRepo.Create(ctx, entry); err != nil {
+		// Auditing must not fail the save the user already completed.
+		utils.LogWarnf("Failed to record UPDATE_ASSET audit for equipment %d: %v", assetID, err)
+	}
+}
+
+// summariseAuditValues renders the changed fields as "key=value" pairs, with a
+// cap so a large rbi_properties map cannot produce an unbounded audit row.
+func summariseAuditValues(snapshot map[string]string, fields []string) string {
+	const maxLength = 2000
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		value := snapshot[field]
+		if len(value) > 300 {
+			value = value[:300] + "…"
+		}
+		parts = append(parts, field+"="+value)
+	}
+	summary := strings.Join(parts, "; ")
+	if len(summary) > maxLength {
+		summary = summary[:maxLength] + "…"
+	}
+	return summary
+}
+
+// canonicalJSON renders a JSONB map deterministically so two equal maps compare
+// equal regardless of key order.
+func canonicalJSON(properties models.JSONBMap) string {
+	if len(properties) == 0 {
+		return "{}"
+	}
+	encoded, err := json.Marshal(properties)
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
+}
+
+// derefString safely dereferences an optional string.
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (s *AssetService) DeleteAsset(ctx context.Context, tenantID, assetID, userID int) error {
@@ -560,6 +793,7 @@ func (s *AssetService) ListAsset(ctx context.Context, tenantID int, query *reque
 		AssetType:       query.AssetType,
 		EquipmentClass:  query.EquipmentClass,
 		Type:            query.Type,
+		HierarchyLevel:  query.HierarchyLevel,
 		LifecycleStatus: query.LifecycleStatus,
 		Status:          query.Status,
 		SortBy:          query.SortBy,
@@ -1106,23 +1340,40 @@ func (s *AssetService) BulkUpdateAssets(ctx context.Context, tenantID int, req *
 	}, nil
 }
 
-// BulkDeleteAssets performs bulk delete operations on assets -  FIXED: Removed unused variables
+// BulkDeleteAssets soft-deletes the requested assets for the tenant. Rows that
+// do not belong to the tenant (or are already deleted) are counted as skipped
+// so the caller can report a precise outcome instead of a fake success.
 func (s *AssetService) BulkDeleteAssets(ctx context.Context, tenantID int, req *request.BulkAssetOperationRequest, userID int) (interface{}, error) {
 	s.logger.Info(fmt.Sprintf("Bulk deleting assets for tenant %d", tenantID))
 
-	deletedCount := 0
-	errors := make([]string, 0)
+	unique := make([]int, 0, len(req.AssetIDs))
+	seen := make(map[int]struct{}, len(req.AssetIDs))
+	for _, id := range req.AssetIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
 
-	for _, _ = range req.AssetIDs {
-		// Determine asset type and perform deletion
-		// This is a simplified implementation
-		// Need to check for dependencies before deletion
-		deletedCount++
+	deletedCount, err := s.AssetRepo.DeleteMany(ctx, tenantID, unique)
+	if err != nil {
+		return nil, err
+	}
+
+	skipped := int64(len(unique)) - deletedCount
+	errors := make([]string, 0)
+	if skipped > 0 {
+		errors = append(errors, fmt.Sprintf("%d asset(s) were skipped because they were already deleted or belong to another tenant", skipped))
 	}
 
 	return map[string]interface{}{
 		"deleted_count": deletedCount,
 		"total_count":   len(req.AssetIDs),
+		"skipped_count": skipped,
 		"errors":        errors,
 	}, nil
 }
@@ -1268,6 +1519,14 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 	fileTags := make(map[string]struct{})
 	lastAssetID, lastParentTag := "", ""
 	total := 0
+	// Load the tenant import dictionary once per file so every row resolves
+	// against the same vocabulary. A missing dictionary falls back to the
+	// built-in one, so the import still works before a tenant is seeded.
+	taxonomyValues, taxonomyErr := s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
+	if taxonomyErr != nil {
+		return nil, fmt.Errorf("load tenant equipment taxonomy: %w", taxonomyErr)
+	}
+	resolver := NewEquipmentTaxonomyResolver(taxonomyValues)
 	assetIDColumn, parentTagColumn, tagColumn := -1, -1, -1
 	for index, column := range columns {
 		if !column.identity {
@@ -1338,7 +1597,7 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 				lastParentTag = value
 			}
 		}
-		record, parseErr := parseEquipmentImportRow(columns, row, tenantID, userID, req.AssetType)
+		record, parseErr := parseEquipmentImportRow(columns, row, tenantID, userID, req.AssetType, resolver)
 		if parseErr != nil {
 			issues = append(issues, fmt.Sprintf("row %d: %v", rowNumber, parseErr))
 			if !req.SkipErrors {
@@ -1431,10 +1690,13 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 		validAssets = append(validAssets, record)
 	}
 	assets = validAssets
+	unmapped := resolver.UnmappedValues()
 	if req.ValidateOnly || req.DryRun {
 		return map[string]interface{}{
 			"created_count": 0, "updated_count": 0, "imported_count": len(assets),
 			"total_count": total, "errors": issues, "validate_only": true,
+			"unmapped_class": unmapped[models.EquipmentTaxonomyKindClass],
+			"unmapped_type":  unmapped[models.EquipmentTaxonomyKindType],
 		}, nil
 	}
 	created, updated, err := s.AssetRepo.UpsertAssetsFromImport(ctx, tenantID, assets, userID)
@@ -1444,12 +1706,168 @@ func (s *AssetService) importAssetsFromReader(ctx context.Context, tenantID int,
 	return map[string]interface{}{
 		"created_count": created, "updated_count": updated, "imported_count": created + updated,
 		"total_count": total, "errors": issues, "validate_only": false,
+		"unmapped_class": unmapped[models.EquipmentTaxonomyKindClass],
+		"unmapped_type":  unmapped[models.EquipmentTaxonomyKindType],
 	}, nil
 }
 
 // PurgeAssets permanently deletes all assets for a given tenant.
 func (s *AssetService) PurgeAssets(ctx context.Context, tenantID int) (int64, error) {
 	return s.AssetRepo.PurgeAll(ctx, tenantID)
+}
+
+// ListEquipmentTaxonomy returns the tenant-scoped import dictionary used to
+// translate Equipment Class/Type cells during import.
+func (s *AssetService) ListEquipmentTaxonomy(ctx context.Context, tenantID int) ([]models.EquipmentTaxonomyValue, error) {
+	return s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
+}
+
+// CreateEquipmentTaxonomyValue adds one canonical value with its aliases to the
+// tenant dictionary. The code is upper-cased so lookups stay predictable.
+func (s *AssetService) CreateEquipmentTaxonomyValue(ctx context.Context, tenantID int, req *request.CreateEquipmentTaxonomyValueRequest) (*models.EquipmentTaxonomyValue, error) {
+	code := strings.ToUpper(strings.TrimSpace(req.CanonicalCode))
+	name := strings.TrimSpace(req.CanonicalName)
+	kind := strings.ToLower(strings.TrimSpace(req.Kind))
+	if code == "" || name == "" {
+		return nil, fmt.Errorf("canonical code and name are required: %w", utils.ErrValidation)
+	}
+	value := &models.EquipmentTaxonomyValue{
+		TenantID:      tenantID,
+		Kind:          kind,
+		CanonicalCode: code,
+		CanonicalName: name,
+		Aliases:       taxonomyAliasesJSONB(normalizeTaxonomyAliases(req.Aliases, code, name)),
+		IsActive:      req.IsActive == nil || *req.IsActive,
+	}
+	if err := s.AssetRepo.CreateEquipmentTaxonomyValue(ctx, value); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+// UpdateEquipmentTaxonomyValue edits the name, aliases, and active flag of one
+// dictionary entry. Kind and code are immutable.
+func (s *AssetService) UpdateEquipmentTaxonomyValue(ctx context.Context, tenantID, id int, req *request.UpdateEquipmentTaxonomyValueRequest) error {
+	name := strings.TrimSpace(req.CanonicalName)
+	if name == "" {
+		return fmt.Errorf("canonical name is required: %w", utils.ErrValidation)
+	}
+	isActive := req.IsActive == nil || *req.IsActive
+	aliases := taxonomyAliasesJSONB(normalizeTaxonomyAliases(req.Aliases, "", name))
+	return s.AssetRepo.UpdateEquipmentTaxonomyValue(ctx, tenantID, id, name, aliases, isActive)
+}
+
+// taxonomyAliasesJSONB converts plain alias strings to the JSONB array the
+// model stores.
+func taxonomyAliasesJSONB(aliases []string) models.JSONBArray {
+	result := make(models.JSONBArray, 0, len(aliases))
+	for _, alias := range aliases {
+		result = append(result, alias)
+	}
+	return result
+}
+
+// DeleteEquipmentTaxonomyValue removes one dictionary entry.
+func (s *AssetService) DeleteEquipmentTaxonomyValue(ctx context.Context, tenantID, id int) error {
+	return s.AssetRepo.DeleteEquipmentTaxonomyValue(ctx, tenantID, id)
+}
+
+// EquipmentTaxonomyReapplyResult summarises a dictionary re-apply run.
+type EquipmentTaxonomyReapplyResult struct {
+	CheckedCount  int      `json:"checked_count"`
+	UpdatedCount  int64    `json:"updated_count"`
+	UnmappedClass []string `json:"unmapped_class"`
+	UnmappedType  []string `json:"unmapped_type"`
+	DryRun        bool     `json:"dry_run"`
+}
+
+// ReapplyEquipmentTaxonomy recomputes each imported asset's canonical class and
+// type from its stored raw values (source_class/source_type) using the current
+// tenant dictionary. It lets a dictionary edit reach existing equipment without
+// re-importing the workbook. Only assets carrying raw import values are touched.
+func (s *AssetService) ReapplyEquipmentTaxonomy(ctx context.Context, tenantID, userID int, dryRun bool) (*EquipmentTaxonomyReapplyResult, error) {
+	taxonomyValues, err := s.AssetRepo.ListEquipmentTaxonomy(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("load tenant equipment taxonomy: %w", err)
+	}
+	resolver := NewEquipmentTaxonomyResolver(taxonomyValues)
+
+	rows, err := s.AssetRepo.ListImportRawTaxonomy(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	updates := make(map[int]repositories.AssetTaxonomyLabel)
+	for _, row := range rows {
+		label := repositories.AssetTaxonomyLabel{}
+		changed := false
+		if row.SourceClass != "" {
+			translated := resolver.ResolveClass(row.SourceClass)
+			label.AssetClass = &translated
+			if row.AssetClass == nil || *row.AssetClass != translated {
+				changed = true
+			}
+		}
+		if row.SourceType != "" {
+			translated := resolver.ResolveType(row.SourceType)
+			label.AssetType = &translated
+			if row.AssetType == nil || *row.AssetType != translated {
+				changed = true
+			}
+		} else if label.AssetClass != nil {
+			// Mirror the import: a workbook row without a type falls back to its
+			// class, so re-applying must not blank the type on those rows.
+			label.AssetType = label.AssetClass
+			if row.AssetType == nil || *row.AssetType != *label.AssetClass {
+				changed = true
+			}
+		}
+		if changed {
+			updates[row.ID] = label
+		}
+	}
+
+	affected, err := s.AssetRepo.ApplyImportTaxonomyLabels(ctx, tenantID, userID, updates, dryRun)
+	if err != nil {
+		return nil, err
+	}
+	unmapped := resolver.UnmappedValues()
+	return &EquipmentTaxonomyReapplyResult{
+		CheckedCount:  len(rows),
+		UpdatedCount:  affected,
+		UnmappedClass: unmapped[models.EquipmentTaxonomyKindClass],
+		UnmappedType:  unmapped[models.EquipmentTaxonomyKindType],
+		DryRun:        dryRun,
+	}, nil
+}
+
+// normalizeTaxonomyAliases trims, de-duplicates, and always includes the code
+// and name so a lookup never misses the obvious values.
+func normalizeTaxonomyAliases(aliases []string, code, name string) []string {
+	seen := make(map[string]struct{}, len(aliases)+2)
+	result := make([]string, 0, len(aliases)+2)
+	add := func(value string) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return
+		}
+		key := strings.ToLower(trimmed)
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		result = append(result, trimmed)
+	}
+	if code != "" {
+		add(code)
+	}
+	if name != "" {
+		add(name)
+	}
+	for _, alias := range aliases {
+		add(alias)
+	}
+	return result
 }
 
 type equipmentImportColumn struct {
@@ -1575,8 +1993,11 @@ func SanitizeValue(val string) interface{} {
 	return sanitizeValue(val)
 }
 
-func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string) (repositories.AssetImportRecord, error) {
+func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tenantID, userID int, defaultType string, resolver *EquipmentTaxonomyResolver) (repositories.AssetImportRecord, error) {
 	asset := models.Asset{TenantID: tenantID, RBIProperties: make(models.JSONBMap)}
+	if resolver == nil {
+		resolver = NewEquipmentTaxonomyResolver(nil)
+	}
 	parentTag := ""
 	parentFunclocCode := ""
 	parentFunclocInlineDesc := ""
@@ -1644,10 +2065,14 @@ func parseEquipmentImportRow(columns []equipmentImportColumn, row []string, tena
 		case "description", "equipmentdescription":
 			asset.Description = &value
 		case "assetclass", "equipmentclass", "class":
-			translated := TranslateEquipmentImportClass(value)
+			// Keep the raw cell for provenance, then store the tenant-canonical
+			// label so filters, statistics, and the form all agree.
+			asset.RBIProperties["source_class"] = value
+			translated := resolver.ResolveClass(value)
 			asset.AssetClass = &translated
 		case "assettype", "equipmenttype", "type":
-			translated := TranslateEquipmentImportType(value)
+			asset.RBIProperties["source_type"] = value
+			translated := resolver.ResolveType(value)
 			asset.AssetType = &translated
 		case "name", "equipmentname":
 			asset.Name = value
@@ -1741,7 +2166,7 @@ func (s *AssetService) loadEquipmentAssets(ctx context.Context, tenantID int, re
 	if status == "" && len(req.Statuses) == 1 {
 		status = req.Statuses[0]
 	}
-	assets, err := s.AssetRepo.ListAssetsForExport(ctx, tenantID, assetType, status)
+	assets, err := s.AssetRepo.ListAssetsForExport(ctx, tenantID, assetType, status, req.AssetIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load equipment assets for export: %w", err)
 	}
@@ -1749,10 +2174,14 @@ func (s *AssetService) loadEquipmentAssets(ctx context.Context, tenantID int, re
 }
 
 type equipmentExportColumn struct {
-	category    string
-	header      string
-	value       func(models.Asset) interface{}
+	category string
+	header   string
+	value    func(models.Asset) interface{}
+	// propertyKey is the JSONB fallback read when value is empty.
 	propertyKey string
+	// skipProperty names a JSONB key this column already renders, so the
+	// auto-appended extra columns do not duplicate it.
+	skipProperty string
 }
 
 var equipmentExportColumns = []equipmentExportColumn{
@@ -1775,6 +2204,17 @@ var equipmentExportColumns = []equipmentExportColumn{
 	{category: "General", header: "Remaining Life (Years)", value: func(a models.Asset) interface{} { return valueOrEmptyFloat(a.RemainingLifeYears) }},
 	{category: "General", header: "Maintenance Strategy", value: func(a models.Asset) interface{} { return valueOrEmpty(a.MaintenanceStrategy) }},
 	{category: "General", header: "Inspection Strategy", value: func(a models.Asset) interface{} { return valueOrEmpty(a.InspectionStrategy) }},
+	// Status and functional locations round-trip through the importer: the
+	// export writes the same columns the source workbook carries so that an
+	// export followed by an import reproduces the Installed and Has Funcloc
+	// statistics instead of clearing them.
+	{category: "General", header: "Status", value: func(a models.Asset) interface{} { return assetInstallationStatus(a) }},
+	{category: "General", header: "Parent FunLoc", skipProperty: "parent_funcloc", value: func(a models.Asset) interface{} {
+		return funclocCodeFromFormatted(jsonbString(a.RBIProperties, "parent_funcloc"))
+	}},
+	{category: "General", header: "Installed FunLoc", skipProperty: "level6_funcloc", value: func(a models.Asset) interface{} {
+		return funclocCodeFromFormatted(jsonbString(a.RBIProperties, "level6_funcloc"))
+	}},
 	{category: "Component Design", header: "Design Pressure", value: func(a models.Asset) interface{} {
 		return assetJSONValue([]string{"design_pressure", "design pressure"}, a.DesignConditions, a.Specifications)
 	}},
@@ -1981,12 +2421,19 @@ func createEquipmentExportWorkbook(assets []models.Asset, columns []equipmentExp
 func equipmentExportColumnsForAssets(assets []models.Asset) []equipmentExportColumn {
 	columns := append([]equipmentExportColumn(nil), equipmentExportColumns...)
 	seen := make(map[string]struct{}, len(columns))
+	skipProps := make(map[string]struct{})
 	for _, column := range columns {
 		seen[normalizeExportKey(column.category)+"\x00"+normalizeExportKey(column.header)] = struct{}{}
+		if column.skipProperty != "" {
+			skipProps[column.skipProperty] = struct{}{}
+		}
 	}
 	propertyKeys := make([]string, 0)
 	for _, asset := range assets {
 		for key := range asset.RBIProperties {
+			if _, skip := skipProps[key]; skip {
+				continue
+			}
 			propertyKeys = append(propertyKeys, key)
 		}
 	}
@@ -2038,6 +2485,53 @@ func exportValueIsEmpty(value interface{}) bool {
 	}
 	text, ok := value.(string)
 	return ok && text == ""
+}
+
+// assetInstallationStatus returns the status token the importer understands.
+// The list filter, statistics, and the UI all read lifecycle_status first and
+// fall back to the legacy status column, so the export does the same to keep an
+// export/import round-trip lossless.
+func assetInstallationStatus(asset models.Asset) string {
+	if asset.LifecycleStatus != nil {
+		if trimmed := strings.TrimSpace(*asset.LifecycleStatus); trimmed != "" {
+			return trimmed
+		}
+	}
+	if asset.Status != nil {
+		return strings.TrimSpace(*asset.Status)
+	}
+	return ""
+}
+
+// jsonbString reads a string property from a JSONB map, returning "" when the
+// key is absent or holds a non-string value.
+func jsonbString(properties models.JSONBMap, key string) string {
+	if properties == nil {
+		return ""
+	}
+	value, ok := properties[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return text
+}
+
+// funclocCodeFromFormatted extracts the bare code from a stored
+// "CODE (DESCRIPTION)" functional location so the export column matches the
+// importer's input shape.
+func funclocCodeFromFormatted(formatted string) string {
+	trimmed := strings.TrimSpace(formatted)
+	if trimmed == "" {
+		return ""
+	}
+	if open := strings.Index(trimmed, "("); open >= 0 {
+		return strings.TrimSpace(trimmed[:open])
+	}
+	return trimmed
 }
 
 func encodeExportJSONValue(value interface{}) interface{} {

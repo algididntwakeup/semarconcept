@@ -28,6 +28,53 @@ import (
 
 // COMPLETE CORS FIX: Enhanced CORS middleware with comprehensive debugging and SSE support
 func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
+	// Precompute static header values once; rebuilding these per request only
+	// burns CPU on every call including preflights.
+	essentialHeaders := []string{
+		"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token",
+		"Authorization", "accept", "origin", "Cache-Control", "X-Requested-With",
+		"X-Development-Mode", "X-Mock-Token", "X-Request-ID", "X-Tenant-ID",
+		"X-Tenant-Subdomain", "X-Client-Version", "User-Agent", "Referer",
+		"Accept", "Accept-Language", "Connection", "Host", "Last-Event-ID", //  SSE headers
+	}
+
+	headerMap := make(map[string]bool)
+	for _, header := range cfg.CORS.AllowedHeaders {
+		if header != "" {
+			headerMap[strings.TrimSpace(header)] = true
+		}
+	}
+	for _, header := range essentialHeaders {
+		headerMap[header] = true
+	}
+	finalHeaders := make([]string, 0, len(headerMap))
+	for header := range headerMap {
+		finalHeaders = append(finalHeaders, header)
+	}
+	allowedHeadersStr := strings.Join(finalHeaders, ",")
+
+	allowedOrigins := cfg.CORS.AllowedOrigins
+	if len(allowedOrigins) == 0 {
+		allowedOrigins = []string{"*"}
+	}
+	allowedMethods := cfg.CORS.AllowedMethods
+	if len(allowedMethods) == 0 {
+		allowedMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"}
+	}
+	allowedMethodsStr := strings.Join(allowedMethods, ",")
+
+	exposedHeaders := cfg.CORS.ExposedHeaders
+	if len(exposedHeaders) == 0 {
+		exposedHeaders = []string{"X-Request-ID", "X-Total-Count", "Content-Length", "Content-Type"}
+	}
+	exposedHeadersStr := strings.Join(exposedHeaders, ",")
+
+	maxAge := cfg.CORS.MaxAge
+	if maxAge <= 0 {
+		maxAge = 86400 // 24 hours default
+	}
+	maxAgeStr := fmt.Sprintf("%d", maxAge)
+
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		method := c.Request.Method
@@ -42,47 +89,6 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 			utils.Infof("CORS DEBUG: Config loaded - Headers: %v", cfg.CORS.AllowedHeaders)
 			utils.Infof("CORS DEBUG: Config loaded - Methods: %v", cfg.CORS.AllowedMethods)
 			utils.Infof("CORS DEBUG: Request - Origin: %s, Method: %s, Path: %s", origin, method, path)
-		}
-
-		//  COMPREHENSIVE: Always include these essential headers regardless of config
-		//  ENHANCED: Added SSE-specific headers
-		essentialHeaders := []string{
-			"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token",
-			"Authorization", "accept", "origin", "Cache-Control", "X-Requested-With",
-			"X-Development-Mode", "X-Mock-Token", "X-Request-ID", "X-Tenant-ID",
-			"X-Tenant-Subdomain", "X-Client-Version", "User-Agent", "Referer",
-			"Accept", "Accept-Language", "Connection", "Host", "Last-Event-ID", //  SSE headers
-		}
-
-		//  MERGE: Combine config headers with essential headers (remove duplicates)
-		allowedHeaders := cfg.CORS.AllowedHeaders
-		headerMap := make(map[string]bool)
-
-		// Add config headers first
-		for _, header := range allowedHeaders {
-			if header != "" {
-				headerMap[strings.TrimSpace(header)] = true
-			}
-		}
-
-		// Add essential headers
-		for _, header := range essentialHeaders {
-			headerMap[header] = true
-		}
-
-		// Convert back to slice
-		finalHeaders := make([]string, 0, len(headerMap))
-		for header := range headerMap {
-			finalHeaders = append(finalHeaders, header)
-		}
-
-		//  COMPREHENSIVE: Use origins from config
-		allowedOrigins := cfg.CORS.AllowedOrigins
-		if len(allowedOrigins) == 0 {
-			if debugCORS {
-				utils.Warn("CORS: Config origins empty, using wildcard as fallback for development")
-			}
-			allowedOrigins = []string{"*"}
 		}
 
 		// Check if origin is allowed
@@ -113,24 +119,13 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		// Set allowed methods
-		allowedMethods := cfg.CORS.AllowedMethods
-		if len(allowedMethods) == 0 {
-			allowedMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"}
-		}
-		methods := strings.Join(allowedMethods, ",")
-		c.Header("Access-Control-Allow-Methods", methods)
+		c.Header("Access-Control-Allow-Methods", allowedMethodsStr)
 
 		//  CRITICAL: Set comprehensive headers
-		headers := strings.Join(finalHeaders, ",")
-		c.Header("Access-Control-Allow-Headers", headers)
+		c.Header("Access-Control-Allow-Headers", allowedHeadersStr)
 
 		// Set exposed headers
-		exposedHeaders := cfg.CORS.ExposedHeaders
-		if len(exposedHeaders) == 0 {
-			exposedHeaders = []string{"X-Request-ID", "X-Total-Count", "Content-Length", "Content-Type"}
-		}
-		if len(exposedHeaders) > 0 {
-			exposedHeadersStr := strings.Join(exposedHeaders, ",")
+		if len(exposedHeadersStr) > 0 {
 			c.Header("Access-Control-Expose-Headers", exposedHeadersStr)
 		}
 
@@ -141,11 +136,7 @@ func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		// Set max age
-		maxAge := cfg.CORS.MaxAge
-		if maxAge <= 0 {
-			maxAge = 86400 // 24 hours default
-		}
-		c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", maxAge))
+		c.Header("Access-Control-Max-Age", maxAgeStr)
 
 		// Additional headers for better compatibility
 		c.Header("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
@@ -222,6 +213,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	// Use real analytics repository implementation
 	analyticsRepo := repositories.NewAnalyticsRepository(sqlxDB)
 	taxonomyRepo := repositories.NewTaxonomyRepository(sqlxDB)
+	flocRepo := repositories.NewFunctionalLocationRepository(sqlxDB, gormDB)
 
 	// GORM-based repositories
 	tenantRepo := repositories.NewTenantRepository(gormDB)
@@ -256,6 +248,7 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	)
 
 	taxonomyService := services.NewTaxonomyService(taxonomyRepo)
+	flocService := services.NewFunctionalLocationService(flocRepo)
 
 	//  SURGICAL ADD: Media Service for file management
 	mediaService := services.NewLocalMediaService(
@@ -311,6 +304,9 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService) //  NEW: For dashboard endpoints
 	mediaHandler := handlers.NewMediaHandler(mediaService)             //  NEW: For media endpoints
 	taxonomyHandler := handlers.NewTaxonomyHandler(taxonomyService)
+	flocHandler := handlers.NewFunctionalLocationHandler(flocService)
+	maintenanceService := services.NewMaintenanceService(gormDB)
+	maintenanceHandler := handlers.NewMaintenanceHandler(maintenanceService)
 
 	//  CRITICAL FIXED: Initialize role and permission handlers with correct services
 	roleHandler := handlers.NewRoleHandler(roleService)
@@ -715,7 +711,31 @@ func SetupRouter(cfg *config.Config, sqlxDB *sqlx.DB, gormDB *gorm.DB, cacheServ
 
 		//  ENABLED: Asset routes now that all repositories exist
 		utils.Info("Enabling asset routes - all repositories are now available")
-		SetupAssetRoutes(apiV1.Group("/assets"), sqlxDB, jwtService, roleRepo)
+		SetupAssetRoutes(apiV1.Group("/assets"), sqlxDB, jwtService, roleRepo, cfg.Storage.UploadPath)
+
+		// Maintenance mass data cleaning routes (Petualangan 1)
+		maintenanceRoutes := apiV1.Group("/maintenance")
+		maintenanceRoutes.Use(authMiddleware)
+		maintenanceRoutes.Use(middleware.RequireTenantContext())
+		{
+			maintenanceRoutes.POST("/diagnose-duplicates", middleware.RBACMiddleware(roleRepo, "asset:view"), maintenanceHandler.DiagnoseDuplicates)
+			maintenanceRoutes.GET("/diagnose-duplicates", middleware.RBACMiddleware(roleRepo, "asset:view"), maintenanceHandler.DiagnoseDuplicates)
+			maintenanceRoutes.POST("/fix-links", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.FixLinks)
+			maintenanceRoutes.POST("/sync-floc", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.SyncFLOC)
+			maintenanceRoutes.POST("/resolve-duplicate", middleware.RBACMiddleware(roleRepo, "asset:update"), maintenanceHandler.ResolveDuplicate)
+		}
+
+		// Functional Location Visual Tree routes (Petualangan 2)
+		flocRoutes := apiV1.Group("/functional-locations")
+		flocRoutes.Use(authMiddleware)
+		flocRoutes.Use(middleware.RequireTenantContext())
+		flocRoutes.Use(middleware.RateLimitMiddleware(middleware.StandardTier))
+		{
+			flocRoutes.GET("/tree", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetTree)
+			flocRoutes.GET("", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetAll)
+			flocRoutes.GET("/:id", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetByID)
+			flocRoutes.GET("/:id/equipments", middleware.RBACMiddleware(roleRepo, "asset:view"), flocHandler.GetEquipments)
+		}
 	}
 
 	//  SURGICAL ADD: Static file serving for media

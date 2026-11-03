@@ -21,11 +21,28 @@ const (
 	LifecycleActionRetire       EquipmentLifecycleAction = "Retire"
 	LifecycleActionCondemn      EquipmentLifecycleAction = "Condemn"
 	LifecycleActionSendToRepair EquipmentLifecycleAction = "Send to repair"
+	// LifecycleActionUpdateAsset records a Manage Asset form save. It is an
+	// audit-only action: it never appears in the lifecycle menu.
+	LifecycleActionUpdateAsset EquipmentLifecycleAction = "UPDATE_ASSET"
 )
 
 // EquipmentLifecycleActions lists every allowed action in a stable order. It is
 // used to build the database CHECK constraint and to validate writes.
 var EquipmentLifecycleActions = []EquipmentLifecycleAction{
+	LifecycleActionRelocate,
+	LifecycleActionInstall,
+	LifecycleActionUninstall,
+	LifecycleActionRepair,
+	LifecycleActionRetire,
+	LifecycleActionCondemn,
+	LifecycleActionSendToRepair,
+	LifecycleActionUpdateAsset,
+}
+
+// EquipmentLifecycleMenuActions lists only the actions the row Lifecycle menu
+// offers; UPDATE_ASSET is deliberately excluded because it is written by the
+// Manage Asset save, not chosen by an operator.
+var EquipmentLifecycleMenuActions = []EquipmentLifecycleAction{
 	LifecycleActionRelocate,
 	LifecycleActionInstall,
 	LifecycleActionUninstall,

@@ -34,6 +34,33 @@ type FunctionalLocation struct {
 	Children []FunctionalLocation `gorm:"foreignKey:ParentID" json:"children,omitempty"`
 }
 
+// FunctionalLocationNode represents a nested tree node for Visual FLOC Tree.
+type FunctionalLocationNode struct {
+	ID                      int                       `json:"id"`
+	TenantID                int                       `json:"tenant_id"`
+	ParentID                *int                      `json:"parent_id,omitempty"`
+	Code                    string                    `json:"code"`
+	Description             string                    `json:"description"`
+	Level                   int                       `json:"level"`
+	IsActive                bool                      `json:"is_active"`
+	InstalledEquipmentCount int                       `json:"installed_equipment_count"`
+	Path                    string                    `json:"path,omitempty"`
+	Equipments              []EquipmentSummary        `json:"equipments"`
+	InstalledEquipments     []EquipmentSummary        `json:"installed_equipments,omitempty"`
+	Children                []*FunctionalLocationNode `json:"children"`
+}
+
+// EquipmentSummary represents summary equipment data installed at a functional location node.
+type EquipmentSummary struct {
+	ID          int     `json:"id"`
+	TagNumber   string  `json:"tag_number"`
+	Name        string  `json:"name"`
+	AssetClass  string  `json:"asset_class"`
+	AssetType   string  `json:"asset_type"`
+	Status      string  `json:"status"`
+	Criticality *int    `json:"criticality,omitempty"`
+}
+
 // Table name
 func (FunctionalLocation) TableName() string {
 	return "functional_locations"

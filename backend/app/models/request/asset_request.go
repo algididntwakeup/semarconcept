@@ -145,6 +145,10 @@ type UpdateAssetRequest struct {
 	SafetyCritical          *bool                  `json:"safety_critical,omitempty"`
 	EnvironmentallyCritical *bool                  `json:"environmentally_critical,omitempty"`
 	Metadata                map[string]interface{} `json:"metadata,omitempty"`
+	// RBIProperties merges into the stored rbi_properties map. Keys not present
+	// in the request are preserved, so a partial form save cannot drop values
+	// the import wrote (funcloc, source_class, design keys, ...).
+	RBIProperties map[string]interface{} `json:"rbi_properties,omitempty"`
 }
 
 // ===== COMPONENT REQUESTS =====
@@ -267,6 +271,7 @@ type AssetListQuery struct {
 	AssetType          string `json:"asset_type" form:"asset_type"`
 	EquipmentClass     string `json:"equipment_class" form:"equipment_class"`
 	Type               string `json:"type" form:"type"`
+	HierarchyLevel     string `json:"hierarchy_level" form:"hierarchy_level" validate:"omitempty,oneof=1 2 3 4 5 6 7 8"`
 	LifecycleStatus    string `json:"lifecycle_status" form:"lifecycle_status"`
 	Status             string `json:"status" form:"status"`
 	Criticality        *int   `json:"criticality" form:"criticality" validate:"omitempty,min=1,max=5"`
@@ -350,7 +355,7 @@ type AssetImportRequest struct {
 type AssetExportRequest struct {
 	AssetType        string                 `json:"asset_type" form:"asset_type"`
 	ExportType       string                 `json:"export_type" form:"export_type"`
-	AssetIDs         []int                  `json:"asset_ids,omitempty"`
+	AssetIDs         []int                  `json:"asset_ids,omitempty" form:"asset_ids"`
 	AssetTypes       []string               `json:"asset_types,omitempty"`
 	SiteIDs          []int                  `json:"site_ids,omitempty"`
 	UnitIDs          []int                  `json:"unit_ids,omitempty"`
@@ -498,3 +503,25 @@ type AssetAuditRequest struct {
 // NOTE: AssetDistributionRequest, CriticalAssetsRequest, SiteStatisticsRequest,
 // AssetDashboardRequest, AssetPathRequest, AssetCriticalityUpdateRequest,
 // AssetHierarchyValidationRequest are defined in asset_analytics_request.go to avoid duplication
+
+// ===== EQUIPMENT TAXONOMY (IMPORT DICTIONARY) REQUESTS =====
+
+// CreateEquipmentTaxonomyValueRequest adds one canonical Equipment Class/Type
+// value together with the raw inputs (aliases) that map to it.
+type CreateEquipmentTaxonomyValueRequest struct {
+	// Kind is "class" or "type".
+	Kind          string   `json:"kind" validate:"required,oneof=class type"`
+	CanonicalCode string   `json:"canonical_code" validate:"required,max=50"`
+	CanonicalName string   `json:"canonical_name" validate:"required,max=255"`
+	Aliases       []string `json:"aliases" validate:"omitempty,dive,max=255"`
+	IsActive      *bool    `json:"is_active"`
+}
+
+// UpdateEquipmentTaxonomyValueRequest edits the name, aliases, and active flag
+// of an existing value. Kind and code are immutable so stored assets keep their
+// canonical label.
+type UpdateEquipmentTaxonomyValueRequest struct {
+	CanonicalName string   `json:"canonical_name" validate:"required,max=255"`
+	Aliases       []string `json:"aliases" validate:"omitempty,dive,max=255"`
+	IsActive      *bool    `json:"is_active"`
+}

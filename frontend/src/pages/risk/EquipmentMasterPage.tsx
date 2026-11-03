@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ClipboardList, FileUp, X } from 'lucide-react';
 import {
   useCreateEquipmentAsset,
+  useCreateEquipmentComponent,
   useDeleteEquipmentAsset,
   useEquipmentMaintenanceActions,
   useEquipmentAssets,
@@ -21,8 +22,20 @@ import type {
 } from '../../features/assets/components/RowActions';
 import StatCard from '../../features/assets/components/StatCard';
 import StatDetailModal from '../../features/assets/components/StatDetailModal';
+import EquipmentTaxonomyModal from '../../features/assets/components/EquipmentTaxonomyModal';
+import LifecycleActionModal, {
+  type LifecyclePlacementAction,
+} from '../../features/assets/components/LifecycleActionModal';
+import LifecycleConfirmModal, {
+  type LifecycleConfirmAction,
+} from '../../features/assets/components/LifecycleConfirmModal';
+import ManageAssetModal from '../../features/assets/components/manage-asset/ManageAssetModal';
+import AddComponentModal, {
+  type AddComponentPayload,
+} from '../../features/assets/components/AddComponentModal';
+import DuplicateResolutionModal from '../../features/assets/components/DuplicateResolutionModal';
 import { assetService } from '../../services/assetServices';
-import type { EquipmentAssetImportResult } from '../../services/assetServices';
+import type { EquipmentAssetImportResult, DuplicateTagGroup } from '../../services/assetServices';
 import { useNotification } from '../../hooks/useNotification';
 
 const PAGE_SIZE = 10;
@@ -42,6 +55,7 @@ const formatFileSize = (bytes: number): string => {
 
 const EquipmentMasterPage = () => {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZE);
   const [search, setSearch] = useState('');
 	const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [newEquipmentOpen, setNewEquipmentOpen] = useState(false);
@@ -49,57 +63,102 @@ const EquipmentMasterPage = () => {
   const [selectedStat, setSelectedStat] = useState<{
     title: string;
     count: number;
-    equipmentClass: string;
+    equipmentClass?: string;
+    hierarchyLevel?: '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8';
+    installedOnly?: boolean;
   } | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EquipmentAssetRow | null>(null);
   const [timeline, setTimeline] = useState<
     { title: string; date: string; description: string }[] | null
   >(null);
-  const [duplicateDiagnosis, setDuplicateDiagnosis] = useState<{
-    duplicate_count: number;
-    duplicates: { tag_number: string; count: number; asset_ids: number[] }[];
-  } | null>(null);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateTagGroup[]>([]);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   const [importError, setImportError] = useState('');
   const [importResult, setImportResult] = useState<EquipmentAssetImportResult | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState<number | null>(null);
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
+  const [lifecyclePlacement, setLifecyclePlacement] = useState<{
+    action: LifecyclePlacementAction;
+    asset: EquipmentAssetRow;
+  } | null>(null);
+  const [lifecycleConfirm, setLifecycleConfirm] = useState<{
+    action: LifecycleConfirmAction;
+    asset: EquipmentAssetRow;
+  } | null>(null);
+  const [manageAsset, setManageAsset] = useState<EquipmentAssetRow | null>(null);
+  const [addComponentAsset, setAddComponentAsset] = useState<EquipmentAssetRow | null>(null);
+  const [withL7Components, setWithL7Components] = useState(false);
+  const [unmappedSuggestions, setUnmappedSuggestions] = useState<{
+    class: string[];
+    type: string[];
+  }>({ class: [], type: [] });
   const [isPurging, setIsPurging] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
   const { showNotification } = useNotification();
   const assetsQuery = useEquipmentAssets({
     page,
-    limit: PAGE_SIZE,
+    limit: pageSize,
     search,
     lifecycle_status: lifecycleFilter || undefined,
+    // The "with L7 components" filter lists component rows (level 7) instead of
+    // parent equipment, so adding a component visibly affects the table.
+    hierarchy_level: withL7Components ? '7' : undefined,
   });
   const statsQuery = useEquipmentAssetStats();
   const deleteAsset = useDeleteEquipmentAsset();
   const createEquipment = useCreateEquipmentAsset();
   const deleteAssetAsync = deleteAsset.mutateAsync;
   const maintenance = useEquipmentMaintenanceActions();
+  const createComponent = useCreateEquipmentComponent(addComponentAsset?.id ?? null);
+  const isMaintenancePending =
+    maintenance.diagnoseDuplicates.isPending ||
+    maintenance.resolveDuplicate.isPending ||
+    maintenance.fixComponentLinks.isPending ||
+    maintenance.syncComponentsToFLOC.isPending;
 
   const list = assetsQuery.data ?? EMPTY_ASSET_LIST;
+  const summary = useMemo(
+    () => ({
+      total: statsQuery.data?.total ?? 0,
+      equipment: statsQuery.data?.equipment ?? 0,
+      installed: statsQuery.data?.installed ?? 0,
+    }),
+    [statsQuery.data]
+  );
   const cards = useMemo(() => {
     return (statsQuery.data?.classes ?? []).filter((item) => item.count > 0)
       .map((item) => ({ title: item.class, count: item.count, equipmentClass: item.class }));
   }, [statsQuery.data]);
   const funcloc = statsQuery.data?.funcloc ?? { with: 0, without: 0 };
+  // Summary cards lead the list, in the requested order: Total, Installed,
+  // Equipment, then Has Funcloc. Each opens the detail modal with a matching
+  // filter so the count on the card equals the rows in the table.
+  const summaryCards = useMemo(
+    () => [
+      { title: 'Total', count: summary.total, hierarchyLevel: '1' as const, installedOnly: false },
+      { title: 'Installed', count: summary.installed, hierarchyLevel: '1' as const, installedOnly: true },
+      { title: 'Equipment', count: summary.equipment, hierarchyLevel: '1' as const, installedOnly: false },
+      { title: 'Has Funcloc', count: funcloc.with, hierarchyLevel: '1' as const, installedOnly: false },
+    ],
+    [summary.total, summary.installed, summary.equipment, funcloc.with]
+  );
   const equipmentClasses = useMemo(
     () => withDiscoveredClasses((statsQuery.data?.classes ?? []).map((item) => item.class)),
     [statsQuery.data]
   );
 
-  const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(list.total / pageSize));
   const errorMessage = assetsQuery.error instanceof Error ? assetsQuery.error.message : null;
   const handleRowAction = useCallback(async (action: AssetRowAction, asset: EquipmentAssetRow) => {
     setActionError('');
     switch (action) {
       case 'manage':
-        setSelectedAsset(asset);
+        setManageAsset(asset);
         break;
       case 'add-component':
-        window.location.assign('/assets/hierarchy');
+        setAddComponentAsset(asset);
         break;
       case 'timeline':
         try {
@@ -140,12 +199,96 @@ const EquipmentMasterPage = () => {
   }, [deleteAssetAsync, showNotification]);
 
   const handleLifecycleAction = useCallback(
-    (action: AssetLifecycleMenuAction) => {
-      // Lifecycle transitions are staged UI for now; each option reports its
-      // placeholder state until the backend transitions are implemented.
-      showNotification(`Feature ${action} is under development`, 'info');
+    (action: AssetLifecycleMenuAction, asset: EquipmentAssetRow) => {
+      // Placement actions (Install/Relocate) need a location pick; the rest only
+      // need a confirmation. Both flows are staged UI for now: confirming shows
+      // a success toast without calling the API.
+      if (action === 'Install' || action === 'Relocate') {
+        setLifecyclePlacement({ action, asset });
+        return;
+      }
+      setLifecycleConfirm({ action, asset });
+    },
+    []
+  );
+
+  const handleLifecyclePlacementConfirm = useCallback(
+    (action: LifecyclePlacementAction, asset: EquipmentAssetRow, location: string) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      setLifecyclePlacement(null);
+      showNotification(
+        location
+          ? `${action} request for ${tag} staged at ${location}.`
+          : `${action} request for ${tag} staged.`,
+        'success'
+      );
     },
     [showNotification]
+  );
+
+  const handleLifecycleConfirmConfirm = useCallback(
+    (action: LifecycleConfirmAction, asset: EquipmentAssetRow) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      setLifecycleConfirm(null);
+      showNotification(`${tag} marked as ${action.toLowerCase()}.`, 'success');
+    },
+    [showNotification]
+  );
+
+  const handleAddComponentSave = useCallback(
+    async (payload: AddComponentPayload, asset: EquipmentAssetRow) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      try {
+        await createComponent.mutateAsync({
+          name: payload.name,
+          component_type: payload.component_type,
+          // Level 7 components descend the parent's equipment class.
+          component_class: payload.component_class,
+          location_description: payload.functional_location,
+          specifications: {
+            functional_location: payload.functional_location,
+            description: payload.description,
+            component_type_label: payload.component_type_label,
+            inherited_equipment_class: payload.component_class,
+            hierarchy_level: '7',
+          },
+        });
+        setAddComponentAsset(null);
+        // Only the "with L7 components" view shows the new child row, so refresh
+        // the list there; otherwise the parent row is unchanged.
+        if (withL7Components) {
+          await assetsQuery.refetch();
+        }
+        showNotification(`Component ${payload.name} added to ${tag}.`, 'success');
+      } catch (error) {
+        showNotification(
+          error instanceof Error ? error.message : 'Unable to add component.',
+          'error'
+        );
+      }
+    },
+    [assetsQuery, createComponent, showNotification, withL7Components]
+  );
+
+  const handleManageAssetSave = useCallback(
+    async (
+      payload: { columns: Record<string, string>; rbiProperties: Record<string, string> },
+      asset: EquipmentAssetRow
+    ) => {
+      const tag = asset.tag_number ?? asset.tagNumber ?? asset.id;
+      try {
+        await assetService.updateEquipmentAsset(asset.id, payload);
+        setManageAsset(null);
+        await assetsQuery.refetch();
+        showNotification(`Manage Asset ${tag} saved.`, 'success');
+      } catch (error) {
+        showNotification(
+          error instanceof Error ? error.message : 'Unable to save asset changes',
+          'error'
+        );
+      }
+    },
+    [assetsQuery, showNotification]
   );
 
   const handleGridSearchChange = useCallback((value: string) => {
@@ -160,6 +303,10 @@ const EquipmentMasterPage = () => {
     setLifecycleFilter(status);
     setPage(1);
   }, []);
+  const handlePageSizeChange = useCallback((value: number) => {
+    setPageSize(value);
+    setPage(1);
+  }, []);
   const handleCloseStat = useCallback(() => setSelectedStat(null), []);
   const handleSelectAsset = useCallback((asset: EquipmentAssetRow) => setSelectedAsset(asset), []);
 
@@ -170,6 +317,10 @@ const EquipmentMasterPage = () => {
     try {
       const result = await operation();
       showNotification(successMessage(result), 'success');
+      await Promise.all([
+        assetsQuery.refetch(),
+        statsQuery.refetch(),
+      ]);
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Equipment utility failed.',
@@ -178,9 +329,9 @@ const EquipmentMasterPage = () => {
     }
   };
 
-  const handleExport = async (format: 'xlsx' | 'csv') => {
+  const handleExport = async (format: 'xlsx' | 'csv', assetIds?: Array<string | number>) => {
     try {
-		const { blob, filename } = await maintenance.exportAssets.mutateAsync(format);
+      const { blob, filename } = await maintenance.exportAssets.mutateAsync({ format, assetIds });
       const downloadUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
@@ -189,7 +340,12 @@ const EquipmentMasterPage = () => {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(downloadUrl);
-		showNotification('Equipment export downloaded.', 'success');
+      showNotification(
+        assetIds && assetIds.length > 0
+          ? `Exported ${assetIds.length} selected equipment record(s).`
+          : 'Equipment export downloaded.',
+        'success'
+      );
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Unable to export assets.',
@@ -197,6 +353,35 @@ const EquipmentMasterPage = () => {
       );
     }
   };
+
+  const handleDeleteSelected = async (assetIds: Array<string | number>) => {
+    const confirmed = window.confirm(
+      `Remove ${assetIds.length} selected equipment record(s)? They will be hidden from the registry.`
+    );
+    if (!confirmed) return;
+    try {
+      const result = await maintenance.bulkDeleteAssets.mutateAsync({
+        assetIds,
+        reason: 'Removed from Equipment Master row selection',
+      });
+      showNotification(
+        `Removed ${result.deleted_count} equipment record(s).`,
+        'success'
+      );
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : 'Unable to remove selected equipment.',
+        'error'
+      );
+    }
+  };
+
+  const handlePlaceholderAction = useCallback(
+    (label: string) => {
+      showNotification(`Feature ${label} is under development`, 'info');
+    },
+    [showNotification]
+  );
 
   const handlePurgeAll = async () => {
     const confirmed = window.confirm(
@@ -250,14 +435,21 @@ const EquipmentMasterPage = () => {
 
   const handleDiagnoseDuplicates = async () => {
     try {
-      const result = await maintenance.diagnoseDuplicates.mutateAsync();
-      setDuplicateDiagnosis(result);
-      showNotification(
-        result.duplicate_count === 0
-          ? 'Duplicate tag diagnosis complete: no duplicates found.'
-          : `Duplicate tag diagnosis found ${result.duplicate_count} duplicate tag(s).`,
-        result.duplicate_count === 0 ? 'success' : 'warning'
-      );
+      const groups = await maintenance.diagnoseDuplicates.mutateAsync();
+      const count = Array.isArray(groups) ? groups.length : 0;
+      if (count === 0) {
+        setDuplicateGroups([]);
+        setIsDuplicateModalOpen(false);
+        showNotification('No duplicates found.', 'success');
+      } else {
+        setDuplicateGroups(groups);
+        setIsDuplicateModalOpen(true);
+        showNotification(`Found ${count} duplicate tag group(s).`, 'warning');
+      }
+      await Promise.all([
+        assetsQuery.refetch(),
+        statsQuery.refetch(),
+      ]);
     } catch (error) {
       showNotification(
         error instanceof Error ? error.message : 'Unable to diagnose duplicate assets.',
@@ -265,6 +457,26 @@ const EquipmentMasterPage = () => {
       );
     }
   };
+
+  const handleResolveDuplicate = useCallback(
+    async (payload: { kept_asset_id: number; deleted_asset_ids: number[] }) => {
+      try {
+        await maintenance.resolveDuplicate.mutateAsync(payload);
+        showNotification(
+          'Successfully merged data and removed duplicates.',
+          'success'
+        );
+        await Promise.all([assetsQuery.refetch(), statsQuery.refetch()]);
+      } catch (error) {
+        showNotification(
+          error instanceof Error ? error.message : 'Unable to resolve duplicate asset.',
+          'error'
+        );
+        throw error;
+      }
+    },
+    [maintenance.resolveDuplicate, showNotification, assetsQuery, statsQuery]
+  );
 
   const handleClearFile = useCallback(() => {
     setFile(null);
@@ -310,7 +522,16 @@ const EquipmentMasterPage = () => {
       setFile(null);
       if (importInputRef.current) importInputRef.current.value = '';
       setImportResult(result);
-      if (result.errors?.length) {
+      const unmappedClass = result.unmapped_class ?? [];
+      const unmappedType = result.unmapped_type ?? [];
+      setUnmappedSuggestions({ class: unmappedClass, type: unmappedType });
+      if (unmappedClass.length > 0 || unmappedType.length > 0) {
+        showNotification(
+          `Import finished. ${unmappedClass.length + unmappedType.length} unmapped value(s) need a dictionary entry — open “Import dictionary” to map them.`,
+          'warning',
+          10000
+        );
+      } else if (result.errors?.length) {
         showNotification(
           `Import completed with ${result.errors.length} row issue(s): ${result.imported_count} of ${result.total_count} rows imported.`,
           'warning',
@@ -383,12 +604,10 @@ const EquipmentMasterPage = () => {
       onClearAllEquipment={() => void handlePurgeAll()}
       onImport={() => importInputRef.current?.click()}
       onExport={(format) => void handleExport(format)}
+      onPlaceholderAction={handlePlaceholderAction}
       onNewEquipment={() => setNewEquipmentOpen(true)}
-      isMaintenancePending={
-        maintenance.diagnoseDuplicates.isPending ||
-        maintenance.fixComponentLinks.isPending ||
-        maintenance.syncComponentsToFLOC.isPending
-      }
+      onManageDictionary={() => setTaxonomyOpen(true)}
+      isMaintenancePending={isMaintenancePending}
       isImportPending={maintenance.importAssets.isPending}
       isExportPending={maintenance.exportAssets.isPending}
       isPurging={isPurging}
@@ -491,24 +710,27 @@ const EquipmentMasterPage = () => {
           )}
         </div>
       )}
-      {duplicateDiagnosis && duplicateDiagnosis.duplicate_count > 0 && (
+      {duplicateGroups.length > 0 && !isDuplicateModalOpen && (
         <div
           role="region"
           aria-label="Duplicate asset diagnosis results"
-          className="rounded-xl border border-amber-200 bg-amber-50 p-4"
+          className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4"
         >
-          <p className="text-sm font-semibold text-amber-900">
-            {duplicateDiagnosis.duplicate_count} duplicate tag(s) detected
-          </p>
-          <ul className="mt-2 space-y-1 text-sm text-amber-800">
-            {duplicateDiagnosis.duplicates.map((duplicate) => (
-              <li key={duplicate.tag_number}>
-                <span className="font-medium">{duplicate.tag_number}</span> · {duplicate.count}{' '}
-                records
-                {duplicate.asset_ids.length > 0 && ` · IDs: ${duplicate.asset_ids.join(', ')}`}
-              </li>
-            ))}
-          </ul>
+          <div>
+            <p className="text-sm font-semibold text-amber-900">
+              {duplicateGroups.length} unresolved duplicate tag group(s) detected
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Review and resolve duplicate equipment records to maintain data integrity.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsDuplicateModalOpen(true)}
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-700 transition"
+          >
+            Resolve Duplicates
+          </button>
         </div>
       )}
     </>
@@ -548,6 +770,41 @@ const EquipmentMasterPage = () => {
         aria-label="Equipment metrics"
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
+        {!statsQuery.isLoading && (
+          <>
+            {summaryCards.map((card) => (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                count={card.count}
+                isLoading={false}
+                isActive={selectedStat?.title === card.title}
+                onClick={() =>
+                  setSelectedStat({
+                    title: card.title,
+                    count: card.count,
+                    hierarchyLevel: card.hierarchyLevel,
+                    installedOnly: card.installedOnly,
+                  })
+                }
+                description="Click to view assets"
+              />
+            ))}
+          </>
+        )}
+        {statsQuery.isLoading && (
+          <>
+            {summaryCards.map((card) => (
+              <StatCard
+                key={card.title}
+                title={card.title}
+                count={0}
+                isLoading
+                onClick={() => undefined}
+              />
+            ))}
+          </>
+        )}
         {cards.map((card) => (
           <StatCard
             key={card.title}
@@ -559,24 +816,6 @@ const EquipmentMasterPage = () => {
             description="Equipment class · click to view assets"
           />
         ))}
-        {!statsQuery.isLoading && cards.length > 0 && (
-          <>
-            <StatCard
-              title="With Funcloc"
-              count={funcloc.with}
-              isLoading={false}
-              onClick={() => undefined}
-              description="Assets linked to a functional location"
-            />
-            <StatCard
-              title="Without Funcloc"
-              count={funcloc.without}
-              isLoading={false}
-              onClick={() => undefined}
-              description="Assets missing a functional location"
-            />
-          </>
-        )}
       </section>
 
       <section aria-labelledby="equipment-register-title" className="space-y-4">
@@ -590,15 +829,23 @@ const EquipmentMasterPage = () => {
         </div>
         <AssetDataGrid
           assets={list.assets}
-          isLoading={assetsQuery.isLoading || assetsQuery.isFetching}
+          isLoading={assetsQuery.isLoading || assetsQuery.isFetching || isMaintenancePending}
           error={errorMessage}
           searchValue={search}
           onSearchChange={handleGridSearchChange}
           onClearSearch={handleClearSearch}
           lifecycleFilter={lifecycleFilter}
           onLifecycleFilterChange={handleLifecycleFilterChange}
+          withL7Components={withL7Components}
+          onWithL7ComponentsChange={setWithL7Components}
           onAction={handleRowAction}
           onLifecycleAction={handleLifecycleAction}
+          onExportSelected={(ids) => void handleExport('xlsx', ids)}
+          onDeleteSelected={(ids) => void handleDeleteSelected(ids)}
+          isExportingSelected={maintenance.exportAssets.isPending}
+          isDeletingSelected={maintenance.bulkDeleteAssets.isPending}
+          pageSize={pageSize}
+          onPageSizeChange={handlePageSizeChange}
           paginationSlot={pagination}
           toolbarSlot={toolbarSlot}
           bannerSlot={bannerSlot}
@@ -614,6 +861,62 @@ const EquipmentMasterPage = () => {
         </p>
       )}
 
+      {taxonomyOpen && (
+        <EquipmentTaxonomyModal
+          open
+          onClose={() => setTaxonomyOpen(false)}
+          suggestedUnmapped={unmappedSuggestions}
+          onNotify={(message, tone) => showNotification(message, tone)}
+        />
+      )}
+
+      {manageAsset && (
+        <ManageAssetModal
+          open
+          asset={manageAsset}
+          onClose={() => setManageAsset(null)}
+          onSave={handleManageAssetSave}
+          onFilesAdded={(files, message) => {
+            // Fase 3 is UI only: the file stays in the modal's local state and
+            // no upload request is sent.
+            console.log('[Manage Asset] files staged locally', files);
+            showNotification(message, 'info');
+          }}
+          onSpecApplied={(message) => showNotification(message, 'info')}
+          onNotify={(message) => showNotification(message, 'info')}
+        />
+      )}
+
+      {addComponentAsset && (
+        <AddComponentModal
+          open
+          asset={addComponentAsset}
+          onClose={() => setAddComponentAsset(null)}
+          onSubmit={handleAddComponentSave}
+          isSubmitting={createComponent.isPending}
+        />
+      )}
+
+      {lifecyclePlacement && (
+        <LifecycleActionModal
+          open
+          action={lifecyclePlacement.action}
+          asset={lifecyclePlacement.asset}
+          onClose={() => setLifecyclePlacement(null)}
+          onConfirm={handleLifecyclePlacementConfirm}
+        />
+      )}
+
+      {lifecycleConfirm && (
+        <LifecycleConfirmModal
+          open
+          action={lifecycleConfirm.action}
+          asset={lifecycleConfirm.asset}
+          onClose={() => setLifecycleConfirm(null)}
+          onConfirm={handleLifecycleConfirmConfirm}
+        />
+      )}
+
       {selectedStat && (
         <StatDetailModal
           key={selectedStat.title}
@@ -621,6 +924,8 @@ const EquipmentMasterPage = () => {
           title={selectedStat.title}
           count={selectedStat.count}
           equipmentClass={selectedStat.equipmentClass}
+          hierarchyLevel={selectedStat.hierarchyLevel}
+          installedOnly={selectedStat.installedOnly}
           onClose={handleCloseStat}
           onSelectAsset={handleSelectAsset}
         />
@@ -724,6 +1029,16 @@ const EquipmentMasterPage = () => {
         }}
         onSubmit={handleNewEquipmentSubmit}
         isSubmitting={createEquipment.isPending}
+      />
+
+      <DuplicateResolutionModal
+        open={isDuplicateModalOpen}
+        groups={duplicateGroups}
+        onClose={() => setIsDuplicateModalOpen(false)}
+        onResolve={handleResolveDuplicate}
+        onRevalidate={async () => {
+          await Promise.all([assetsQuery.refetch(), statsQuery.refetch()]);
+        }}
       />
     </main>
   );

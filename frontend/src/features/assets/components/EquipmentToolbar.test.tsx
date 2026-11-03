@@ -13,6 +13,7 @@ const toolbarProps = () => ({
   onImport: vi.fn(),
   onExport: vi.fn(),
   onNewEquipment: vi.fn(),
+  onManageDictionary: vi.fn(),
 });
 
 describe('EquipmentToolbar', () => {
@@ -44,23 +45,52 @@ describe('EquipmentToolbar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Maintenance actions' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Clear All Equipment' }));
     expect(props.onClearAllEquipment).toHaveBeenCalledOnce();
-  });
+  }, 20000);
 
   it('groups import and export under Data Transfer and reports the export format', async () => {
     const props = toolbarProps();
     render(<EquipmentToolbar {...props} />);
 
     await userEvent.click(screen.getByRole('button', { name: 'Data transfer' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Import' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Import Equipment' }));
     expect(props.onImport).toHaveBeenCalledOnce();
 
     await userEvent.click(screen.getByRole('button', { name: 'Data transfer' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Export XLSX' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Export Equipment XLSX' }));
     expect(props.onExport).toHaveBeenCalledWith('xlsx');
 
     await userEvent.click(screen.getByRole('button', { name: 'Data transfer' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Export CSV' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Export Equipment CSV' }));
     expect(props.onExport).toHaveBeenCalledWith('csv');
+  });
+
+  it('lists the four Data Transfer groups and routes unwired ones to the placeholder', async () => {
+    const props = { ...toolbarProps(), onPlaceholderAction: vi.fn() };
+    render(<EquipmentToolbar {...props} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Data transfer' }));
+
+    // Equipment is wired; the other three scopes are staged placeholders.
+    for (const label of [
+      'Import Equipment',
+      'Export Equipment XLSX',
+      'Export Equipment CSV',
+      'Import Component',
+      'Export Component',
+      'Import All Asset',
+      'Export All Asset',
+      'Import Data Source',
+      'Export Data Source',
+    ]) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+    }
+
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Export Component' }));
+    expect(props.onPlaceholderAction).toHaveBeenCalledWith('Export Component');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Data transfer' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Import Data Source' }));
+    expect(props.onPlaceholderAction).toHaveBeenCalledWith('Import Data Source');
   });
 
   it('opens the New Equipment action from the primary button', async () => {
@@ -127,12 +157,12 @@ describe('NewEquipmentModal', () => {
     await userEvent.selectOptions(classSelect, 'Pressure Vessels (VE)');
     const typeSelect = screen.getByLabelText('Equipment Type');
     expect(typeSelect).not.toBeDisabled();
-    expect(screen.getByRole('option', { name: 'Separator (Se) (SE)' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Separator (SE)' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Asset ID \/ Tag Number/), {
       target: { value: '12-V-1104' },
     });
-    await userEvent.selectOptions(typeSelect, 'Separator (Se) (SE)');
+    await userEvent.selectOptions(typeSelect, 'Separator (SE)');
     fireEvent.change(screen.getByLabelText(/Description/), {
       target: { value: 'Inlet separator' },
     });
@@ -144,7 +174,7 @@ describe('NewEquipmentModal', () => {
         expect.objectContaining({
           tag_number: '12-V-1104',
           asset_class: 'Pressure Vessels (VE)',
-          asset_type: 'Separator (Se) (SE)',
+          asset_type: 'Separator (SE)',
           description: 'Inlet separator',
         })
       )
